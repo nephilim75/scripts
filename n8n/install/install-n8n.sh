@@ -138,6 +138,36 @@ echo -e "${BOLD}  Konfiguration${RESET}"
 echo -e "────────────────────────────────────────────────────────────"
 echo ""
 
+# ── Aktuelle n8n-Version ermitteln ────────────────────────────────────────────
+info "Ermittle aktuelle n8n-Version von Docker Hub..."
+LATEST_N8N_VERSION=""
+
+if command -v curl &>/dev/null; then
+  LATEST_N8N_VERSION=$(
+    curl -fsSL "https://registry.hub.docker.com/v2/repositories/n8nio/n8n/tags?page_size=10&ordering=last_updated" \
+    2>/dev/null \
+    | grep -oP '"name":\s*"\K[0-9]+\.[0-9]+\.[0-9]+' \
+    | head -1
+  ) || true
+elif command -v wget &>/dev/null; then
+  LATEST_N8N_VERSION=$(
+    wget -qO- "https://registry.hub.docker.com/v2/repositories/n8nio/n8n/tags?page_size=10&ordering=last_updated" \
+    2>/dev/null \
+    | grep -oP '"name":\s*"\K[0-9]+\.[0-9]+\.[0-9]+' \
+    | head -1
+  ) || true
+fi
+
+if [[ -n "$LATEST_N8N_VERSION" ]]; then
+  success "Aktuelle n8n-Version ermittelt: ${LATEST_N8N_VERSION}"
+  info    "Runner-Image (n8nio/runners) nutzt dasselbe Tag – bleibt automatisch synchron."
+  N8N_VERSION_DEFAULT="$LATEST_N8N_VERSION"
+else
+  warn "Version konnte nicht automatisch ermittelt werden (kein Internet oder API-Fehler)."
+  warn "Fallback-Version wird als Default verwendet."
+  N8N_VERSION_DEFAULT="2.22.2"
+fi
+
 # ── Benutzereingaben ──────────────────────────────────────────────────────────
 
 # Domain
@@ -146,8 +176,8 @@ ask_nodefault N8N_DOMAIN "Deine n8n-Domain (z.B. n8n.meinedomain.de)"
 # Installationspfad
 ask INSTALL_DIR "Installationspfad" "/opt/n8n"
 
-# n8n-Version
-ask N8N_VERSION "n8n-Version" "2.22.2"
+# n8n-Version (Default = automatisch ermittelt oder Fallback)
+ask N8N_VERSION "n8n-Version" "${N8N_VERSION_DEFAULT}"
 
 # Timezone
 ask TIMEZONE "Zeitzone" "Europe/Berlin"
@@ -175,6 +205,7 @@ echo ""
 echo -e "  Domain:           ${CYAN}${N8N_DOMAIN}${RESET}"
 echo -e "  Installationspfad:${CYAN} ${INSTALL_DIR}${RESET}"
 echo -e "  n8n-Version:      ${CYAN}${N8N_VERSION}${RESET}"
+echo -e "  Runner-Version:   ${CYAN}${N8N_VERSION}${RESET} (synchron)"
 echo -e "  Zeitzone:         ${CYAN}${TIMEZONE}${RESET}"
 echo -e "  Encryption Key:   ${CYAN}[gesetzt]${RESET}"
 echo -e "  Runner Token:     ${CYAN}[automatisch generiert]${RESET}"

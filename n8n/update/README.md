@@ -1,6 +1,6 @@
 # n8n Update Script
 
-Automated update script for self-hosted [n8n](https://n8n.io) (including the `n8nio/runners` image).  
+Automated update script for self-hosted [n8n](https://n8n.io) instance (including the `n8nio/runners` image).  
 Handles version checking, backup, image pull, container restart, health check, automatic rollback on failure, and cleanup of old Docker images.
 
 ---

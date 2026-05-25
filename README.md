@@ -1,6 +1,6 @@
 # 📁 Scripts
 
-Eine Sammlung von Skripten für verschiedene Einsatzbereiche. Jeder Unterordner enthält eine eigene README mit Details. Die Scripte bauen auf [Blogbeiträge](https://pc-fee.com/blog) auf.
+A collection of scripts for various use cases. Each subfolder contains its own README with details. The scripts are based on [blog posts](https://pc-fee.com/blog target="_blank") auf.
 
 ---
 

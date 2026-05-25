@@ -34,6 +34,7 @@ die()     { error "$*"; exit 1; }
 ask() {
   # ask <variable> <prompt> <default>
   local var="$1" prompt="$2" default="$3"
+  echo ""
   echo -ne "${BOLD}${prompt}${RESET} [${CYAN}${default}${RESET}]: "
   read -r input
   eval "${var}=\"${input:-${default}}\""
@@ -43,6 +44,7 @@ ask_nodefault() {
   # ask_nodefault <variable> <prompt>
   local var="$1" prompt="$2" input=""
   while [[ -z "$input" ]]; do
+    echo ""
     echo -ne "${BOLD}${prompt}${RESET}: "
     read -r input
     [[ -z "$input" ]] && warn "Eingabe darf nicht leer sein."
@@ -119,6 +121,7 @@ if ! docker network inspect shared_proxy &>/dev/null; then
   warn "Das Docker-Netzwerk 'shared_proxy' existiert nicht."
   echo -e "  Soll es jetzt erstellt werden? (Nginx Proxy Manager muss danach"
   echo -e "  ebenfalls in dieses Netzwerk eingebunden werden.)"
+  echo ""
   echo -ne "  ${BOLD}Netzwerk jetzt erstellen?${RESET} [${CYAN}j${RESET}/n]: "
   read -r create_net
   if [[ "${create_net,,}" != "n" ]]; then
@@ -168,6 +171,41 @@ else
   N8N_VERSION_DEFAULT="2.22.2"
 fi
 
+# ── Bestehende Installation prüfen ────────────────────────────────────────────
+EXISTING_INSTALL=false
+EXISTING_INSTALL_DIR=""
+
+# Prüfe Standard-Pfad und laufende n8n-Container
+if [[ -f "/opt/n8n/.env" ]] || [[ -f "/opt/n8n/docker-compose.yml" ]]; then
+  EXISTING_INSTALL=true
+  EXISTING_INSTALL_DIR="/opt/n8n"
+elif docker ps -a --format '{{.Names}}' | grep -q '^n8n$'; then
+  EXISTING_INSTALL=true
+fi
+
+if [[ "$EXISTING_INSTALL" == "true" ]]; then
+  echo ""
+  echo -e "────────────────────────────────────────────────────────────"
+  warn "Es wurde eine bestehende n8n-Installation gefunden!"
+  echo ""
+  echo -e "  ${RED}${BOLD}ACHTUNG:${RESET} Eine Neuinstallation überschreibt die .env-Datei."
+  echo -e "  Ein neuer Encryption Key macht alle gespeicherten Credentials"
+  echo -e "  in n8n ${RED}${BOLD}dauerhaft unbrauchbar${RESET}."
+  echo ""
+  echo -e "  ${BOLD}Empfehlung:${RESET} Erst bestehende Installation sichern oder"
+  echo -e "  vollständig entfernen (docker compose down -v && rm -rf /opt/n8n)."
+  echo ""
+  echo -ne "  ${BOLD}Trotzdem fortfahren?${RESET} [${RED}j${RESET}/${CYAN}N${RESET}]: "
+  read -r overwrite_confirm
+  if [[ "${overwrite_confirm,,}" != "j" ]]; then
+    warn "Installation abgebrochen."
+    exit 0
+  fi
+  warn "Fortfahren auf eigene Gefahr – bestehende .env wird überschrieben."
+  echo -e "────────────────────────────────────────────────────────────"
+  echo ""
+fi
+
 # ── Benutzereingaben ──────────────────────────────────────────────────────────
 
 # Domain
@@ -185,6 +223,7 @@ ask TIMEZONE "Zeitzone" "Europe/Berlin"
 # Encryption Key (optional, wird sonst generiert)
 echo ""
 info "Ein Encryption Key schützt deine gespeicherten Credentials in n8n."
+echo ""
 echo -ne "${BOLD}Eigenen Encryption Key eingeben?${RESET} (leer lassen = automatisch generieren) [${CYAN}leer${RESET}]: "
 read -r user_enc_key
 if [[ -n "$user_enc_key" ]]; then

@@ -1,6 +1,6 @@
 # 📁 Scripts
 
-A collection of scripts for various use cases. Each subfolder contains its own README with details. The scripts are based on [blog posts ↗](https://pc-fee.com/blog).
+A collection of scripts for various use cases. Each subfolder contains its own README with details. The scripts are based on pc-fee.com's [blog posts ↗](https://pc-fee.com/blog).
 
 ---
 

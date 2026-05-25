@@ -325,10 +325,8 @@ services:
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=168
       - EXECUTIONS_DATA_PRUNE_MAX_COUNT=1000
-      - N8N_RESTRICT_FILE_ACCESS_TO=/opt/current_version
     volumes:
       - ./n8n_data:/home/node/.n8n
-      - ./current_version:/opt/current_version
     networks:
       - shared_proxy
 

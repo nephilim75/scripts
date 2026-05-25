@@ -207,7 +207,22 @@ create_backup() {
     local backup_name="n8n_backup_${CURRENT_VERSION}_$(date +%Y%m%d_%H%M%S)"
     local backup_path="${BACKUP_DIR}/${backup_name}"
 
-    cp -r "${DATA_DIR}" "${backup_path}"
+    mkdir -p "${backup_path}"
+
+    # n8n Daten sichern
+    cp -r "${DATA_DIR}" "${backup_path}/n8n_data"
+    print_ok "n8n_data gesichert."
+
+    # docker-compose.yml sichern
+    cp "${COMPOSE_FILE}" "${backup_path}/docker-compose.yml"
+    print_ok "docker-compose.yml gesichert."
+
+    # .env sichern
+    if [[ -f "${COMPOSE_DIR}/.env" ]]; then
+        cp "${COMPOSE_DIR}/.env" "${backup_path}/.env"
+        print_ok ".env gesichert."
+    fi
+
     print_ok "Backup erstellt: ${backup_path}"
 
     local backup_count
@@ -284,7 +299,7 @@ rollback() {
 
     if [[ -n "${BACKUP_PATH}" && -d "${BACKUP_PATH}" ]]; then
         rm -rf "${DATA_DIR}"
-        cp -r "${BACKUP_PATH}" "${DATA_DIR}"
+        cp -r "${BACKUP_PATH}/n8n_data" "${DATA_DIR}"
         print_warn "Datensicherung wiederhergestellt."
     fi
 

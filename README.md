@@ -4,9 +4,9 @@ A collection of scripts for various use cases. Each subfolder contains its own R
 
 ---
 
-## 📂 Struktur
+## 📂 Structure
 
-| Ordner | Beschreibung |
+| Folder | Description |
 |--------|-------------|
 | [n8n](https://github.com/nephilim75/scripts/tree/main/n8n) | n8n scripts |
 

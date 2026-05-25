@@ -1,6 +1,6 @@
 # n8n Install Script
 
-Automated install script for self-hosted [n8n](https://n8n.io) (including the `n8nio/runners` image), running behind [Nginx Proxy Manager](https://nginxproxymanager.com) via Docker Compose.
+Automated install script for self-hosted [n8n](https://n8n.io) instance (including the `n8nio/runners` image), running behind [Nginx Proxy Manager](https://nginxproxymanager.com) via Docker Compose.
 
 Sets up n8n from scratch: directories, `.env`, `docker-compose.yml`, and container start.
 

@@ -1,6 +1,6 @@
 # n8n
 
-Automated update script for self-hosted [n8n](https://n8n.io) (including the `n8nio/runners` image). 
+Automated scripts for self-hosted [n8n](https://n8n.io) (including the `n8nio/runners` image). 
 
 ## 📂 Structure
 

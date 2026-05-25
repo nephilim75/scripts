@@ -7,3 +7,4 @@ Automated update script for self-hosted [n8n](https://n8n.io) (including the `n8
 | Folder | Description |
 |--------|-------------|
 | [install](https://github.com/nephilim75/scripts/tree/main/n8n/install/README.md) | n8n installation script |
+| [update](https://github.com/nephilim75/scripts/tree/main/n8n/update/README.md) | n8n update script |

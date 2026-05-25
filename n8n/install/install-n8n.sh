@@ -172,38 +172,51 @@ else
 fi
 
 # ── Bestehende Installation prüfen ────────────────────────────────────────────
-EXISTING_INSTALL=false
-EXISTING_INSTALL_DIR=""
+# Ziel: Niemals „drüber installieren“, weil sonst N8N_ENCRYPTION_KEY kollidiert und n8n nicht mehr startet.
 
-# Prüfe Standard-Pfad und laufende n8n-Container
-if [[ -f "/opt/n8n/.env" ]] || [[ -f "/opt/n8n/docker-compose.yml" ]]; then
+EXISTING_INSTALL=false
+EXISTING_REASON=""
+
+# 1) Installationspfad aus Default (noch bevor User-Input kommt)
+#    Wir prüfen hier bewusst nur /opt/n8n, weil der User den Pfad erst später setzt.
+if [[ -f "/opt/n8n/.env" ]] || [[ -f "/opt/n8n/docker-compose.yml" ]] || [[ -d "/opt/n8n/n8n_data" ]]; then
   EXISTING_INSTALL=true
-  EXISTING_INSTALL_DIR="/opt/n8n"
-elif docker ps -a --format '{{.Names}}' | grep -q '^n8n$'; then
+  EXISTING_REASON="/opt/n8n vorhanden (.env/docker-compose.yml/n8n_data)"
+fi
+
+# 2) Container/Compose-Projekt-Indikatoren
+if docker ps -a --format '{{.Names}}' | grep -qE '^n8n$|^n8n-task-runners-1$'; then
   EXISTING_INSTALL=true
+  EXISTING_REASON="n8n Container existiert (n8n / n8n-task-runners-1)"
+fi
+
+# 3) Image-Indikator (failsafe)
+if docker ps -a --format '{{.Image}}' | grep -qE '^n8nio/n8n:|^n8nio/runners:'; then
+  EXISTING_INSTALL=true
+  EXISTING_REASON="n8nio/n8n oder n8nio/runners Container existiert"
 fi
 
 if [[ "$EXISTING_INSTALL" == "true" ]]; then
   echo ""
   echo -e "────────────────────────────────────────────────────────────"
-  warn "Es wurde eine bestehende n8n-Installation gefunden!"
+  warn "Bestehende n8n-Installation erkannt (${EXISTING_REASON})."
   echo ""
-  echo -e "  ${RED}${BOLD}ACHTUNG:${RESET} Eine Neuinstallation überschreibt die .env-Datei."
-  echo -e "  Ein neuer Encryption Key macht alle gespeicherten Credentials"
-  echo -e "  in n8n ${RED}${BOLD}dauerhaft unbrauchbar${RESET}."
+  echo -e "  ${RED}${BOLD}Abbruch:${RESET} Dieses Install-Script installiert NICHT über eine bestehende Installation."
+  echo -e "  Grund: Ein neuer ${BOLD}N8N_ENCRYPTION_KEY${RESET} würde zu einem Key-Mismatch führen"
+  echo -e "  (n8n startet dann nicht / Credentials werden unbrauchbar)."
   echo ""
-  echo -e "  ${BOLD}Empfehlung:${RESET} Erst bestehende Installation sichern oder"
-  echo -e "  vollständig entfernen (docker compose down -v && rm -rf /opt/n8n)."
+  echo -e "  ${BOLD}Was du jetzt tun kannst:${RESET}"
+  echo -e "   1) ${BOLD}Upgrade/Restart${RESET} der bestehenden Installation:"
+  echo -e "      - in den bestehenden Ordner wechseln (meist /opt/n8n)"
+  echo -e "      - Version im docker-compose.yml anpassen"
+  echo -e "      - ${BOLD}docker compose up -d${RESET}"
+  echo -e ""
+  echo -e "   2) ${BOLD}Komplett neu installieren${RESET} (Daten weg):"
+  echo -e "      - ${BOLD}cd /opt/n8n && docker compose down -v${RESET}"
+  echo -e "      - ${BOLD}rm -rf /opt/n8n${RESET}"
+  echo -e "      - Script erneut starten"
   echo ""
-  echo -ne "  ${BOLD}Trotzdem fortfahren?${RESET} [${RED}j${RESET}/${CYAN}N${RESET}]: "
-  read -r overwrite_confirm
-  if [[ "${overwrite_confirm,,}" != "j" ]]; then
-    warn "Installation abgebrochen."
-    exit 0
-  fi
-  warn "Fortfahren auf eigene Gefahr – bestehende .env wird überschrieben."
-  echo -e "────────────────────────────────────────────────────────────"
-  echo ""
+  die "Installation abgebrochen, um Datenverlust/Key-Mismatch zu vermeiden."
 fi
 
 # ── Benutzereingaben ──────────────────────────────────────────────────────────

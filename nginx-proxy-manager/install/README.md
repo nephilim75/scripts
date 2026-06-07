@@ -45,10 +45,10 @@ The guide is straightforward, but on fresh servers you often want a repeatable i
 
 ```bash
 # Copy the script onto your server
-cp install-nginx-proxy-manager.sh /root/
+cp install-npm.sh /root/
 
 # Make it executable
-chmod +x /root/install-nginx-proxy-manager.sh
+chmod +x /root/install-npm.sh
 ```
 
 ---
@@ -56,7 +56,7 @@ chmod +x /root/install-nginx-proxy-manager.sh
 ## Usage
 
 ```bash
-/root/install-nginx-proxy-manager.sh
+/root/install-npm.sh
 ```
 
 After installation, access the admin UI at:

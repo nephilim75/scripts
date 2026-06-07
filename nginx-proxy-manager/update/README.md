@@ -45,10 +45,10 @@ This script fixes both by comparing the image ID before and after the pull and f
 
 ```bash
 # Copy the script onto your server (e.g. into the NPM directory)
-cp updateNpm.sh /opt/nginx-proxy-manager/
+cp update-npm.sh /opt/nginx-proxy-manager/
 
 # Make it executable
-chmod +x /opt/nginx-proxy-manager/updateNPM.sh
+chmod +x /opt/nginx-proxy-manager/update-npm.sh
 ```
 
 ---
@@ -78,7 +78,7 @@ crontab -e
 ```
 
 ```cron
-0 3 * * 0 /opt/nginx-proxy-manager/updateNPM.sh
+0 3 * * 0 /opt/nginx-proxy-manager/update-npm.sh
 ```
 
 ---

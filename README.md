@@ -9,7 +9,7 @@ A collection of scripts for various use cases. Each subfolder contains its own R
 | Folder | Description |
 |--------|-------------|
 | [n8n](https://github.com/nephilim75/scripts/tree/main/n8n) | n8n scripts |
-| [nginx-proxy-manager]() | npm scripts |
+| [nginx-proxy-manager](https://github.com/nephilim75/scripts/tree/main/nginx-proxy-manager) | npm scripts |
 | *librechat* | *planned* |
 
 ---

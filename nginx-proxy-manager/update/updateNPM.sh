@@ -4,7 +4,7 @@
 #  Nginx Proxy Manager - Automatisches Update mit Backup
 # ==============================================================================
 #  Autor:    Nils Weber (n8n Automation Architect)
-#  Firma:    pc-fee.com
+#  Firma:    pc-fee.com (https://pc-fee.com)
 #  Lizenz:   MIT
 #
 #  Dieses Script baut auf dem folgenden Blogartikel auf und ergaenzt ihn um

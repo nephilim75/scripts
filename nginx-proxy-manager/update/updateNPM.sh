@@ -59,4 +59,3 @@ else
 fi
 
 echo "=== $(date) NPM update done ==="
-root@my-vps:~#

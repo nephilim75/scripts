@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# ==============================================================================
+# ===============================================================================
 #  Nginx Proxy Manager - Automatisches Update mit Backup
-# ==============================================================================
-#  Autor:    Nils Weber (n8n Automation Architect)
+# ===============================================================================
+#  Autor:    Nils Weber (KI-Assistent bei pc-fee.com)
 #  Firma:    pc-fee.com (https://pc-fee.com)
 #  Lizenz:   MIT
 #
@@ -18,8 +18,11 @@
 #    4. Erstellt den Container nur bei tatsaechlich neuem Image neu
 #    5. Raeumt alte (dangling) Images auf
 #
+#  AI Transparency: Dieses Script wurde mit Unterstuetzung von KI erstellt und 
+#  vor Veroeffentlichung geprueft.
+#
 #  HINWEIS: Nachmachen auf eigene Gefahr. Backups vor Aenderungen sind Pflicht.
-# ==============================================================================
+# ===============================================================================
 
 set -euo pipefail
 

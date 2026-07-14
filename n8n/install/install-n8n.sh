@@ -142,33 +142,28 @@ echo -e "───────────────────────�
 echo ""
 
 # ── Aktuelle n8n-Version ermitteln ────────────────────────────────────────────
-info "Ermittle aktuelle n8n-Version von Docker Hub..."
-LATEST_N8N_VERSION=""
+get_latest_image_version() {
+  local image="$1"
 
-if command -v curl &>/dev/null; then
-  LATEST_N8N_VERSION=$(
-    curl -fsSL "https://registry.hub.docker.com/v2/repositories/n8nio/n8n/tags?page_size=10&ordering=last_updated" \
-    2>/dev/null \
-    | grep -oP '"name":\s*"\K[0-9]+\.[0-9]+\.[0-9]+' \
-    | head -1
-  ) || true
-elif command -v wget &>/dev/null; then
-  LATEST_N8N_VERSION=$(
-    wget -qO- "https://registry.hub.docker.com/v2/repositories/n8nio/n8n/tags?page_size=10&ordering=last_updated" \
-    2>/dev/null \
-    | grep -oP '"name":\s*"\K[0-9]+\.[0-9]+\.[0-9]+' \
-    | head -1
-  ) || true
-fi
+  curl -fsSL "https://hub.docker.com/v2/repositories/${image}/tags?page_size=100" |
+    grep -oE '"name":"[0-9]+\.[0-9]+\.[0-9]+"' |
+    cut -d'"' -f4 |
+    awk -F. '$1 >= 2' |
+    sort -Vr |
+    head -1
+}
 
-if [[ -n "$LATEST_N8N_VERSION" ]]; then
-  success "Aktuelle n8n-Version ermittelt: ${LATEST_N8N_VERSION}"
-  info    "Runner-Image (n8nio/runners) nutzt dasselbe Tag – bleibt automatisch synchron."
+info "Ermittle aktuelle n8n-/Runner-Version von Docker Hub..."
+
+LATEST_N8N_VERSION=$(get_latest_image_version "n8nio/n8n" || true)
+LATEST_RUNNERS_VERSION=$(get_latest_image_version "n8nio/runners" || true)
+
+if [[ -n "$LATEST_N8N_VERSION" && "$LATEST_N8N_VERSION" == "$LATEST_RUNNERS_VERSION" ]]; then
+  success "Aktuelle synchronisierte Version ermittelt: ${LATEST_N8N_VERSION}"
   N8N_VERSION_DEFAULT="$LATEST_N8N_VERSION"
 else
-  warn "Version konnte nicht automatisch ermittelt werden (kein Internet oder API-Fehler)."
-  warn "Fallback-Version wird als Default verwendet."
-  N8N_VERSION_DEFAULT="2.22.2"
+  warn "Keine synchronisierte n8n/Runner-Version ermittelbar."
+  N8N_VERSION_DEFAULT="2.30.3"
 fi
 
 # ── Bestehende Installation prüfen ────────────────────────────────────────────

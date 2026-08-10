@@ -421,9 +421,53 @@ ${SUDO} chmod 600 "${INSTALL_DIR}/.librechat-install.conf"
 ok "Schritt 2 abgeschlossen"
 
 # ============================================================================
+# SCHRITT 3: Admin-Seed in Mongo
+# ============================================================================
+hdr "Schritt 3: Admin-User in Mongo anlegen"
+
+# Benötigte Variablen aus Schritt 1 weitergeben
+export ADMIN_PASS  # Klartext-Passwort, einmalig für Seed
+
+# 3.1 Mongo-Container starten (ohne die anderen Services)
+log "Starte MongoDB-Container..."
+${SUDO} docker compose -f "${INSTALL_DIR}/docker-compose.yml" up -d mongodb
+
+# 3.2 Auf Healthcheck warten
+log "Warte auf MongoDB (max. 60s)..."
+for i in {1..60}; do
+  status="${SUDO} docker inspect --format='{{.State.Health.Status}' pc-fee-librechat-mongodb-1 2>/dev/null"
+  if [[ "${status}" == "healthy" ]]; then
+    ok "MongoDB ist bereit"
+    break
+  fi
+  sleep 1
+done
+if [[ "${status:-}" != "healthy" ]]; then
+  die "MongoDB wurde nicht gesund. Prüfe: docker compose -f ${INSTALL_DIR}/docker-compose.yml logs mongodb"
+fi
+
+# 3.3 Seed-Skript als einmaliger Container ausführen
+log "Lege Admin-User an..."
+${SUDO} docker run --rm \
+  --network "$(echo ${NETWORK_NAME})_librechat_internal" \
+  -v "${SCRIPT_DIR}/scripts:/seed:ro" \
+  -w /seed \
+  --env MONGO_URI="mongodb://mongodb:27017/librechat" \
+  --env ADMIN_EMAIL="${ADMIN_EMAIL}" \
+  --env ADMIN_USERNAME="${ADMIN_NAME}" \
+  --env ADMIN_PASSWORD="${ADMIN_PASS}" \
+  --env-file "${INSTALL_DIR}/.env" \
+  node:18-alpine \
+  sh -c "apk add --no-cache python3 make g++ && npm install --omit=dev && node seed-admin.js"
+
+# 3.4 Passwort aus dem Speicher löschen
+unset ADMIN_PASS
+ok "Schritt 3 abgeschlossen"
+
+# ============================================================================
 # Erfolgsmeldung
 # ============================================================================
-hdr "Schritte 0, 0.5, 1, 2 fertig"
+hdr "Schritte 0, 0.5, 1, 2, 3 fertig"
 
 cat <<EOF
 ${C_GRN}==> Was bisher passiert ist:${C_RST}

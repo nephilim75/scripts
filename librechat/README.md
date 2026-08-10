@@ -8,10 +8,11 @@ Dieser Installer richtet LibreChat als Docker-Compose-Stack auf einem Debian-12/
 
 - **Chat-UI** unter `https://chat.deinedomain.de`
 - **Admin-Panel** unter `https://chat-admin.deinedomain.de`
-- **pc-fee-Toolkit** direkt im Admin-Panel zum Verwalten deiner KI-Provider-Keys
 - **Meilisearch** für Volltextsuche in Chat-Verläufen (optional)
 - **MongoDB** für persistente Daten
 - Alles erreichbar **ausschließlich über NPM** – kein direkter Container-Zugriff vom Internet
+
+> **Hinweis zu API-Keys:** In dieser Version werden API-Keys für KI-Provider direkt in `librechat.yaml` hinterlegt (per Editor). Eine komfortablere Verwaltung im Admin-Panel ist für eine spätere Version geplant.
 
 ## Voraussetzungen
 
@@ -42,26 +43,16 @@ less install.sh   # vorher durchschauen
 sudo ./install.sh
 ```
 
-## Was danach passiert
+## Was das Skript tut
 
-Das Skript fragt dich interaktiv nach:
-
-1. **Installationspfad** (Default `/opt/librechat`)
-2. **Docker-Netzwerk** für NPM (Default `shared_proxy`)
-3. **Chat-Domain** (z. B. `chat.deinedomain.de`)
-4. **Admin-Domain** (z. B. `chat-admin.deinedomain.de`)
-5. **Admin-E-Mail** (wird dein Login)
-6. **Admin-Name** (Anzeigename)
-7. **Admin-Passwort** (mind. 12 Zeichen)
-8. **JWT-Secret** (leer = wird automatisch erzeugt)
-9. **Meilisearch** installieren? (Volltextsuche, Default: ja)
-
-Danach prüft das Skript:
-- ✅ Alle Voraussetzungen erfüllt?
-- ✅ Keine Konflikte mit bestehenden LibreChat-Containern/Volumes/Netzwerken/Ports? (Schutzregel)
-- ✅ NPM-Netzwerk erreichbar?
-
-Bei jedem Konflikt bricht das Skript **ab** mit konkreter Anleitung, statt zu überschreiben.
+| Schritt | Was passiert |
+|---|---|
+| **0** | Voraussetzungen prüfen (OS, Docker, NPM, RAM, Disk, envsubst) |
+| **0.5** | Konflikte prüfen – bricht ab, wenn bereits Container/Volumes/Netzwerke/Ports belegt sind (Schutzregel: niemals überschreiben) |
+| **1** | Installationspfad, Netzwerk, Domains, Admin-Daten, JWT-Secret, Meilisearch j/n abfragen |
+| **2** | Templates rendern via `envsubst` → `docker-compose.yml`, `librechat.yaml`, `.env` |
+| **3** | Ersten Admin-User in MongoDB anlegen (bcrypt via Node im librechat-api-Image, Insert via mongosh) |
+| **4** | Container starten, auf Health-Checks warten, NPM-Hinweise ausgeben |
 
 ## NPM-Proxy-Hosts einrichten
 
@@ -94,7 +85,54 @@ Nach der Installation gibt dir das Skript zwei Hinweis-Blöcke für NPM. Lege si
 1. Browser → `https://chat.deinedomain.de`
 2. Login mit deiner Admin-E-Mail + Passwort
 3. Klick oben rechts auf **Admin Panel**
-4. Du siehst den Menüpunkt **PC-FEE Toolkit** – dort fügst du deine KI-Provider-Keys hinzu
+
+## API-Keys für KI-Provider hinterlegen
+
+In dieser Version (Scope 1.0) ohne Toolkit. Zwei Wege:
+
+### Weg 1: Über das LibreChat-Admin-Panel
+
+Falls deine LibreChat-Version das schon unterstützt:
+- Admin-Panel → **Endpoints** → Provider hinzufügen → API-Key eintragen
+
+### Weg 2: Manuell in `librechat.yaml` (empfohlen)
+
+```bash
+sudo nano /opt/librechat/librechat.yaml
+```
+
+Trage unter `endpoints:` ein:
+
+```yaml
+endpoints:
+  openAI:
+    apiKey: "sk-..."
+    models: ["gpt-4o", "gpt-4o-mini"]
+    title: "OpenAI"
+  anthropic:
+    apiKey: "sk-ant-..."
+    models: ["claude-3-5-sonnet-latest"]
+    title: "Anthropic"
+```
+
+Speichern, dann API neu starten:
+
+```bash
+cd /opt/librechat
+sudo docker compose restart api
+```
+
+> Die Datei hat `chmod 644`, du brauchst `sudo` zum Editieren.
+
+## Wie update ich LibreChat?
+
+```bash
+cd /opt/librechat
+sudo docker compose pull api admin-panel
+sudo docker compose up -d
+```
+
+(Später kommt ein `update.sh` im Installer.)
 
 ## Was passiert, wenn ich das Skript erneut laufen lasse?
 
@@ -112,29 +150,10 @@ Das Skript erkennt eine bestehende Installation über `.librechat-install.conf` 
 ├── .env                              # Zugangsdaten — chmod 600
 ├── .librechat-install.conf           # Konfiguration — chmod 600
 ├── docker-compose.yml                # gerendert
-├── librechat.yaml                    # gerendert
-└── data/
-    ├── mongo/                        # Datenbank
-    └── meili/                        # Suchindex (falls installiert)
+└── librechat.yaml                    # gerendert
 ```
 
-## Häufige Fragen
-
-### Wie update ich LibreChat?
-
-```bash
-cd /opt/librechat
-sudo docker compose pull api admin-panel
-sudo docker compose up -d
-```
-
-(Später kommt ein `update.sh` im Installer.)
-
-### Wie füge ich OpenAI/Ollama/Anthropic hinzu?
-
-Im Admin-Panel → **PC-FEE Toolkit** → **Provider** → **Neu** → API-Key eintragen → Speichern. Die `librechat.yaml` wird automatisch aktualisiert.
-
-### Wie deinstalliere ich alles?
+## Wie deinstalliere ich alles?
 
 ```bash
 cd /opt/librechat
@@ -142,13 +161,33 @@ sudo docker compose down -v   # ACHTUNG: löscht alle Daten!
 sudo rm -rf /opt/librechat
 ```
 
-### Was ist mit RAG / Vektor-Datenbank?
-
-Aktuell nicht im Default-Scope. Du hast auf deinem VPS bereits `pgvector` und `qdrant` laufen – LibreChat kann diese ansprechen, wenn du in `librechat.yaml` unter `ragAPI` oder `memory` die URL `<container-name>:5432` bzw. `:6333` einträgst. Eine geführte Konfiguration im Toolkit ist für eine spätere Version geplant.
+## Häufige Fragen
 
 ### Funktioniert das auf Windows/macOS?
 
-Nur mit WSL2 auf Windows. macOS nativ nicht getestet. Auf Linux-VPS aber problemlos.
+Nur mit WSL2 auf Windows. macOS nativ nicht getestet.
+
+### Was ist mit RAG / Vektor-Datenbank?
+
+Aktuell nicht im Default-Scope. Du kannst später `librechat.yaml` erweitern und in `docker-compose.yml` zusätzliche Services eintragen (Anleitung in der offiziellen LibreChat-Doku).
+
+### Das Skript bricht mit "Konflikte gefunden" ab?
+
+Das ist Absicht (Schutzregel). Löse den Konflikt mit dem ausgegebenen Befehl, dann Skript erneut laufen lassen. Bestehende Daten werden **nie** überschrieben.
+
+### Ich habe mein Admin-Passwort vergessen?
+
+```bash
+cd /opt/librechat
+sudo docker compose exec mongodb mongosh librechat --eval '
+  db.users.updateOne(
+    {email: "deine@email.de"},
+    {$$set: {password: "\$2b\$12$$..."}}
+  )
+'
+```
+
+(Zur Hash-Erzeugung denselben Node-Befehl wie der Installer verwenden — Details in einer späteren Anleitung.)
 
 ## Support
 
@@ -160,7 +199,7 @@ Nur mit WSL2 auf Windows. macOS nativ nicht getestet. Auf Linux-VPS aber problem
 
 ## Lizenz
 
-MIT (oder deine Wahl – Datei `LICENSE` im Repo-Root).
+MIT.
 
 ## Architektur-Übersicht
 
@@ -183,7 +222,6 @@ Browser
                           │                                  │
                           │  api ◄───► mongodb:27017        │
                           │       ◄───► meilisearch:7700     │
-                          │       ◄───► pc-fee-toolkit:3000 │
                           └─────────────────────────────────┘
 ```
 

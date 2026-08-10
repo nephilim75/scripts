@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # ============================================================================
-# install.sh — pc-fee LibreChat Installer v2
+# install.sh — pc-fee LibreChat Installer v5
 # ============================================================================
-# Schritte: 0=Voraussetzungen, 0.5=Konflikt-Schutz, 1=Eingaben, 2=Rendering
-# Später: 3=Admin-Seed, 4=Toolkit, 5=compose up + Health-Checks
+# Schritte:
+#   0    Voraussetzungen
+#   0.5  Konflikt-Schutz (nichts überschreiben)
+#   1    Interaktive Eingaben
+#   2    Templates rendern (envsubst)
+#   3    Admin-Seed in MongoDB (Node im librechat-api-Image + mongosh)
+#   4    docker compose up + Health-Checks + NPM-Hinweise
 #
-# Idempotent via .librechat-install.conf
-# Schutzregel: überschreibt NIE User-Daten. Konflikt -> Abbruch + Diagnose.
+# KEIN Python irgendwo. bcrypt-Hash via Node aus dem offiziellen
+# LibreChat-Image (hat bcrypt als Dependency). Insert via mongosh aus
+# dem mongo-Image (hat mongosh eingebaut).
 # ============================================================================
 
 set -euo pipefail
@@ -20,9 +26,9 @@ readonly BLOG_DOCKER_URL="https://pc-fee.com/2026/05/03/docker-compose/"
 readonly MIN_RAM_MB=2048
 readonly MIN_DISK_GB=10
 readonly MIN_DOCKER_MAJOR=20
-readonly MIN_COMPOSE_MAJOR=2
 readonly MIN_PASSWORD_LEN=12
 readonly APP_PORTS=(3080 3000 27017 7700 5432)
+readonly COMPOSE_HEALTH_TIMEOUT=180
 
 # --- Farben -----------------------------------------------------------------
 if [[ -t 1 ]]; then
@@ -76,39 +82,8 @@ validate_path() {
   return 0
 }
 
-# --- Template-Render-Funktion (Python, weil Konditionale in bash hässlich) -
-render_template() {
-  local src="$1" dst="$2"
-  local tmp_script
-  tmp_script="$(mktemp)"
-  cat > "$tmp_script" <<'PYEOF'
-import sys, os, re
-src, dst = sys.argv[1], sys.argv[2]
-with open(src, 'r') as f:
-    content = f.read()
-
-def replace_if(m):
-    var, block = m.group(1), m.group(2)
-    return block if os.environ.get(var, '') else ''
-
-content = re.sub(
-    r'\{\{if:([A-Z_]+)\}\}(.*?)\{\{endif:\1\}\}',
-    replace_if, content, flags=re.DOTALL
-)
-
-content = re.sub(r'\$\{([A-Z_]+)\}',
-                 lambda m: os.environ.get(m.group(1), ''),
-                 content)
-
-with open(dst, 'w') as f:
-    f.write(content)
-PYEOF
-  python3 "$tmp_script" "$src" "$dst"
-  rm -f "$tmp_script"
-}
-
 # ============================================================================
-hdr "pc-fee LibreChat Installer v2 — Schritte 0 / 0.5 / 1 / 2"
+hdr "pc-fee LibreChat Installer v5 — Schritte 0 / 0.5 / 1 / 2 / 3 / 4"
 
 MODE="install"
 CONF_FILE=""
@@ -172,9 +147,9 @@ log "Prüfe curl…"
 command -v curl >/dev/null 2>&1 || die "curl fehlt. Installiere: ${SUDO} apt install -y curl"
 ok "curl vorhanden"
 
-log "Prüfe Python3 (für Template-Rendering)…"
-command -v python3 >/dev/null 2>&1 || die "python3 fehlt. Installiere: ${SUDO} apt install -y python3"
-ok "python3 $(python3 --version | awk '{print $2}')"
+log "Prüfe envsubst (Template-Rendering)…"
+command -v envsubst >/dev/null 2>&1 || die "envsubst fehlt. Installiere: ${SUDO} apt install -y gettext-base  (siehe ${BLOG_DOCKER_URL})"
+ok "envsubst vorhanden"
 
 log "Prüfe Nginx Proxy Manager…"
 NPM_RUNNING="$(docker ps --filter name=nginx-proxy-manager --filter status=running --format '{{.Names}}' || true)"
@@ -341,7 +316,6 @@ else
   INSTALL_MEILI=0
 fi
 
-# Zusammenfassung
 hdr "Zusammenfassung"
 echo "  Installationspfad:   ${INSTALL_DIR}"
 echo "  Docker-Netzwerk:     ${NETWORK_NAME}"
@@ -357,23 +331,20 @@ confirm "  Mit diesen Einstellungen fortfahren?" "j" || die "Abgebrochen."
 ok "Schritt 1 abgeschlossen"
 
 # ============================================================================
-# SCHRITT 2: Templates rendern
+# SCHRITT 2: Templates rendern (envsubst)
 # ============================================================================
-hdr "Schritt 2: Templates rendern"
+hdr "Schritt 2: Templates rendern (envsubst)"
 
-# 2.1 Verzeichnisse
 log "Lege Datenverzeichnisse an…"
 ${SUDO} mkdir -p "${INSTALL_DIR}/data/mongo"
 [[ "${INSTALL_MEILI}" -eq 1 ]] && ${SUDO} mkdir -p "${INSTALL_DIR}/data/meili"
 ok "Datenverzeichnisse ok"
 
-# 2.2 Installer-Quellverzeichnis
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 TEMPLATE_DIR="${SCRIPT_DIR}/templates"
 [[ -d "${TEMPLATE_DIR}" ]] || die "Template-Verzeichnis '${TEMPLATE_DIR}' fehlt. Repo vollständig klonen."
 ok "Templates gefunden in ${TEMPLATE_DIR}"
 
-# 2.3 Secrets erzeugen
 log "Erzeuge interne Secrets…"
 CREDS_KEY="$(openssl rand -hex 32)"
 CREDS_IV="$(openssl rand -hex 16)"
@@ -384,25 +355,27 @@ fi
 export CREDS_KEY CREDS_IV MEILI_API_KEY
 ok "Secrets erzeugt"
 
-# 2.4 Variablen exportieren
 export INSTALL_DIR NETWORK_NAME DOMAIN ADMIN_DOMAIN ADMIN_EMAIL ADMIN_NAME
 export JWT_SECRET INSTALL_MEILI
-# ADMIN_PASS bleibt in Shell-Variable, geht NICHT in env
 
-# 2.5 Templates rendern
+MEILI_SUFFIX="$([ "${INSTALL_MEILI}" -eq 1 ] && echo 'with-meili' || echo 'without-meili')"
+log "Verwende Template-Variante: ${MEILI_SUFFIX}"
+
 log "Rendere docker-compose.yml…"
-render_template "${TEMPLATE_DIR}/docker-compose.yml.tmpl" "${INSTALL_DIR}/docker-compose.yml"
+${SUDO} envsubst < "${TEMPLATE_DIR}/docker-compose.${MEILI_SUFFIX}.tmpl" \
+                  > "${INSTALL_DIR}/docker-compose.yml"
 ${SUDO} chmod 644 "${INSTALL_DIR}/docker-compose.yml"
 
 log "Rendere librechat.yaml…"
-render_template "${TEMPLATE_DIR}/librechat.yaml.tmpl" "${INSTALL_DIR}/librechat.yaml"
+${SUDO} envsubst < "${TEMPLATE_DIR}/librechat.yaml.${MEILI_SUFFIX}.tmpl" \
+                  > "${INSTALL_DIR}/librechat.yaml"
 ${SUDO} chmod 644 "${INSTALL_DIR}/librechat.yaml"
 
 log "Rendere .env…"
-render_template "${TEMPLATE_DIR}/.env.tmpl" "${INSTALL_DIR}/.env"
+${SUDO} envsubst < "${TEMPLATE_DIR}/.env.tmpl" \
+                  > "${INSTALL_DIR}/.env"
 ${SUDO} chmod 600 "${INSTALL_DIR}/.env"
 
-# 2.6 Konfig-Datei (für Reconfigure-Modus)
 log "Schreibe .librechat-install.conf…"
 cat > "${INSTALL_DIR}/.librechat-install.conf" <<EOF
 # pc-fee LibreChat Installer — Konfigurations-Datei
@@ -418,85 +391,145 @@ INSTALL_DATE="$(date -u +%FT%TZ)"
 EOF
 ${SUDO} chmod 600 "${INSTALL_DIR}/.librechat-install.conf"
 
+unset CREDS_KEY CREDS_IV MEILI_API_KEY JWT_SECRET ADMIN_PASS
+
 ok "Schritt 2 abgeschlossen"
 
 # ============================================================================
-# SCHRITT 3: Admin-Seed in Mongo
+# SCHRITT 3: Admin-Seed in MongoDB (Node + mongosh, kein Python)
 # ============================================================================
-hdr "Schritt 3: Admin-User in Mongo anlegen"
+hdr "Schritt 3: Admin-User in MongoDB anlegen"
 
-# Benötigte Variablen aus Schritt 1 weitergeben
-export ADMIN_PASS  # Klartext-Passwort, einmalig für Seed
+cd "${INSTALL_DIR}"
+${SUDO} docker compose up -d mongodb
 
-# 3.1 Mongo-Container starten (ohne die anderen Services)
-log "Starte MongoDB-Container..."
-${SUDO} docker compose -f "${INSTALL_DIR}/docker-compose.yml" up -d mongodb
-
-# 3.2 Auf Healthcheck warten
 log "Warte auf MongoDB (max. 60s)..."
-for i in {1..60}; do
-  status="${SUDO} docker inspect --format='{{.State.Health.Status}' pc-fee-librechat-mongodb-1 2>/dev/null"
-  if [[ "${status}" == "healthy" ]]; then
-    ok "MongoDB ist bereit"
+HEALTH_TIMEOUT=60
+HEALTHY=false
+for ((i=1; i<=HEALTH_TIMEOUT; i++)); do
+  MONGO_CID="$(${SUDO} docker compose ps -q mongodb 2>/dev/null || true)"
+  STATUS="$(${SUDO} docker inspect --format='{{.State.Health.Status}}' "${MONGO_CID}" 2>/dev/null || echo 'starting')"
+  if [[ "${STATUS}" == "healthy" ]]; then
+    HEALTHY=true
     break
   fi
   sleep 1
 done
-if [[ "${status:-}" != "healthy" ]]; then
-  die "MongoDB wurde nicht gesund. Prüfe: docker compose -f ${INSTALL_DIR}/docker-compose.yml logs mongodb"
+[[ "${HEALTHY}" == "true" ]] || die "MongoDB wurde nicht gesund. Prüfe: cd ${INSTALL_DIR} && docker compose logs mongodb"
+ok "MongoDB ist gesund"
+
+# 3.1 bcrypt-Hash via Node aus dem librechat-api-Image generieren
+log "Erzeuge bcrypt-Hash via Node (aus librechat-api-Image)…"
+HASH_OUTPUT="$(${SUDO} docker run --rm \
+  --entrypoint node \
+  registry.librechat.ai/danny-avila/librechat:dev-latest \
+  -e "const b=require('bcrypt');b.hash(process.argv[1],12).then(h=>console.log(h));" \
+  -- "${ADMIN_PASS}" 2>&1 | tail -1)"
+
+if [[ -z "${HASH_OUTPUT}" || "${HASH_OUTPUT}" == *"Error"* || "${HASH_OUTPUT}" != \$2* ]]; then
+  die "bcrypt-Hash fehlgeschlagen. Output: ${HASH_OUTPUT}"
 fi
+ok "Hash erzeugt"
 
-# 3.3 Seed-Skript als einmaliger Container ausführen
-log "Lege Admin-User an..."
-${SUDO} docker run --rm \
-  --network "$(echo ${NETWORK_NAME})_librechat_internal" \
-  -v "${SCRIPT_DIR}/scripts:/seed:ro" \
-  -w /seed \
-  --env MONGO_URI="mongodb://mongodb:27017/librechat" \
-  --env ADMIN_EMAIL="${ADMIN_EMAIL}" \
-  --env ADMIN_USERNAME="${ADMIN_NAME}" \
-  --env ADMIN_PASSWORD="${ADMIN_PASS}" \
-  --env-file "${INSTALL_DIR}/.env" \
-  node:18-alpine \
-  sh -c "apk add --no-cache python3 make g++ && npm install --omit=dev && node seed-admin.js"
+# 3.2 User via mongosh anlegen (im mongodb-Container)
+log "Lege User in MongoDB an…"
+MONGO_CID="$(${SUDO} docker compose ps -q mongodb 2>/dev/null)"
+${SUDO} docker exec -i "${MONGO_CID}" mongosh librechat --quiet --eval "
+  const doc = {
+    email: '${ADMIN_EMAIL}',
+    username: '${ADMIN_NAME}',
+    password: '${HASH_OUTPUT}',
+    role: 'ADMIN',
+    emailVerified: true,
+    provider: 'local',
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+  const existing = db.users.findOne({email: doc.email});
+  if (existing) {
+    print('User existiert bereits. Setze Rolle auf ADMIN.');
+    db.users.updateOne({_id: existing._id}, {\$set: {role: 'ADMIN', updatedAt: new Date()}});
+  } else {
+    const r = db.users.insertOne(doc);
+    print('Angelegt: ' + r.insertedId);
+  }
+" || die "Mongo-Insert fehlgeschlagen."
 
-# 3.4 Passwort aus dem Speicher löschen
-unset ADMIN_PASS
+ok "Admin-User in MongoDB"
+unset ADMIN_PASS HASH_OUTPUT
+
 ok "Schritt 3 abgeschlossen"
 
 # ============================================================================
-# Erfolgsmeldung
+# SCHRITT 4: docker compose up + Health-Checks
 # ============================================================================
-hdr "Schritte 0, 0.5, 1, 2, 3 fertig"
+hdr "Schritt 4: Container starten + Health-Checks"
+
+log "Starte alle Container…"
+${SUDO} docker compose up -d
+
+log "Warte auf api + admin-panel (max. ${COMPOSE_HEALTH_TIMEOUT}s)…"
+HEALTHY=false
+for ((i=1; i<=COMPOSE_HEALTH_TIMEOUT; i++)); do
+  API_CID="$(${SUDO} docker compose ps -q api 2>/dev/null || true)"
+  AP_CID="$(${SUDO} docker compose ps -q admin-panel 2>/dev/null || true)"
+  API_STATUS="$(${SUDO} docker inspect --format='{{.State.Health.Status}}' "${API_CID}" 2>/dev/null || echo 'starting')"
+  AP_STATUS="$(${SUDO} docker inspect --format='{{.State.Health.Status}}' "${AP_CID}" 2>/dev/null || echo 'starting')"
+  if [[ "${API_STATUS}" == "healthy" && "${AP_STATUS}" == "healthy" ]]; then
+    HEALTHY=true
+    break
+  fi
+  sleep 1
+done
+
+if [[ "${HEALTHY}" != "true" ]]; then
+  warn "Nicht alle Container sind nach ${COMPOSE_HEALTH_TIMEOUT}s healthy."
+  warn "Diagnose:"
+  ${SUDO} docker compose ps
+  ${SUDO} docker compose logs --tail=30 api admin-panel
+  die "Container-Start fehlgeschlagen. Logs oben prüfen."
+fi
+
+ok "Beide Services sind healthy"
+
+# ============================================================================
+hdr "Schritte 0, 0.5, 1, 2, 3, 4 fertig ✓"
 
 cat <<EOF
-${C_GRN}==> Was bisher passiert ist:${C_RST}
-  [+] Voraussetzungen geprueft
-  [+] Konflikte geprueft (Schutzregel)
-  [+] Konfiguration erfasst
-  [+] Templates gerendert nach ${INSTALL_DIR}
 
-${C_BLD}==> Erzeugte Dateien:${C_RST}
-  ${INSTALL_DIR}/docker-compose.yml
-  ${INSTALL_DIR}/librechat.yaml
-  ${INSTALL_DIR}/.env                (chmod 600)
-  ${INSTALL_DIR}/.librechat-install.conf  (chmod 600)
-  ${INSTALL_DIR}/data/mongo/         (leer)
-$(
-  [[ "${INSTALL_MEILI}" -eq 1 ]] && echo "  ${INSTALL_DIR}/data/meili/         (leer)"
-)
+${C_GRN}==> Installation abgeschlossen!${C_RST}
 
-${C_BLD}==> Naechste Schritte (noch nicht implementiert):${C_RST}
-  Schritt 3: Admin-User in Mongo seeden
-  Schritt 4: pc-fee-toolkit bauen
-  Schritt 5: docker compose up -d + Health-Checks
+${C_BLD}==> Naechste Schritte (manuell):${C_RST}
 
-${C_YEL}==> Vor 'docker compose up -d' noch im NPM anlegen:${C_RST}
-  Host 1: ${DOMAIN}         -> api:3080
-  Host 2: ${ADMIN_DOMAIN}  -> admin-panel:3000
-  (jeweils mit Websockets + Let's Encrypt)
+  1. NPM-Proxy-Hosts anlegen:
+
+     Host 1 - Chat:
+       Domain:        ${DOMAIN}
+       Scheme:        http
+       Forward Host:  api
+       Forward Port:  3080
+       Websockets:    AN
+       SSL:           Let's Encrypt
+
+     Host 2 - Admin-Panel:
+       Domain:        ${ADMIN_DOMAIN}
+       Scheme:        http
+       Forward Host:  admin-panel
+       Forward Port:  3000
+       Websockets:    AN
+       SSL:           Let's Encrypt
+
+  2. Erster Login:
+     Browser -> https://${DOMAIN}
+     Login mit: ${ADMIN_EMAIL}  /  <dein Passwort>
+
+  3. API-Keys in ${INSTALL_DIR}/librechat.yaml eintragen
+     (danach: cd ${INSTALL_DIR} && sudo docker compose restart api)
+
+${C_BLD}==> Status:${C_RST}
+$(${SUDO} docker compose ps --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}')
 
 EOF
 
-log "Schritte 0-2 fertig. Schritte 3-5 folgen im naechsten Release."
+log "Fertig. Konfig gespeichert in ${INSTALL_DIR}/.librechat-install.conf"
 exit 0

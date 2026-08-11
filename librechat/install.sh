@@ -1,4 +1,3 @@
-```bash
 #!/usr/bin/env bash
 # =============================================================================
 #  LibreChat Install Script – powered by pc-fee.com
@@ -683,4 +682,3 @@ echo ""
 echo -e "  Mehr Tipps & Tutorials:  $${CYAN}https://pc-fee.com/blog$${RESET}"
 echo -e "  GitHub:                  $${CYAN}https://github.com/nephilim75/scripts$${RESET}"
 echo ""
-```

@@ -1,535 +1,649 @@
+```bash
 #!/usr/bin/env bash
-# ============================================================================
-# install.sh — pc-fee LibreChat Installer v5
-# ============================================================================
-# Schritte:
-#   0    Voraussetzungen
-#   0.5  Konflikt-Schutz (nichts überschreiben)
-#   1    Interaktive Eingaben
-#   2    Templates rendern (envsubst)
-#   3    Admin-Seed in MongoDB (Node im librechat-api-Image + mongosh)
-#   4    docker compose up + Health-Checks + NPM-Hinweise
+# =============================================================================
+#  LibreChat Install Script – powered by pc-fee.com
+#  https://pc-fee.com | https://github.com/nephilim75/scripts
 #
-# KEIN Python irgendwo. bcrypt-Hash via Node aus dem offiziellen
-# LibreChat-Image (hat bcrypt als Dependency). Insert via mongosh aus
-# dem mongo-Image (hat mongosh eingebaut).
-# ============================================================================
+#  Installiert LibreChat (api + admin-panel) mit MongoDB und Meilisearch
+#  hinter einem Nginx Proxy Manager via Docker Compose.
+#
+#  Voraussetzungen:
+#    - Docker ist installiert und läuft
+#    - Das Docker-Netzwerk "shared_proxy" existiert bereits
+#    - Nginx Proxy Manager läuft im shared_proxy-Netzwerk
+#    - Je eine Domain fuer Chat und Admin-Panel zeigt auf den Server
+#
+#  Mehr Infos: https://pc-fee.com/blog
+# =============================================================================
+#
+#  AI Transparency: Dieses Script wurde mit Unterstuetzung von KI erstellt
+#  (Nils Weber, KI-Assistent bei pc-fee.com) und vor Veroeffentlichung geprueft.
+#  Nutzung auf eigene Gefahr. Backups sind Pflicht.
+# =============================================================================
 
 set -euo pipefail
-shopt -s nullglob
 
-# --- Konstanten ------------------------------------------------------------
-readonly DEFAULT_INSTALL_DIR="/opt/librechat"
-readonly DEFAULT_NETWORK="shared_proxy"
-readonly BLOG_NPM_URL="https://pc-fee.com/2026/05/03/nginx-proxy-manager/"
-readonly BLOG_DOCKER_URL="https://pc-fee.com/2026/05/03/docker-compose/"
-readonly MIN_RAM_MB=2048
-readonly MIN_DISK_GB=10
-readonly MIN_DOCKER_MAJOR=20
-readonly MIN_PASSWORD_LEN=12
-readonly APP_PORTS=(3080 3000 27017 7700 5432)
-readonly COMPOSE_HEALTH_TIMEOUT=180
+# ── Farben ────────────────────────────────────────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+RESET='\033[0m'
 
-# --- Farben -----------------------------------------------------------------
-if [[ -t 1 ]]; then
-  C_RED=$'\e[31m'; C_GRN=$'\e[32m'; C_YEL=$'\e[33m'
-  C_BLU=$'\e[34m'; C_BLD=$'\e[1m'; C_RST=$'\e[0m'
-else
-  C_RED=''; C_GRN=''; C_YEL=''; C_BLU=''; C_BLD=''; C_RST=''
-fi
+# ── Hilfsfunktionen ───────────────────────────────────────────────────────────
+info()    { echo -e "$${CYAN}[INFO]$${RESET}  $*"; }
+success() { echo -e "$${GREEN}[OK]$${RESET}    $*"; }
+warn()    { echo -e "$${YELLOW}[WARN]$${RESET}  $*"; }
+error()   { echo -e "$${RED}[FEHLER]$${RESET} $*"; }
+die()     { error "$*"; exit 1; }
 
-log()   { printf '%s[*]%s %s\n' "${C_BLU}" "${C_RST}" "$*"; }
-ok()    { printf '%s[✓]%s %s\n' "${C_GRN}" "${C_RST}" "$*"; }
-warn()  { printf '%s[!]%s %s\n' "${C_YEL}" "${C_RST}" "$*" >&2; }
-err()   { printf '%s[✗]%s %s\n' "${C_RED}" "${C_RST}" "$*" >&2; }
-hdr()   { printf '\n%s== %s ==%s\n' "${C_BLD}" "$*" "${C_RST}"; }
-die()   { err "$*"; exit 1; }
-
-prompt() {
-  local label="$1" default="${2:-}"
-  local suffix=" [$default]"
-  [[ -z "$default" ]] && suffix=""
-  local reply
-  read -r -p "$(printf '%s%s:%s ' "${label}" "${suffix}" "")" reply || true
-  [[ -z "$reply" ]] && reply="$default"
-  printf '%s' "$reply"
+ask() {
+  local var="\$1" prompt="\$2" default="\$3"
+  local input
+  echo ""
+  echo -ne "$${BOLD}$${prompt}$${RESET} [$${CYAN}$${default}$${RESET}]: "
+  read -r input
+  eval "$${var}=\"$${input:-${default}}\""
 }
 
-confirm() {
-  local label="$1" default="${2:-j}"
-  local yn="J/n"; [[ "$default" == "n" ]] && yn="j/N"
-  local reply
+ask_validated() {
+  local var="\$1" prompt="\$2" default="\$3" validator="\$4"
+  local input=""
   while true; do
-    read -r -p "$(printf '%s [%s]: ' "${label}" "${yn}")" reply || true
-    reply="${reply:-$default}"
-    case "${reply,,}" in
-      j|y|ja|yes) return 0 ;;
-      n|no|nein)  return 1 ;;
-    esac
+    echo ""
+    echo -ne "$${BOLD}$${prompt}$${RESET} [$${CYAN}$${default}$${RESET}]: "
+    read -r input
+    input="$${input:-$${default}}"
+    if "$${validator}" "$${input}"; then
+      break
+    else
+      warn "Eingabe ungueltig: ${prompt}"
+    fi
   done
+  eval "$${var}=\"$${input}\""
 }
 
-validate_path() {
-  local p="$1"
-  [[ "$p" == /* ]] || return 1
-  [[ "$p" != *" "* ]] || return 1
-  [[ "$p" =~ ^[A-Za-z0-9/_.-]+$ ]] || return 1
-  if [[ -e "$p" ]]; then
-    [[ -w "$p" ]] || return 1
+ask_password() {
+  local var="\$1" prompt="\$2" minlen="${3:-12}"
+  local input="" input2=""
+  while true; do
+    echo ""
+    echo -ne "$${BOLD}$${prompt}${RESET}: "
+    read -rs input
+    echo ""
+    if [[ $${#input} -lt $$minlen ]]; then
+      warn "Passwort muss mindestens ${minlen} Zeichen lang sein."
+      continue
+    fi
+    echo -ne "$${BOLD}$${prompt} (Wiederholung)${RESET}: "
+    read -rs input2
+    echo ""
+    if [[ "$$input" != "$$input2" ]]; then
+      warn "Passwoerter stimmen nicht ueberein."
+      continue
+    fi
+    break
+  done
+  eval "$${var}=\"$${input}\""
+}
+
+is_email() {
+  [[ "\$1" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]
+}
+
+is_domain() {
+  [[ "\$1" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$ ]]
+}
+
+is_path_abs() {
+  [[ "\$1" =~ ^/[A-Za-z0-9._/-]+$ ]]
+}
+
+is_network_name() {
+  [[ "\$1" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ ]]
+}
+
+generate_token() {
+  local n="${1:-64}"
+  tr -dc 'A-Fa-f0-9' </dev/urandom | head -c "$n" || true
+  echo ""
+}
+
+wait_for_healthy() {
+  local name="\$1" max="${2:-60}"
+  local elapsed=0
+  while (( elapsed < max )); do
+    local status
+    status="$$($${SUDO} docker inspect --format '{{.State.Health.Status}}' "${name}" 2>/dev/null || echo 'starting')"
+    case "${status}" in
+      healthy) return 0 ;;
+      unhealthy) return 1 ;;
+    esac
+    sleep 2
+    elapsed=$(( elapsed + 2 ))
+  done
+  return 1
+}
+
+# ── Banner ────────────────────────────────────────────────────────────────────
+clear
+echo -e "${CYAN}"
+cat <<'EOF'
+               __                        
+ _ __  __ ___ / _|___ ___   __ ___ _ __  
+| '_ \/ _|___|  _/ -_) -_)_/ _/ _ \ '  \ 
+| .__/\__|   |_| \___\___(_)__\___/_|_|_|
+|_|                                      
+EOF
+echo -e "${RESET}"
+echo -e "$${BOLD}  LibreChat Installations-Script – powered by pc-fee.com$${RESET}"
+echo -e "  $${CYAN}https://pc-fee.com$${RESET} | $${CYAN}https://github.com/nephilim75/scripts$${RESET}"
+echo ""
+echo -e "  Dieses Script installiert LibreChat (api + admin-panel) mit"
+echo -e "  MongoDB und Meilisearch hinter einem Nginx Proxy Manager."
+echo ""
+echo -e "  $${YELLOW}Voraussetzungen:$${RESET}"
+echo -e "   • Docker ist installiert und läuft"
+echo -e "   • Das Docker-Netzwerk $${BOLD}shared_proxy$${RESET} existiert"
+echo -e "   • Nginx Proxy Manager läuft im shared_proxy-Netzwerk"
+echo -e "   • Je eine Domain für Chat und Admin-Panel zeigt auf den Server"
+echo ""
+echo -e "────────────────────────────────────────────────────────────"
+echo ""
+
+# ── SUDO-Helfer ───────────────────────────────────────────────────────────────
+SUDO=""
+if [[ "${EUID}" -ne 0 ]]; then
+  if command -v sudo &>/dev/null; then
+    SUDO="sudo"
   else
-    [[ -w "$(dirname "$p")" ]] || return 1
+    die "Bitte als root oder mit sudo ausfuehren."
   fi
-  return 0
-}
-
-# ============================================================================
-hdr "pc-fee LibreChat Installer v5 — Schritte 0 / 0.5 / 1 / 2 / 3 / 4"
-
-MODE="install"
-CONF_FILE=""
-INSTALL_DIR="${DEFAULT_INSTALL_DIR}"
-
-# ============================================================================
-# SCHRITT 0: Voraussetzungen
-# ============================================================================
-hdr "Schritt 0: Voraussetzungs-Check"
-
-log "Prüfe Benutzerrechte…"
-if [[ "$(id -u)" -ne 0 ]]; then
-  if ! sudo -n true 2>/dev/null; then
-    die "Root oder passwortloses sudo erforderlich. Bitte: sudo $0"
-  fi
-  SUDO="sudo"
-else
-  SUDO=""
 fi
-ok "Root/sudo verfügbar"
 
-log "Prüfe Betriebssystem…"
-[[ -f /etc/os-release ]] || die "/etc/os-release fehlt. Nur Debian 12/13 unterstützt."
-# shellcheck disable=SC1091
-source /etc/os-release
-[[ "${ID:-}" == "debian" ]] || die "Nicht-Debian (ID=${ID:-?}). Anleitung: ${BLOG_DOCKER_URL}"
-case "${VERSION_ID:-}" in
-  12|13) ok "Debian ${VERSION_ID} erkannt" ;;
-  *)     die "Debian ${VERSION_ID:-?} nicht unterstützt." ;;
-esac
+# ── Konstanten (Images, Defaults) ─────────────────────────────────────────────
+IMAGE_API="registry.librechat.ai/danny-avila/librechat:dev-latest"
+IMAGE_ADMIN="registry.librechat.ai/clickhouse/librechat-admin-panel:latest"
+IMAGE_MONGO="mongo:8.0.20"
+IMAGE_MEILI="getmeili/meilisearch:v1.35.1"
 
-log "Prüfe Architektur…"
-case "$(uname -m)" in
-  x86_64|aarch64) ok "Architektur ok" ;;
-  *)              die "Architektur $(uname -m) nicht unterstützt." ;;
-esac
+DEFAULT_INSTALL_DIR="/opt/librechat"
+DEFAULT_NETWORK="shared_proxy"
 
-log "Prüfe RAM…"
-RAM_FREE_MB="$(free -m | awk '/^Mem:/ {print $7}')"
-[[ "${RAM_FREE_MB}" -ge "${MIN_RAM_MB}" ]] || die "Zu wenig RAM: ${RAM_FREE_MB} MB (≥ ${MIN_RAM_MB} MB nötig)."
-ok "RAM: ${RAM_FREE_MB} MB frei"
+# ── Schritt 0: Voraussetzungen + Konflikt-Erkennung ───────────────────────────
+echo ""
+echo -e "$${BOLD} Schritt 0: Voraussetzungen + Konflikt-Erkennung$${RESET}"
+echo -e "------------------------------------------------------------"
 
-log "Prüfe Speicher…"
-DISK_FREE_GB="$(df -BG /var/lib/docker 2>/dev/null | awk 'NR==2 {gsub("G",""); print $4}' || echo 0)"
-[[ "${DISK_FREE_GB}" -ge "${MIN_DISK_GB}" ]] || die "Zu wenig Speicher: ${DISK_FREE_GB} GB (≥ ${MIN_DISK_GB} GB nötig)."
-ok "Speicher: ${DISK_FREE_GB} GB frei"
+info "Pruefe Voraussetzungen..."
 
-log "Prüfe Docker…"
-command -v docker >/dev/null 2>&1 || die "Docker fehlt. Anleitung: ${BLOG_DOCKER_URL}"
-DOCKER_VERSION="$(docker --version | awk '{print $3}' | tr -d ',')"
-DOCKER_MAJOR="$(echo "${DOCKER_VERSION}" | cut -d. -f1)"
-[[ "${DOCKER_MAJOR}" -ge "${MIN_DOCKER_MAJOR}" ]] || die "Docker ${DOCKER_VERSION} zu alt (≥ ${MIN_DOCKER_MAJOR}.x nötig). Update: ${BLOG_DOCKER_URL}"
-ok "Docker ${DOCKER_VERSION}"
+if [[ "${EUID}" -eq 0 ]]; then
+  success "Skript laeuft als root."
+else
+  success "Skript laeuft mit sudo."
+fi
 
-log "Prüfe docker compose Plugin…"
-docker compose version >/dev/null 2>&1 || die "'docker compose' Plugin fehlt. Installiere: ${SUDO} apt install docker-compose-plugin (Debian 12+). Hilfe: ${BLOG_DOCKER_URL}"
-COMPOSE_VERSION="$(docker compose version --short 2>/dev/null || echo unknown)"
-ok "docker compose ${COMPOSE_VERSION}"
+if ! command -v docker &>/dev/null; then
+  die "Docker ist nicht installiert.
 
-log "Prüfe curl…"
-command -v curl >/dev/null 2>&1 || die "curl fehlt. Installiere: ${SUDO} apt install -y curl"
-ok "curl vorhanden"
+  Anleitung auf pc-fee.com:
+  https://pc-fee.com/2026/05/03/docker-compose/
 
-log "Prüfe envsubst (Template-Rendering)…"
-command -v envsubst >/dev/null 2>&1 || die "envsubst fehlt. Installiere: ${SUDO} apt install -y gettext-base  (siehe ${BLOG_DOCKER_URL})"
-ok "envsubst vorhanden"
+  Danach dieses Script erneut starten."
+fi
+success "Docker gefunden: $(docker --version 2>&1)"
 
-log "Prüfe Nginx Proxy Manager…"
-NPM_RUNNING="$(docker ps --filter name=nginx-proxy-manager --filter status=running --format '{{.Names}}' || true)"
-[[ -n "${NPM_RUNNING}" ]] || die "NPM läuft nicht. Anleitung: ${BLOG_NPM_URL}"
-NPM_COUNT="$(echo "${NPM_RUNNING}" | wc -l)"
-[[ "${NPM_COUNT}" -eq 1 ]] || die "Mehrere NPM-Container: '${NPM_RUNNING}'. Bitte aufräumen."
-ok "NPM läuft: ${NPM_RUNNING}"
+if ! docker info &>/dev/null; then
+  die "Docker-Daemon laeuft nicht. Bitte starten: sudo systemctl start docker"
+fi
+success "Docker-Daemon laeuft."
 
-log "Prüfe Ports 80/443…"
-PORTS_80_443="$(ss -tlnp 2>/dev/null | grep -E ':(80|443)\s' || true)"
-[[ -n "${PORTS_80_443}" ]] || die "Ports 80/443 nicht belegt (NPM sollte sie halten)."
-ok "Ports 80/443 ok"
+if docker compose version &>/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+elif command -v docker-compose &>/dev/null; then
+  COMPOSE_CMD="docker-compose"
+  warn "docker-compose (Standalone) gefunden - Plugin v2 wird empfohlen."
+else
+  die "Docker Compose nicht gefunden.
 
-ok "Schritt 0 abgeschlossen"
+  Anleitung auf pc-fee.com:
+  https://pc-fee.com/2026/05/03/docker-compose/"
+fi
+success "Docker Compose gefunden: ${COMPOSE_CMD}"
 
-# ============================================================================
-# SCHRITT 0.5: Konflikt-Check (Schutzregel)
-# ============================================================================
-hdr "Schritt 0.5: Konflikt-Check"
+command -v curl &>/dev/null || die "curl ist nicht installiert (apt install curl)."
+success "curl gefunden."
 
+if ! docker ps --format '{{.Image}}' | grep -q 'nginx-proxy-manager'; then
+  die "Nginx Proxy Manager laeuft nicht.
+
+  Anleitung auf pc-fee.com:
+  https://pc-fee.com/2026/05/03/nginx-proxy-manager/
+
+  Bitte zuerst NPM installieren und starten, danach dieses Script erneut ausfuehren."
+fi
+success "Nginx Proxy Manager laeuft."
+
+echo ""
+info "Pruefe auf bestehende LibreChat-Installation..."
 CONFLICT_FOUND=0
 
-log "Bestehende LibreChat-Container (Name)…"
-EXISTING="$(docker ps -a --format '{{.Names}} {{.Image}}' 2>/dev/null \
-  | grep -iE '(^|[-_])(librechat|admin-panel|chat-)' || true)"
-if [[ -n "${EXISTING}" ]]; then
-  err "Container gefunden:"; echo "${EXISTING}" | sed 's/^/    /'
-  err "Auflösung: docker rm -f <name>"
+EXISTING_CONTAINERS="$(docker ps -a --format '{{.Names}}' 2>/dev/null \
+  | grep -E '^(librechat|librechat-api|librechat-admin|librechat-mongo|librechat-meili)$' || true)"
+if [[ -n "${EXISTING_CONTAINERS}" ]]; then
+  error "Bestehende LibreChat-Container gefunden:"
+  echo "${EXISTING_CONTAINERS}" | sed 's/^/    /'
+  echo "    Aufloesung: docker rm -f <name>"
   CONFLICT_FOUND=1
 fi
 
-log "Bestehende Container mit LibreChat-Images…"
-IMG_HITS="$(docker ps -a --format '{{.Names}} {{.Image}}' 2>/dev/null \
-  | grep -iE 'registry\.librechat\.ai' || true)"
-if [[ -n "${IMG_HITS}" ]]; then
-  err "Image-Treffer:"; echo "${IMG_HITS}" | sed 's/^/    /'
-  err "Auflösung: docker rm -f <name>"
+EXISTING_IMAGES="$(docker ps -a --format '{{.Names}} {{.Image}}' 2>/dev/null \
+  | grep -E 'registry\.librechat\.ai/.*librechat|registry\.librechat\.ai/.*admin-panel' || true)"
+if [[ -n "${EXISTING_IMAGES}" ]]; then
+  error "Container mit LibreChat-Images gefunden:"
+  echo "${EXISTING_IMAGES}" | sed 's/^/    /'
+  echo "    Aufloesung: docker rm -f <name>"
   CONFLICT_FOUND=1
 fi
 
-log "Bestehende LibreChat-Volumes…"
-EX_VOL="$(docker volume ls --format '{{.Name}}' 2>/dev/null \
-  | grep -iE '(librechat|^chat-)' || true)"
-if [[ -n "${EX_VOL}" ]]; then
-  err "Volumes:"; echo "${EX_VOL}" | sed 's/^/    /'
-  err "Auflösung: docker volume rm <name>   (löscht Daten!)"
+EXISTING_VOLUMES="$(docker volume ls --format '{{.Name}}' 2>/dev/null \
+  | grep -E '^(librechat|librechat_mongo|librechat_meili)' || true)"
+if [[ -n "${EXISTING_VOLUMES}" ]]; then
+  error "Bestehende LibreChat-Volumes gefunden:"
+  echo "${EXISTING_VOLUMES}" | sed 's/^/    /'
+  echo "    Aufloesung: docker volume rm <name>   (loescht Daten!)"
   CONFLICT_FOUND=1
 fi
 
-log "Bestehende LibreChat-Netzwerke…"
-EX_NET="$(docker network ls --format '{{.Name}}' 2>/dev/null \
-  | grep -iE 'librechat' || true)"
-if [[ -n "${EX_NET}" ]]; then
-  err "Netzwerke:"; echo "${EX_NET}" | sed 's/^/    /'
-  err "Auflösung: docker network rm <name>"
-  CONFLICT_FOUND=1
+for port in 3080 3000 27017 7700; do
+  if ss -tln 2>/dev/null | grep -qE ":${port}\s"; then
+    OWNER="$$(ss -tlnp 2>/dev/null | grep -E ":$${port}\s" | head -1 || true)"
+    error "Port $${port} ist bereits belegt: $${OWNER}"
+    echo "    Aufloesung: Prozess auf Port ${port} stoppen."
+    CONFLICT_FOUND=1
+  fi
+done
+
+if [[ "${CONFLICT_FOUND}" -ne 0 ]]; then
+  die "Konflikte gefunden. Schutzregel: keine bestehende Installation ueberschreiben.
+
+  Wenn du LibreChat komplett neu aufsetzen willst, entferne die oben genannten
+  Container/Volumes/Ports zuerst manuell. Bestaehende Daten gehen dabei verloren."
 fi
+success "Keine Konflikte gefunden."
 
-log "Belegte App-Ports ${APP_PORTS[*]}…"
-PORT_REX=":$(
-  IFS='|'; echo "${APP_PORTS[*]}"
-)"
-PORT_HITS="$(ss -tlnp 2>/dev/null | grep -E "${PORT_REX}\s" || true)"
-if [[ -n "${PORT_HITS}" ]]; then
-  err "Ports belegt:"; echo "${PORT_HITS}" | sed 's/^/    /'
-  err "Auflösung: docker stop <container>"
-  CONFLICT_FOUND=1
-fi
+# ── Schritt 1: Interaktive Eingaben ───────────────────────────────────────────
+echo ""
+echo -e "$${BOLD} Schritt 1: Konfiguration$${RESET}"
+echo -e "------------------------------------------------------------"
 
-[[ "${CONFLICT_FOUND}" -eq 0 ]] || die "Konflikte gefunden. Schutzregel: Abbruch."
-ok "Keine Konflikte"
+info "Bitte beantworte die folgenden Fragen."
 
-# ============================================================================
-# SCHRITT 1: Interaktive Eingaben
-# ============================================================================
-hdr "Schritt 1: Konfiguration abfragen"
-
-log "Wohin soll LibreChat installiert werden?"
-INSTALL_DIR="$(prompt '  Installationspfad' "${DEFAULT_INSTALL_DIR}")"
+ask_validated INSTALL_DIR "Installationspfad" "${DEFAULT_INSTALL_DIR}" is_path_abs
 INSTALL_DIR="${INSTALL_DIR%/}"
-[[ -z "${INSTALL_DIR}" ]] && die "Leerer Pfad nicht erlaubt"
 
-CONF_FILE="${INSTALL_DIR}/.librechat-install.conf"
-if [[ -f "${CONF_FILE}" ]]; then
-  warn "Bestehende Installation erkannt → Reconfigure-Modus"
-  MODE="reconfigure"
-  # shellcheck disable=SC1090
-  source "${CONF_FILE}" || true
-fi
+ask_validated NETWORK_NAME "Docker-Netzwerk (vom NPM-Installer)" "${DEFAULT_NETWORK}" is_network_name
 
-while ! validate_path "${INSTALL_DIR}"; do
-  err "Pfad '${INSTALL_DIR}' ungültig (absolut, keine Leerzeichen, beschreibbar)."
-  INSTALL_DIR="$(prompt '  Anderer Installationspfad' "${DEFAULT_INSTALL_DIR}")"
-  INSTALL_DIR="${INSTALL_DIR%/}"
-done
+if ! docker network inspect "${NETWORK_NAME}" &>/dev/null; then
+  echo ""
+  warn "Das Docker-Netzwerk '${NETWORK_NAME}' existiert nicht."
+  echo -ne "  $${BOLD}Jetzt erstellen?$${RESET} [$${CYAN}j$${RESET}/n]: "
+  read -r create_net
+  if [[ "${create_net,,}" != "n" ]]; then
+    docker network create "${NETWORK_NAME}"
+    success "Netzwerk '${NETWORK_NAME}' erstellt."
+    warn "Vergiss nicht, deinen Nginx Proxy Manager ebenfalls in dieses Netzwerk einzubinden!"
+  else
+    die "Netzwerk '${NETWORK_NAME}' fehlt. Installation abgebrochen.
 
-if [[ "${MODE}" == "install" && -e "${INSTALL_DIR}" ]]; then
-  die "Pfad '${INSTALL_DIR}' existiert bereits. Anderen Pfad wählen."
-fi
-
-${SUDO} mkdir -p "${INSTALL_DIR}"
-INSTALL_DIR="$(cd "${INSTALL_DIR}" && pwd -P)"
-ok "Installationspfad: ${INSTALL_DIR}"
-
-log "Welches Docker-Netzwerk nutzt dein NPM?"
-NETWORK_NAME="$(prompt '  Docker-Netzwerk für NPM' "${DEFAULT_NETWORK}")"
-[[ -z "${NETWORK_NAME}" ]] && NETWORK_NAME="${DEFAULT_NETWORK}"
-docker network inspect "${NETWORK_NAME}" >/dev/null 2>&1 \
-  || die "Netzwerk '${NETWORK_NAME}' existiert nicht. Vorher anlegen oder anderen Namen wählen."
-ok "Netzwerk: ${NETWORK_NAME}"
-
-log "Welche Domain für den Chat? (A-Record muss auf den VPS zeigen.)"
-DOMAIN="$(prompt '  Chat-Domain (z. B. chat.deinedomain.de)' 'chat.deinedomain.de')"
-[[ -z "${DOMAIN}" ]] && die "Chat-Domain leer"
-[[ "${DOMAIN}" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$ ]] \
-  || die "Domain '${DOMAIN}' sieht ungültig aus"
-
-log "Welche Domain für das Admin-Panel?"
-ADMIN_DOMAIN="$(prompt '  Admin-Domain (z. B. chat-admin.deinedomain.de)' 'chat-admin.deinedomain.de')"
-[[ -z "${ADMIN_DOMAIN}" ]] && die "Admin-Domain leer"
-[[ "${ADMIN_DOMAIN}" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$ ]] \
-  || die "Domain '${ADMIN_DOMAIN}' sieht ungültig aus"
-
-ADMIN_EMAIL="$(prompt '  Admin-E-Mail' '')"
-[[ "${ADMIN_EMAIL}" =~ ^[^@]+@[^@]+\.[^@]+$ ]] || die "E-Mail ungültig"
-
-ADMIN_NAME="$(prompt '  Admin-Anzeigename' '')"
-[[ -z "${ADMIN_NAME}" ]] && die "Admin-Name leer"
-
-while true; do
-  read -r -s -p "  Admin-Passwort (mind. ${MIN_PASSWORD_LEN} Zeichen): " pass1; echo
-  [[ -z "$pass1" ]] && { err "leer"; continue; }
-  [[ "${#pass1}" -ge "${MIN_PASSWORD_LEN}" ]] || { err "zu kurz"; continue; }
-  read -r -s -p "  Passwort wiederholen: " pass2; echo
-  if [[ "$pass1" == "$pass2" ]]; then
-    ADMIN_PASS="$pass1"
-    unset pass1 pass2
-    break
+  Anleitung Nginx Proxy Manager auf pc-fee.com:
+  https://pc-fee.com/2026/05/03/nginx-proxy-manager/"
   fi
-  err "Passwörter stimmen nicht überein"
-done
-history -c 2>/dev/null || true
-ok "Admin-Passwort gesetzt"
+else
+  success "Docker-Netzwerk '${NETWORK_NAME}' gefunden."
+fi
 
-log "JWT-Secret: leer = automatisch generieren."
-JWT_SECRET_INPUT="$(prompt '  JWT-Secret (oder leer)' '')"
-JWT_SECRET_GENERATED=0
-if [[ -z "${JWT_SECRET_INPUT}" ]]; then
-  JWT_SECRET="$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | xxd -p -c 64)"
-  echo
-  echo "    Auto-generiert: ${JWT_SECRET}"
-  echo
-  if ! confirm "  Diesen Wert in ${INSTALL_DIR}/.env speichern?" "j"; then
-    die "Abgebrochen. Mit eigenem Wert erneut starten."
+ask_validated CHAT_DOMAIN "Chat-Domain (z.B. chat.deinedomain.de)" "" is_domain
+ask_validated ADMIN_DOMAIN "Admin-Panel-Domain (z.B. chat-admin.deinedomain.de)" "" is_domain
+
+if [[ "$${CHAT_DOMAIN}" == "$${ADMIN_DOMAIN}" ]]; then
+  die "Chat-Domain und Admin-Domain muessen verschieden sein."
+fi
+
+ask_validated ADMIN_EMAIL "Admin-E-Mail" "" is_email
+
+DEFAULT_ADMIN_USERNAME="${ADMIN_EMAIL%%@*}"
+ask ADMIN_USERNAME "Admin-Username" "${DEFAULT_ADMIN_USERNAME}"
+ask ADMIN_NAME "Admin-Anzeigename" "${ADMIN_USERNAME}"
+ask_password ADMIN_PASS "Admin-Passwort (mind. 12 Zeichen)" 12
+
+echo ""
+info "Ein JWT-Secret schuetzt Login-Tokens (Refresh-Token, Access-Token)."
+echo ""
+echo -ne "$${BOLD}Eigenes JWT-Secret eingeben?$${RESET} [$${CYAN}leer = generieren$${RESET}]: "
+read -r jwt_in
+if [[ -n "${jwt_in}" ]]; then
+  if [[ ${#jwt_in} -lt 32 ]]; then
+    warn "Eigenes JWT-Secret wird akzeptiert, aber mind. 32 Zeichen empfohlen."
   fi
-  JWT_SECRET_GENERATED=1
+  JWT_SECRET="${jwt_in}"
 else
-  JWT_SECRET="${JWT_SECRET_INPUT}"
+  JWT_SECRET="$(generate_token 64)"
+  success "JWT-Secret automatisch generiert (64 hex Zeichen)."
 fi
 
-if confirm "  Meilisearch (Volltextsuche) installieren?" "j"; then
-  INSTALL_MEILI=1
-else
-  INSTALL_MEILI=0
+echo ""
+echo -e "────────────────────────────────────────────────────────────"
+echo -e "$${BOLD} Zusammenfassung$${RESET}"
+echo -e "────────────────────────────────────────────────────────────"
+echo ""
+echo -e "  Installationspfad:   $${CYAN}$${INSTALL_DIR}${RESET}"
+echo -e "  Docker-Netzwerk:     $${CYAN}$${NETWORK_NAME}${RESET}"
+echo -e "  Chat-Domain:         $${CYAN}$${CHAT_DOMAIN}${RESET}"
+echo -e "  Admin-Domain:        $${CYAN}$${ADMIN_DOMAIN}${RESET}"
+echo -e "  Admin-E-Mail:        $${CYAN}$${ADMIN_EMAIL}${RESET}"
+echo -e "  Admin-Username:      $${CYAN}$${ADMIN_USERNAME}${RESET}"
+echo -e "  Admin-Anzeigename:   $${CYAN}$${ADMIN_NAME}${RESET}"
+echo -e "  Admin-Passwort:      $${CYAN}[gesetzt]$${RESET}"
+echo -e "  JWT-Secret:          $${CYAN}[gesetzt]$${RESET}"
+echo ""
+echo -ne "$${BOLD}Alles korrekt? Installation starten?$${RESET} [$${CYAN}j$${RESET}/n]: "
+read -r confirm
+if [[ "${confirm,,}" == "n" ]]; then
+  warn "Installation abgebrochen. Starte das Script erneut."
+  exit 0
 fi
 
-hdr "Zusammenfassung"
-echo "  Installationspfad:   ${INSTALL_DIR}"
-echo "  Docker-Netzwerk:     ${NETWORK_NAME}"
-echo "  Chat-Domain:         ${DOMAIN}"
-echo "  Admin-Domain:        ${ADMIN_DOMAIN}"
-echo "  Admin-E-Mail:        ${ADMIN_EMAIL}"
-echo "  Admin-Name:          ${ADMIN_NAME}"
-echo "  JWT-Secret:          ${JWT_SECRET_GENERATED:+auto-generiert}${JWT_SECRET_GENERATED:-eigenes}"
-echo "  Meilisearch:         $([[ ${INSTALL_MEILI} -eq 1 ]] && echo ja || echo nein)"
-echo
-confirm "  Mit diesen Einstellungen fortfahren?" "j" || die "Abgebrochen."
+# ── Schritt 2: Tokens + Dateien schreiben ─────────────────────────────────────
+echo ""
+echo -e "$${BOLD} Schritt 2: Konfiguration schreiben$${RESET}"
+echo -e "------------------------------------------------------------"
 
-ok "Schritt 1 abgeschlossen"
+CREDS_KEY="$(generate_token 64)"
+CREDS_IV="$(generate_token 32)"
+MEILI_MASTER_KEY="$(generate_token 32)"
+success "Secrets generiert (CREDS_KEY, CREDS_IV, MEILI_MASTER_KEY)."
 
-# ============================================================================
-# SCHRITT 2: Templates rendern (envsubst)
-# ============================================================================
-hdr "Schritt 2: Templates rendern (envsubst)"
+info "Erstelle Verzeichnisse unter ${INSTALL_DIR}..."
+$${SUDO} mkdir -p "$${INSTALL_DIR}/data/mongo"
+$${SUDO} mkdir -p "$${INSTALL_DIR}/data/meili"
+success "Verzeichnisse erstellt."
 
-log "Lege Datenverzeichnisse an…"
-${SUDO} mkdir -p "${INSTALL_DIR}/data/mongo"
-[[ "${INSTALL_MEILI}" -eq 1 ]] && ${SUDO} mkdir -p "${INSTALL_DIR}/data/meili"
-ok "Datenverzeichnisse ok"
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-TEMPLATE_DIR="${SCRIPT_DIR}/templates"
-[[ -d "${TEMPLATE_DIR}" ]] || die "Template-Verzeichnis '${TEMPLATE_DIR}' fehlt. Repo vollständig klonen."
-ok "Templates gefunden in ${TEMPLATE_DIR}"
-
-log "Erzeuge interne Secrets…"
-CREDS_KEY="$(openssl rand -hex 32)"
-CREDS_IV="$(openssl rand -hex 16)"
-MEILI_API_KEY=""
-if [[ "${INSTALL_MEILI}" -eq 1 ]]; then
-  MEILI_API_KEY="$(openssl rand -hex 32)"
-fi
-export CREDS_KEY CREDS_IV MEILI_API_KEY
-ok "Secrets erzeugt"
-
-export INSTALL_DIR NETWORK_NAME DOMAIN ADMIN_DOMAIN ADMIN_EMAIL ADMIN_NAME
-export JWT_SECRET INSTALL_MEILI
-
-MEILI_SUFFIX="$([ "${INSTALL_MEILI}" -eq 1 ] && echo 'with-meili' || echo 'without-meili')"
-log "Verwende Template-Variante: ${MEILI_SUFFIX}"
-
-log "Rendere docker-compose.yml…"
-${SUDO} envsubst < "${TEMPLATE_DIR}/docker-compose.${MEILI_SUFFIX}.tmpl" \
-                  > "${INSTALL_DIR}/docker-compose.yml"
-${SUDO} chmod 644 "${INSTALL_DIR}/docker-compose.yml"
-
-log "Rendere librechat.yaml…"
-${SUDO} envsubst < "${TEMPLATE_DIR}/librechat.yaml.${MEILI_SUFFIX}.tmpl" \
-                  > "${INSTALL_DIR}/librechat.yaml"
-${SUDO} chmod 644 "${INSTALL_DIR}/librechat.yaml"
-
-log "Rendere .env…"
-${SUDO} envsubst < "${TEMPLATE_DIR}/.env.tmpl" \
-                  > "${INSTALL_DIR}/.env"
-${SUDO} chmod 600 "${INSTALL_DIR}/.env"
-
-log "Schreibe .librechat-install.conf…"
-cat > "${INSTALL_DIR}/.librechat-install.conf" <<EOF
-# pc-fee LibreChat Installer — Konfigurations-Datei
-# Wird im Reconfigure-Modus gelesen. NICHT manuell editieren.
-INSTALL_DIR="${INSTALL_DIR}"
-NETWORK_NAME="${NETWORK_NAME}"
-DOMAIN="${DOMAIN}"
-ADMIN_DOMAIN="${ADMIN_DOMAIN}"
-ADMIN_EMAIL="${ADMIN_EMAIL}"
-ADMIN_NAME="${ADMIN_NAME}"
-INSTALL_MEILI="${INSTALL_MEILI}"
-INSTALL_DATE="$(date -u +%FT%TZ)"
+$${SUDO} tee "$${INSTALL_DIR}/current_version" >/dev/null <<EOF
+api=${IMAGE_API}
+admin=${IMAGE_ADMIN}
+mongo=${IMAGE_MONGO}
+meili=${IMAGE_MEILI}
+installed=$(date -u +%FT%TZ)
 EOF
-${SUDO} chmod 600 "${INSTALL_DIR}/.librechat-install.conf"
 
-unset CREDS_KEY CREDS_IV MEILI_API_KEY JWT_SECRET ADMIN_PASS
+info "Schreibe .env..."
+$${SUDO} tee "$${INSTALL_DIR}/.env" >/dev/null <<EOF
+# LibreChat Umgebungsvariablen – generiert von pc-fee.com Install-Script
+# Mehr Infos: https://pc-fee.com/blog
 
-ok "Schritt 2 abgeschlossen"
+# --- Allgemein ---
+HOST=https://${CHAT_DOMAIN}
+ALLOW_REGISTRATION=false
+ALLOW_EMAIL_LOGIN=true
+ALLOW_PASSWORD_RESET=false
 
-# ============================================================================
-# SCHRITT 3: Admin-Seed in MongoDB (Node + mongosh, kein Python)
-# ============================================================================
-hdr "Schritt 3: Admin-User in MongoDB anlegen"
+# --- Admin ---
+ADMIN_EMAIL=${ADMIN_EMAIL}
+ADMIN_USERNAME=${ADMIN_USERNAME}
+
+# --- Tokens (generiert) ---
+JWT_SECRET=${JWT_SECRET}
+CREDS_KEY=${CREDS_KEY}
+CREDS_IV=${CREDS_IV}
+MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+
+# --- MongoDB ---
+MONGO_URI=mongodb://mongodb:27017/librechat
+
+# --- Meilisearch ---
+MEILI_URL=http://meilisearch:7700
+MEILI_NO_ANALYTICS=true
+EOF
+$${SUDO} chmod 600 "$${INSTALL_DIR}/.env"
+success ".env geschrieben (Berechtigungen: 600)."
+
+info "Schreibe librechat.yaml..."
+$${SUDO} tee "$${INSTALL_DIR}/librechat.yaml" >/dev/null <<EOF
+# librechat.yaml – generiert von pc-fee.com Install-Script
+# Provider-Endpoints hier manuell ergaenzen (Format siehe librechat.ai Docs).
+# Mehr Infos: https://pc-fee.com/blog
+
+version: 1.0.0
+cache: true
+
+interface:
+  customWelcome: "Willkommen bei deinem Chat"
+
+endpoints: {}
+
+registration:
+  disable: true
+
+search:
+  endpoint: "http://meilisearch:7700"
+  apiKey: "\${MEILI_MASTER_KEY}"
+EOF
+$${SUDO} chmod 644 "$${INSTALL_DIR}/librechat.yaml"
+success "librechat.yaml geschrieben."
+
+info "Schreibe docker-compose.yml..."
+$${SUDO} tee "$${INSTALL_DIR}/docker-compose.yml" >/dev/null <<EOF
+# docker-compose.yml – generiert von pc-fee.com Install-Script
+# LibreChat + MongoDB + Meilisearch hinter Nginx Proxy Manager.
+# Mehr Infos: https://pc-fee.com/blog
+
+services:
+  mongodb:
+    image: ${IMAGE_MONGO}
+    container_name: librechat-mongo
+    restart: unless-stopped
+    expose:
+      - "27017"
+    volumes:
+      - ${INSTALL_DIR}/data/mongo:/data/db
+    networks:
+      - librechat_internal
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  meilisearch:
+    image: ${IMAGE_MEILI}
+    container_name: librechat-meili
+    restart: unless-stopped
+    expose:
+      - "7700"
+    environment:
+      - MEILI_MASTER_KEY=\${MEILI_MASTER_KEY}
+      - MEILI_NO_ANALYTICS=true
+    volumes:
+      - ${INSTALL_DIR}/data/meili:/meili_data
+    networks:
+      - librechat_internal
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  api:
+    image: ${IMAGE_API}
+    container_name: librechat-api
+    restart: unless-stopped
+    expose:
+      - "3080"
+    env_file:
+      - ${INSTALL_DIR}/.env
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ${INSTALL_DIR}/librechat.yaml
+        target: /app/librechat.yaml
+        read_only: true
+    networks:
+      - ${NETWORK_NAME}
+      - librechat_internal
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3080/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  admin-panel:
+    image: ${IMAGE_ADMIN}
+    container_name: librechat-admin
+    restart: unless-stopped
+    expose:
+      - "3000"
+    env_file:
+      - ${INSTALL_DIR}/.env
+    networks:
+      - ${NETWORK_NAME}
+
+networks:
+  ${NETWORK_NAME}:
+    external: true
+  librechat_internal:
+    driver: bridge
+EOF
+$${SUDO} chmod 644 "$${INSTALL_DIR}/docker-compose.yml"
+success "docker-compose.yml geschrieben."
+
+# ── Schritt 3: Stack hochfahren + Admin-Seed ───────────────────────────────────
+echo ""
+echo -e "$${BOLD} Schritt 3: Stack starten + Admin-Seed$${RESET}"
+echo -e "------------------------------------------------------------"
 
 cd "${INSTALL_DIR}"
-${SUDO} docker compose up -d mongodb
 
-log "Warte auf MongoDB (max. 60s)..."
-HEALTH_TIMEOUT=60
-HEALTHY=false
-for ((i=1; i<=HEALTH_TIMEOUT; i++)); do
-  MONGO_CID="$(${SUDO} docker compose ps -q mongodb 2>/dev/null || true)"
-  STATUS="$(${SUDO} docker inspect --format='{{.State.Health.Status}}' "${MONGO_CID}" 2>/dev/null || echo 'starting')"
-  if [[ "${STATUS}" == "healthy" ]]; then
-    HEALTHY=true
-    break
-  fi
-  sleep 1
-done
-[[ "${HEALTHY}" == "true" ]] || die "MongoDB wurde nicht gesund. Prüfe: cd ${INSTALL_DIR} && docker compose logs mongodb"
-ok "MongoDB ist gesund"
+info "Starte mongodb und meilisearch..."
+$${SUDO} $${COMPOSE_CMD} up -d mongodb meilisearch
 
-# 3.1 bcrypt-Hash via Node aus dem librechat-api-Image generieren
-log "Erzeuge bcrypt-Hash via Node (aus librechat-api-Image)…"
-HASH_OUTPUT="$(${SUDO} docker run --rm \
-  --entrypoint node \
-  registry.librechat.ai/danny-avila/librechat:dev-latest \
-  -e "const b=require('bcrypt');b.hash(process.argv[1],12).then(h=>console.log(h));" \
-  -- "${ADMIN_PASS}" 2>&1 | tail -1)"
-
-if [[ -z "${HASH_OUTPUT}" || "${HASH_OUTPUT}" == *"Error"* || "${HASH_OUTPUT}" != \$2* ]]; then
-  die "bcrypt-Hash fehlgeschlagen. Output: ${HASH_OUTPUT}"
-fi
-ok "Hash erzeugt"
-
-# 3.2 User via mongosh anlegen (im mongodb-Container)
-log "Lege User in MongoDB an…"
-MONGO_CID="$(${SUDO} docker compose ps -q mongodb 2>/dev/null)"
-${SUDO} docker exec -i "${MONGO_CID}" mongosh librechat --quiet --eval "
-  const doc = {
-    email: '${ADMIN_EMAIL}',
-    username: '${ADMIN_NAME}',
-    password: '${HASH_OUTPUT}',
-    role: 'ADMIN',
-    emailVerified: true,
-    provider: 'local',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-  const existing = db.users.findOne({email: doc.email});
-  if (existing) {
-    print('User existiert bereits. Setze Rolle auf ADMIN.');
-    db.users.updateOne({_id: existing._id}, {\$set: {role: 'ADMIN', updatedAt: new Date()}});
-  } else {
-    const r = db.users.insertOne(doc);
-    print('Angelegt: ' + r.insertedId);
-  }
-" || die "Mongo-Insert fehlgeschlagen."
-
-ok "Admin-User in MongoDB"
-unset ADMIN_PASS HASH_OUTPUT
-
-ok "Schritt 3 abgeschlossen"
-
-# ============================================================================
-# SCHRITT 4: docker compose up + Health-Checks
-# ============================================================================
-hdr "Schritt 4: Container starten + Health-Checks"
-
-log "Starte alle Container…"
-${SUDO} docker compose up -d
-
-log "Warte auf api + admin-panel (max. ${COMPOSE_HEALTH_TIMEOUT}s)…"
-HEALTHY=false
-for ((i=1; i<=COMPOSE_HEALTH_TIMEOUT; i++)); do
-  API_CID="$(${SUDO} docker compose ps -q api 2>/dev/null || true)"
-  AP_CID="$(${SUDO} docker compose ps -q admin-panel 2>/dev/null || true)"
-  API_STATUS="$(${SUDO} docker inspect --format='{{.State.Health.Status}}' "${API_CID}" 2>/dev/null || echo 'starting')"
-  AP_STATUS="$(${SUDO} docker inspect --format='{{.State.Health.Status}}' "${AP_CID}" 2>/dev/null || echo 'starting')"
-  if [[ "${API_STATUS}" == "healthy" && "${AP_STATUS}" == "healthy" ]]; then
-    HEALTHY=true
-    break
-  fi
-  sleep 1
-done
-
-if [[ "${HEALTHY}" != "true" ]]; then
-  warn "Nicht alle Container sind nach ${COMPOSE_HEALTH_TIMEOUT}s healthy."
-  warn "Diagnose:"
-  ${SUDO} docker compose ps
-  ${SUDO} docker compose logs --tail=30 api admin-panel
-  die "Container-Start fehlgeschlagen. Logs oben prüfen."
+info "Warte auf mongodb (max. 60s)..."
+if wait_for_healthy librechat-mongo 60; then
+  success "mongodb ist healthy."
+else
+  die "mongodb wurde nicht healthy. Pruefe mit: ${COMPOSE_CMD} logs mongodb"
 fi
 
-ok "Beide Services sind healthy"
+info "Warte auf meilisearch (max. 60s)..."
+if wait_for_healthy librechat-meili 60; then
+  success "meilisearch ist healthy."
+else
+  die "meilisearch wurde nicht healthy. Pruefe mit: ${COMPOSE_CMD} logs meilisearch"
+fi
 
-# ============================================================================
-hdr "Schritte 0, 0.5, 1, 2, 3, 4 fertig ✓"
+info "Starte api und admin-panel..."
+$${SUDO} $${COMPOSE_CMD} up -d api admin-panel
 
-cat <<EOF
+info "Warte auf api (max. 90s)..."
+if wait_for_healthy librechat-api 90; then
+  success "api ist healthy."
+else
+  warn "api wurde nicht innerhalb von 90s healthy. Pruefe mit: ${COMPOSE_CMD} logs api"
+  warn "Versuche trotzdem den Admin-Seed..."
+fi
 
-${C_GRN}==> Installation abgeschlossen!${C_RST}
+echo ""
+info "Lege Admin-User '${ADMIN_USERNAME}' an..."
 
-${C_BLD}==> Naechste Schritte (manuell):${C_RST}
+# Workaround fuer LibreChat-Image-Bug: npm run create-user aus /app/config
+# aufrufen, nicht aus /app/api (sonst MODULE_NOT_FOUND).
+SEED_INPUT="${ADMIN_EMAIL}
+${ADMIN_USERNAME}
+${ADMIN_NAME}
+${ADMIN_PASS}
+${ADMIN_PASS}
+y
+"
+SEED_OUTPUT="$$(printf '%s' "$${SEED_INPUT}" \
+  | $${SUDO} $${COMPOSE_CMD} exec -T api sh -c 'cd /app/config && npm run create-user' 2>&1 || true)"
 
-  1. NPM-Proxy-Hosts anlegen:
+if echo "${SEED_OUTPUT}" | grep -qiE 'already exists|user exists|duplicate'; then
+  warn "Admin-User '${ADMIN_USERNAME}' existiert bereits - ueberspringe Seed."
+elif echo "${SEED_OUTPUT}" | grep -qiE 'error|fehler|MODULE_NOT_FOUND'; then
+  error "Admin-Seed fehlgeschlagen:"
+  echo "${SEED_OUTPUT}" | sed 's/^/    /'
+  echo ""
+  warn "Du kannst es manuell versuchen:"
+  echo "    cd $${INSTALL_DIR} && $${COMPOSE_CMD} exec api sh -c 'cd /app/config && npm run create-user'"
+else
+  success "Admin-User '${ADMIN_USERNAME}' angelegt."
+fi
 
-     Host 1 - Chat:
-       Domain:        ${DOMAIN}
-       Scheme:        http
-       Forward Host:  api
-       Forward Port:  3080
-       Websockets:    AN
-       SSL:           Let's Encrypt
+info "Starte api neu (Seed-Aktivierung)..."
+$${SUDO} $${COMPOSE_CMD} restart api >/dev/null
+success "api neugestartet."
 
-     Host 2 - Admin-Panel:
-       Domain:        ${ADMIN_DOMAIN}
-       Scheme:        http
-       Forward Host:  admin-panel
-       Forward Port:  3000
-       Websockets:    AN
-       SSL:           Let's Encrypt
+# ── Schritt 4: Health-Checks + NPM-Proxy-Host-Hinweise ────────────────────────
+echo ""
+echo -e "$${BOLD} Schritt 4: Status + naechste Schritte$${RESET}"
+echo -e "------------------------------------------------------------"
 
-  2. Erster Login:
-     Browser -> https://${DOMAIN}
-     Login mit: ${ADMIN_EMAIL}  /  <dein Passwort>
+info "Aktueller Container-Status:"
+$${SUDO} $${COMPOSE_CMD} ps --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}'
 
-  3. API-Keys in ${INSTALL_DIR}/librechat.yaml eintragen
-     (danach: cd ${INSTALL_DIR} && sudo docker compose restart api)
-
-${C_BLD}==> Status:${C_RST}
-$(${SUDO} docker compose ps --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}')
-
-EOF
-
-log "Fertig. Konfig gespeichert in ${INSTALL_DIR}/.librechat-install.conf"
-exit 0
+echo ""
+echo -e "$${BOLD}============================================================$${RESET}"
+echo -e "$${GREEN}$${BOLD}  Installation abgeschlossen!${RESET}"
+echo -e "$${BOLD}============================================================$${RESET}"
+echo ""
+echo -e "  $${BOLD}Naechste Schritte:$${RESET}"
+echo ""
+echo -e "  1. Richte in deinem $${BOLD}Nginx Proxy Manager$${RESET} zwei Proxy Hosts ein:"
+echo ""
+echo -e "     $${BOLD}Host 1 - Chat:$${RESET}"
+echo -e "       Domain:        $${CYAN}$${CHAT_DOMAIN}${RESET}"
+echo -e "       Scheme:        http"
+echo -e "       Forward Host:  $${CYAN}librechat-api$${RESET}"
+echo -e "       Forward Port:  $${CYAN}3080$${RESET}"
+echo -e "       Websockets:    AN"
+echo -e "       SSL:           Let's Encrypt"
+echo ""
+echo -e "     $${BOLD}Host 2 - Admin-Panel:$${RESET}"
+echo -e "       Domain:        $${CYAN}$${ADMIN_DOMAIN}${RESET}"
+echo -e "       Scheme:        http"
+echo -e "       Forward Host:  $${CYAN}librechat-admin$${RESET}"
+echo -e "       Forward Port:  $${CYAN}3000$${RESET}"
+echo -e "       Websockets:    AN"
+echo -e "       SSL:           Let's Encrypt"
+echo ""
+echo -e "  2. Erster Login:"
+echo -e "     Browser -> $${CYAN}https://$${CHAT_DOMAIN}${RESET}"
+echo -e "     Login mit: $${CYAN}$${ADMIN_EMAIL}${RESET}  /  <dein Passwort>"
+echo ""
+echo -e "  3. LLM-Provider in ${INSTALL_DIR}/librechat.yaml eintragen."
+echo -e "     Danach: cd $${INSTALL_DIR} && sudo $${COMPOSE_CMD} restart api"
+echo ""
+echo -e "  $${YELLOW}Wichtig:$${RESET} Bewahre deine .env sicher auf:"
+echo -e "  $${CYAN}$${INSTALL_DIR}/.env${RESET} (Berechtigungen: 600)"
+echo ""
+echo -e "$${BOLD}============================================================$${RESET}"
+echo -e "$${BOLD} Befehle zur Wiederholung / Kontrolle$${RESET}"
+echo -e "$${BOLD}============================================================$${RESET}"
+echo ""
+echo -e "  Stack neustarten:        cd $${INSTALL_DIR} && sudo $${COMPOSE_CMD} restart"
+echo -e "  Logs ansehen:            cd $${INSTALL_DIR} && sudo $${COMPOSE_CMD} logs -f"
+echo -e "  Status pruefen:          cd $${INSTALL_DIR} && sudo $${COMPOSE_CMD} ps"
+echo -e "  Auf Updates prüfen:      cd $${INSTALL_DIR} && sudo $${COMPOSE_CMD} pull"
+echo ""
+echo -e "  Mehr Tipps & Tutorials:  $${CYAN}https://pc-fee.com/blog$${RESET}"
+echo -e "  GitHub:                  $${CYAN}https://github.com/nephilim75/scripts$${RESET}"
+echo ""
+```

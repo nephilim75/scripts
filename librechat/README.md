@@ -29,8 +29,8 @@ sudo bash install.sh
 
 Bevor Du das Script startest, muss Folgendes bereits laufen:
 
-- **Docker + Docker Compose Plugin v2** sind installiert ([Anleitung](https://pc-fee.com/blog))
-- **Nginx Proxy Manager (NPM)** läuft ([Anleitung](https://pc-fee.com/blog))
+- **Docker + Docker Compose Plugin v2** sind installiert ([Anleitung](https://pc-fee.com/2026/05/03/docker-compose/))
+- **Nginx Proxy Manager (NPM)** läuft ([Anleitung](https://pc-fee.com/2026/05/03/nginx-proxy-manager/))
 - Das Docker-Netzwerk **`shared_proxy`** existiert (legt der NPM-Installer an)
 - Zwei Domains zeigen per A/AAAA-Record auf Deinen VPS:
   - Eine für den Chat (z.B. `chat.deinedomain.de`)
@@ -146,7 +146,7 @@ Ohne Provider-Endpoint kann LibreChat nichts antworten. Trage sie in `librechat.
 
 ```bash
 sudo nano /opt/librechat/librechat.yaml
-# Beispiel-Block ergänzen:
+# Beispiel-Block ergaenzen:
 #
 # endpoints:
 #   openAI:
@@ -159,7 +159,7 @@ sudo nano /opt/librechat/librechat.yaml
 #     apiKey: "..."
 #     models: ["gemini-1.5-pro"]
 
-sudo cd /opt/librechat && sudo docker compose restart api
+cd /opt/librechat && sudo docker compose restart api
 ```
 
 Welche Provider-Keys Du wo bekommst, steht in der [LibreChat-Dokumentation](https://www.librechat.ai/docs/configuration/librechat_yaml).
@@ -289,7 +289,7 @@ Diese Spec-Version (`v1.5`) deckt bewusst nur den Standard-Installationsweg ab:
 
 ## AI Transparency
 
-Dieses Install-Script wurde mit Unterstützung von KI erstellt ([Nils Weber, KI-Assistent bei pc-fee.com](https://pc-fee.com)) und vor Veröffentlichung geprüft. Nutzung auf eigene Gefahr. Backups sind Pflicht.
+Dieses Install-Script und die zugehörige README wurden mit Unterstützung von KI erstellt. Verwendetes Modell: **minimax3** (MiniMax M3). Erstellt durch: [Nils Weber, KI-Assistent bei pc-fee.com](https://pc-fee.com). Vor Veröffentlichung geprüft. Nutzung auf eigene Gefahr. Backups sind Pflicht.
 
 ## Mehr Infos
 

@@ -12,17 +12,16 @@ Ein einzeiliges Installations-Script für **LibreChat** hinter einem bestehenden
 ## Schnellstart
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install.sh)"
+bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install.sh)
 ```
 
 Das war's. Das Script fragt Dich interaktiv nach den nötigen Eingaben (siehe [Konfiguration](#konfiguration)) und macht danach alles von selbst.
 
-### Manuell (statt curl|bash)
+### Manuell (für Debugging)
 
 ```bash
-git clone https://github.com/nephilim75/scripts.git
-cd scripts/librechat
-sudo bash install.sh
+curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install.sh -o /tmp/install.sh
+sudo bash /tmp/install.sh
 ```
 
 ## Voraussetzungen
@@ -269,6 +268,15 @@ sudo docker compose exec api sh -c 'cd /app/config && npm run create-user'
 ```
 
 Wenn die Fehlermeldung `MODULE_NOT_FOUND` lautet: das ist ein bekannter Bug im LibreChat-Image. Der Workaround `cd /app/config` ist im Script bereits eingebaut — wenn er trotzdem auftritt, bitte Issue auf GitHub melden.
+
+### Einzeiler macht nichts oder zeigt Permission denied
+
+Manche Distributionen/Bash-Versionen haben Probleme mit `bash <(curl ...)`. Dann manuell ausführen:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install.sh -o /tmp/install.sh
+sudo bash /tmp/install.sh
+```
 
 ### Admin-Panel nicht erreichbar
 

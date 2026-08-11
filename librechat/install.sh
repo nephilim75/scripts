@@ -30,19 +30,19 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-info()    { printf '%b\n' "$${CYAN}[INFO]$${RESET}  $*"; }
-success() { printf '%b\n' "$${GREEN}[OK]$${RESET}    $*"; }
-warn()    { printf '%b\n' "$${YELLOW}[WARN]$${RESET}  $*"; }
-error()   { printf '%b\n' "$${RED}[FEHLER]$${RESET} $*"; }
+info()    { printf '%b\n' "${CYAN}[INFO]${RESET}  $*"; }
+success() { printf '%b\n' "${GREEN}[OK]${RESET}    $*"; }
+warn()    { printf '%b\n' "${YELLOW}[WARN]${RESET}  $*"; }
+error()   { printf '%b\n' "${RED}[FEHLER]${RESET} $*"; }
 die()     { error "$*"; exit 1; }
 
 ask() {
   local var="\$1" prompt="\$2" default="\$3"
   local input
   echo ""
-  printf '%b' "$${BOLD}$${prompt}$${RESET} [$${CYAN}$${default}$${RESET}]: "
+  printf '%b' "${BOLD}${prompt}${RESET} [${CYAN}${default}${RESET}]: "
   read -r input
-  eval "$${var}=\"$${input:-${default}}\""
+  eval "${var}=\"${input:-${default}}\""
 }
 
 ask_validated() {
@@ -50,16 +50,16 @@ ask_validated() {
   local input=""
   while true; do
     echo ""
-    printf '%b' "$${BOLD}$${prompt}$${RESET} [$${CYAN}$${default}$${RESET}]: "
+    printf '%b' "${BOLD}${prompt}${RESET} [${CYAN}${default}${RESET}]: "
     read -r input
-    input="$${input:-$${default}}"
-    if "$${validator}" "$${input}"; then
+    input="${input:-${default}}"
+    if "${validator}" "${input}"; then
       break
     else
       warn "Eingabe ungueltig: ${prompt}"
     fi
   done
-  eval "$${var}=\"$${input}\""
+  eval "${var}=\"${input}\""
 }
 
 ask_password() {
@@ -67,23 +67,23 @@ ask_password() {
   local input="" input2=""
   while true; do
     echo ""
-    printf '%b' "$${BOLD}$${prompt}${RESET}: "
+    printf '%b' "${BOLD}${prompt}${RESET}: "
     read -rs input
     echo ""
-    if [[ $${#input} -lt $${minlen} ]]; then
+    if [[ ${#input} -lt ${minlen} ]]; then
       warn "Passwort muss mindestens ${minlen} Zeichen lang sein."
       continue
     fi
-    printf '%b' "$${BOLD}$${prompt} (Wiederholung)${RESET}: "
+    printf '%b' "${BOLD}${prompt} (Wiederholung)${RESET}: "
     read -rs input2
     echo ""
-    if [[ "$${input}" != "$${input2}" ]]; then
+    if [[ "${input}" != "${input2}" ]]; then
       warn "Passwoerter stimmen nicht ueberein."
       continue
     fi
     break
   done
-  eval "$${var}=\"$${input}\""
+  eval "${var}=\"${input}\""
 }
 
 is_email() {
@@ -113,7 +113,7 @@ wait_for_healthy() {
   local elapsed=0
   while (( elapsed < max )); do
     local status
-    status="$$($${SUDO} docker inspect --format '{{.State.Health.Status}}' "${name}" 2>/dev/null || echo 'starting')"
+    status="$(${SUDO} docker inspect --format '{{.State.Health.Status}}' "${name}" 2>/dev/null || echo 'starting')"
     case "${status}" in
       healthy) return 0 ;;
       unhealthy) return 1 ;;
@@ -134,15 +134,15 @@ cat <<'EOF'
 |_|
 EOF
 printf '%b' "${RESET}"
-printf '%b\n' "$${BOLD}  LibreChat Installations-Script – powered by pc-fee.com$${RESET}"
-printf '%b\n' "  $${CYAN}https://pc-fee.com$${RESET} | $${CYAN}https://github.com/nephilim75/scripts$${RESET}"
+printf '%b\n' "${BOLD}  LibreChat Installations-Script – powered by pc-fee.com${RESET}"
+printf '%b\n' "  ${CYAN}https://pc-fee.com${RESET} | ${CYAN}https://github.com/nephilim75/scripts${RESET}"
 echo ""
 echo "  Dieses Script installiert LibreChat (api + admin-panel) mit"
 echo "  MongoDB und Meilisearch hinter einem Nginx Proxy Manager."
 echo ""
-printf '%b\n' "  $${YELLOW}Voraussetzungen:$${RESET}"
+printf '%b\n' "  ${YELLOW}Voraussetzungen:${RESET}"
 echo "   • Docker ist installiert und laeuft"
-printf '%b\n' "   • Das Docker-Netzwerk $${BOLD}shared_proxy$${RESET} existiert"
+printf '%b\n' "   • Das Docker-Netzwerk ${BOLD}shared_proxy${RESET} existiert"
 echo "   • Nginx Proxy Manager laeuft im shared_proxy-Netzwerk"
 echo "   • Je eine Domain fuer Chat und Admin-Panel zeigt auf den Server"
 echo ""
@@ -167,7 +167,7 @@ DEFAULT_INSTALL_DIR="/opt/librechat"
 DEFAULT_NETWORK="shared_proxy"
 
 echo ""
-printf '%b\n' "$${BOLD} Schritt 0: Voraussetzungen + Konflikt-Erkennung$${RESET}"
+printf '%b\n' "${BOLD} Schritt 0: Voraussetzungen + Konflikt-Erkennung${RESET}"
 echo "------------------------------------------------------------"
 
 info "Pruefe Voraussetzungen..."
@@ -242,7 +242,7 @@ if [[ -n "${EXISTING_IMAGES}" ]]; then
 fi
 
 EXISTING_VOLUMES="$(docker volume ls --format '{{.Name}}' 2>/dev/null \
-  | grep -E '^(librechat-data|librechat_mongo|librechat_meili|librechat-code-interpreter_minio_data|librechat_code-interpreter_minio_data)$' || true)"
+  | grep -E '^(librechat-data|librechat_mongo|librechat_meili|librechat_meili_data|librechat-code-interpreter_minio_data|librechat_code-interpreter_minio_data)$' || true)"
 if [[ -n "${EXISTING_VOLUMES}" ]]; then
   error "Bestehende LibreChat-Volumes gefunden:"
   echo "${EXISTING_VOLUMES}" | sed 's/^/    /'
@@ -252,8 +252,8 @@ fi
 
 for port in 3080 3000 27017 7700; do
   if ss -tln 2>/dev/null | grep -qE ":${port}\s"; then
-    OWNER="$$(ss -tlnp 2>/dev/null | grep -E ":$${port}\s" | head -1 || true)"
-    error "Port $${port} ist bereits belegt: $${OWNER}"
+    OWNER="$(ss -tlnp 2>/dev/null | grep -E ":${port}\s" | head -1 || true)"
+    error "Port ${port} ist bereits belegt: ${OWNER}"
     echo "    Aufloesung: Prozess auf Port ${port} stoppen."
     CONFLICT_FOUND=1
   fi
@@ -268,7 +268,7 @@ fi
 success "Keine Konflikte gefunden."
 
 echo ""
-printf '%b\n' "$${BOLD} Schritt 1: Konfiguration$${RESET}"
+printf '%b\n' "${BOLD} Schritt 1: Konfiguration${RESET}"
 echo "------------------------------------------------------------"
 
 info "Bitte beantworte die folgenden Fragen."
@@ -281,7 +281,7 @@ ask_validated NETWORK_NAME "Docker-Netzwerk (vom NPM-Installer)" "${DEFAULT_NETW
 if ! docker network inspect "${NETWORK_NAME}" &>/dev/null; then
   echo ""
   warn "Das Docker-Netzwerk '${NETWORK_NAME}' existiert nicht."
-  printf '%b' "  $${BOLD}Jetzt erstellen?$${RESET} [$${CYAN}j$${RESET}/n]: "
+  printf '%b' "  ${BOLD}Jetzt erstellen?${RESET} [${CYAN}j${RESET}/n]: "
   read -r create_net
   if [[ "${create_net,,}" != "n" ]]; then
     docker network create "${NETWORK_NAME}"
@@ -300,7 +300,7 @@ fi
 ask_validated CHAT_DOMAIN "Chat-Domain (z.B. chat.deinedomain.de)" "" is_domain
 ask_validated ADMIN_DOMAIN "Admin-Panel-Domain (z.B. chat-admin.deinedomain.de)" "" is_domain
 
-if [[ "$${CHAT_DOMAIN}" == "$${ADMIN_DOMAIN}" ]]; then
+if [[ "${CHAT_DOMAIN}" == "${ADMIN_DOMAIN}" ]]; then
   die "Chat-Domain und Admin-Domain muessen verschieden sein."
 fi
 
@@ -314,7 +314,7 @@ ask_password ADMIN_PASS "Admin-Passwort (mind. 12 Zeichen)" 12
 echo ""
 info "Ein JWT-Secret schuetzt Login-Tokens (Refresh-Token, Access-Token)."
 echo ""
-printf '%b' "$${BOLD}Eigenes JWT-Secret eingeben?$${RESET} [$${CYAN}leer = generieren$${RESET}]: "
+printf '%b' "${BOLD}Eigenes JWT-Secret eingeben?${RESET} [${CYAN}leer = generieren${RESET}]: "
 read -r jwt_in
 if [[ -n "${jwt_in}" ]]; then
   if [[ ${#jwt_in} -lt 32 ]]; then
@@ -328,20 +328,20 @@ fi
 
 echo ""
 echo "------------------------------------------------------------"
-printf '%b\n' "$${BOLD} Zusammenfassung$${RESET}"
+printf '%b\n' "${BOLD} Zusammenfassung${RESET}"
 echo "------------------------------------------------------------"
 echo ""
-printf '%b\n' "  Installationspfad:   $${CYAN}$${INSTALL_DIR}${RESET}"
-printf '%b\n' "  Docker-Netzwerk:     $${CYAN}$${NETWORK_NAME}${RESET}"
-printf '%b\n' "  Chat-Domain:         $${CYAN}$${CHAT_DOMAIN}${RESET}"
-printf '%b\n' "  Admin-Domain:        $${CYAN}$${ADMIN_DOMAIN}${RESET}"
-printf '%b\n' "  Admin-E-Mail:        $${CYAN}$${ADMIN_EMAIL}${RESET}"
-printf '%b\n' "  Admin-Username:      $${CYAN}$${ADMIN_USERNAME}${RESET}"
-printf '%b\n' "  Admin-Anzeigename:   $${CYAN}$${ADMIN_NAME}${RESET}"
-printf '%b\n' "  Admin-Passwort:      $${CYAN}[gesetzt]$${RESET}"
-printf '%b\n' "  JWT-Secret:          $${CYAN}[gesetzt]$${RESET}"
+printf '%b\n' "  Installationspfad:   ${CYAN}${INSTALL_DIR}${RESET}"
+printf '%b\n' "  Docker-Netzwerk:     ${CYAN}${NETWORK_NAME}${RESET}"
+printf '%b\n' "  Chat-Domain:         ${CYAN}${CHAT_DOMAIN}${RESET}"
+printf '%b\n' "  Admin-Domain:        ${CYAN}${ADMIN_DOMAIN}${RESET}"
+printf '%b\n' "  Admin-E-Mail:        ${CYAN}${ADMIN_EMAIL}${RESET}"
+printf '%b\n' "  Admin-Username:      ${CYAN}${ADMIN_USERNAME}${RESET}"
+printf '%b\n' "  Admin-Anzeigename:   ${CYAN}${ADMIN_NAME}${RESET}"
+printf '%b\n' "  Admin-Passwort:      ${CYAN}[gesetzt]${RESET}"
+printf '%b\n' "  JWT-Secret:          ${CYAN}[gesetzt]${RESET}"
 echo ""
-printf '%b' "$${BOLD}Alles korrekt? Installation starten?$${RESET} [$${CYAN}j$${RESET}/n]: "
+printf '%b' "${BOLD}Alles korrekt? Installation starten?${RESET} [${CYAN}j${RESET}/n]: "
 read -r confirm
 if [[ "${confirm,,}" == "n" ]]; then
   warn "Installation abgebrochen. Starte das Script erneut."
@@ -349,7 +349,7 @@ if [[ "${confirm,,}" == "n" ]]; then
 fi
 
 echo ""
-printf '%b\n' "$${BOLD} Schritt 2: Konfiguration schreiben$${RESET}"
+printf '%b\n' "${BOLD} Schritt 2: Konfiguration schreiben${RESET}"
 echo "------------------------------------------------------------"
 
 CREDS_KEY="$(generate_token 64)"
@@ -358,11 +358,11 @@ MEILI_MASTER_KEY="$(generate_token 32)"
 success "Secrets generiert (CREDS_KEY, CREDS_IV, MEILI_MASTER_KEY)."
 
 info "Erstelle Verzeichnisse unter ${INSTALL_DIR}..."
-$${SUDO} mkdir -p "$${INSTALL_DIR}/data/mongo"
-$${SUDO} mkdir -p "$${INSTALL_DIR}/data/meili"
+${SUDO} mkdir -p "${INSTALL_DIR}/data/mongo"
+${SUDO} mkdir -p "${INSTALL_DIR}/data/meili"
 success "Verzeichnisse erstellt."
 
-$${SUDO} tee "$${INSTALL_DIR}/current_version" >/dev/null <<EOF
+${SUDO} tee "${INSTALL_DIR}/current_version" >/dev/null <<EOF
 api=${IMAGE_API}
 admin=${IMAGE_ADMIN}
 mongo=${IMAGE_MONGO}
@@ -371,7 +371,7 @@ installed=$(date -u +%FT%TZ)
 EOF
 
 info "Schreibe .env..."
-$${SUDO} tee "$${INSTALL_DIR}/.env" >/dev/null <<EOF
+${SUDO} tee "${INSTALL_DIR}/.env" >/dev/null <<EOF
 # LibreChat Umgebungsvariablen – generiert von pc-fee.com Install-Script
 # Mehr Infos: https://pc-fee.com/blog
 #
@@ -412,11 +412,11 @@ MEILI_NO_ANALYTICS=true
 #OPENROUTER_API_KEY=sk-or-...
 #OPENROUTER_MODELS=openai/gpt-4o,anthropic/claude-3.5-sonnet
 EOF
-$${SUDO} chmod 600 "$${INSTALL_DIR}/.env"
+${SUDO} chmod 600 "${INSTALL_DIR}/.env"
 success ".env geschrieben (Berechtigungen: 600)."
 
 info "Schreibe librechat.yaml..."
-$${SUDO} tee "$${INSTALL_DIR}/librechat.yaml" >/dev/null <<EOF
+${SUDO} tee "${INSTALL_DIR}/librechat.yaml" >/dev/null <<EOF
 # librechat.yaml – generiert von pc-fee.com Install-Script
 #
 # Endpoints und API-Keys werden NICHT hier gesetzt, sondern in .env.
@@ -457,11 +457,11 @@ search:
   endpoint: "http://meilisearch:7700"
   apiKey: "\${MEILI_MASTER_KEY}"
 EOF
-$${SUDO} chmod 644 "$${INSTALL_DIR}/librechat.yaml"
+${SUDO} chmod 644 "${INSTALL_DIR}/librechat.yaml"
 success "librechat.yaml geschrieben."
 
 info "Schreibe docker-compose.yml..."
-$${SUDO} tee "$${INSTALL_DIR}/docker-compose.yml" >/dev/null <<EOF
+${SUDO} tee "${INSTALL_DIR}/docker-compose.yml" >/dev/null <<EOF
 # docker-compose.yml – generiert von pc-fee.com Install-Script
 # LibreChat + MongoDB + Meilisearch hinter Nginx Proxy Manager.
 # Mehr Infos: https://pc-fee.com/blog
@@ -549,17 +549,17 @@ networks:
   librechat_internal:
     driver: bridge
 EOF
-$${SUDO} chmod 644 "$${INSTALL_DIR}/docker-compose.yml"
+${SUDO} chmod 644 "${INSTALL_DIR}/docker-compose.yml"
 success "docker-compose.yml geschrieben."
 
 echo ""
-printf '%b\n' "$${BOLD} Schritt 3: Stack starten + Admin-Seed$${RESET}"
+printf '%b\n' "${BOLD} Schritt 3: Stack starten + Admin-Seed${RESET}"
 echo "------------------------------------------------------------"
 
 cd "${INSTALL_DIR}"
 
 info "Starte mongodb und meilisearch..."
-$${SUDO} $${COMPOSE_CMD} up -d mongodb meilisearch
+${SUDO} ${COMPOSE_CMD} up -d mongodb meilisearch
 
 info "Warte auf mongodb (max. 60s)..."
 if wait_for_healthy librechat-mongo 60; then
@@ -576,7 +576,7 @@ else
 fi
 
 info "Starte api und admin-panel..."
-$${SUDO} $${COMPOSE_CMD} up -d api admin-panel
+${SUDO} ${COMPOSE_CMD} up -d api admin-panel
 
 info "Warte auf api (max. 90s)..."
 if wait_for_healthy librechat-api 90; then
@@ -596,8 +596,8 @@ ${ADMIN_PASS}
 ${ADMIN_PASS}
 y
 "
-SEED_OUTPUT="$$(printf '%s' "$${SEED_INPUT}" \
-  | $${SUDO} $${COMPOSE_CMD} exec -T api sh -c 'cd /app/config && npm run create-user' 2>&1 || true)"
+SEED_OUTPUT="$(printf '%b' "${SEED_INPUT}" \
+  | ${SUDO} ${COMPOSE_CMD} exec -T api sh -c 'cd /app/config && npm run create-user' 2>&1 || true)"
 
 if echo "${SEED_OUTPUT}" | grep -qiE 'already exists|user exists|duplicate'; then
   warn "Admin-User '${ADMIN_USERNAME}' existiert bereits - ueberspringe Seed."
@@ -606,67 +606,67 @@ elif echo "${SEED_OUTPUT}" | grep -qiE 'error|fehler|MODULE_NOT_FOUND'; then
   echo "${SEED_OUTPUT}" | sed 's/^/    /'
   echo ""
   warn "Du kannst es manuell versuchen:"
-  echo "    cd $${INSTALL_DIR} && $${COMPOSE_CMD} exec api sh -c 'cd /app/config && npm run create-user'"
+  echo "    cd ${INSTALL_DIR} && ${COMPOSE_CMD} exec api sh -c 'cd /app/config && npm run create-user'"
 else
   success "Admin-User '${ADMIN_USERNAME}' angelegt."
 fi
 
 info "Starte api neu (Seed-Aktivierung)..."
-$${SUDO} $${COMPOSE_CMD} restart api >/dev/null
+${SUDO} ${COMPOSE_CMD} restart api >/dev/null
 success "api neugestartet."
 
 echo ""
-printf '%b\n' "$${BOLD} Schritt 4: Status + naechste Schritte$${RESET}"
+printf '%b\n' "${BOLD} Schritt 4: Status + naechste Schritte${RESET}"
 echo "------------------------------------------------------------"
 
 info "Aktueller Container-Status:"
-$${SUDO} $${COMPOSE_CMD} ps --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}'
+${SUDO} ${COMPOSE_CMD} ps --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}'
 
 echo ""
-printf '%b\n' "$${BOLD}============================================================$${RESET}"
-printf '%b\n' "$${GREEN}$${BOLD}  Installation abgeschlossen!${RESET}"
-printf '%b\n' "$${BOLD}============================================================$${RESET}"
+printf '%b\n' "${BOLD}============================================================${RESET}"
+printf '%b\n' "${GREEN}${BOLD}  Installation abgeschlossen!${RESET}"
+printf '%b\n' "${BOLD}============================================================${RESET}"
 echo ""
-printf '%b\n' "  $${BOLD}Naechste Schritte:$${RESET}"
+printf '%b\n' "  ${BOLD}Naechste Schritte:${RESET}"
 echo ""
-printf '%b\n' "  1. Richte in deinem $${BOLD}Nginx Proxy Manager$${RESET} zwei Proxy Hosts ein:"
+printf '%b\n' "  1. Richte in deinem ${BOLD}Nginx Proxy Manager${RESET} zwei Proxy Hosts ein:"
 echo ""
-printf '%b\n' "     $${BOLD}Host 1 - Chat:$${RESET}"
-printf '%b\n' "       Domain:        $${CYAN}$${CHAT_DOMAIN}${RESET}"
+printf '%b\n' "     ${BOLD}Host 1 - Chat:${RESET}"
+printf '%b\n' "       Domain:        ${CYAN}${CHAT_DOMAIN}${RESET}"
 echo "       Scheme:        http"
-printf '%b\n' "       Forward Host:  $${CYAN}librechat-api$${RESET}"
-printf '%b\n' "       Forward Port:  $${CYAN}3080$${RESET}"
+printf '%b\n' "       Forward Host:  ${CYAN}librechat-api${RESET}"
+printf '%b\n' "       Forward Port:  ${CYAN}3080${RESET}"
 echo "       Websockets:    AN"
 echo "       SSL:           Let's Encrypt"
 echo ""
-printf '%b\n' "     $${BOLD}Host 2 - Admin-Panel:$${RESET}"
-printf '%b\n' "       Domain:        $${CYAN}$${ADMIN_DOMAIN}${RESET}"
+printf '%b\n' "     ${BOLD}Host 2 - Admin-Panel:${RESET}"
+printf '%b\n' "       Domain:        ${CYAN}${ADMIN_DOMAIN}${RESET}"
 echo "       Scheme:        http"
-printf '%b\n' "       Forward Host:  $${CYAN}librechat-admin$${RESET}"
-printf '%b\n' "       Forward Port:  $${CYAN}3000$${RESET}"
+printf '%b\n' "       Forward Host:  ${CYAN}librechat-admin${RESET}"
+printf '%b\n' "       Forward Port:  ${CYAN}3000${RESET}"
 echo "       Websockets:    AN"
 echo "       SSL:           Let's Encrypt"
 echo ""
 echo "  2. Erster Login:"
-printf '%b\n' "     Browser -> $${CYAN}https://$${CHAT_DOMAIN}${RESET}"
-printf '%b\n' "     Login mit: $${CYAN}$${ADMIN_EMAIL}${RESET}  /  <dein Passwort>"
+printf '%b\n' "     Browser -> ${CYAN}https://${CHAT_DOMAIN}${RESET}"
+printf '%b\n' "     Login mit: ${CYAN}${ADMIN_EMAIL}${RESET}  /  <dein Passwort>"
 echo ""
 echo "  3. LLM-Provider in ${INSTALL_DIR}/.env eintragen."
 echo "     Vorlagen findest Du im Kommentarblock der .env."
-printf '%b\n' "     Danach: cd $${INSTALL_DIR} && sudo $${COMPOSE_CMD} restart api"
+printf '%b\n' "     Danach: cd ${INSTALL_DIR} && sudo ${COMPOSE_CMD} restart api"
 echo ""
-printf '%b\n' "  $${YELLOW}Wichtig:$${RESET} Bewahre deine .env sicher auf:"
-printf '%b\n' "  $${CYAN}$${INSTALL_DIR}/.env${RESET} (Berechtigungen: 600)"
+printf '%b\n' "  ${YELLOW}Wichtig:${RESET} Bewahre deine .env sicher auf:"
+printf '%b\n' "  ${CYAN}${INSTALL_DIR}/.env${RESET} (Berechtigungen: 600)"
 echo ""
-printf '%b\n' "$${BOLD}============================================================$${RESET}"
-printf '%b\n' "$${BOLD} Befehle zur Wiederholung / Kontrolle$${RESET}"
-printf '%b\n' "$${BOLD}============================================================$${RESET}"
+printf '%b\n' "${BOLD}============================================================${RESET}"
+printf '%b\n' "${BOLD} Befehle zur Wiederholung / Kontrolle${RESET}"
+printf '%b\n' "${BOLD}============================================================${RESET}"
 echo ""
-printf '%b\n' "  Stack neustarten:        cd $${INSTALL_DIR} && sudo $${COMPOSE_CMD} restart"
-printf '%b\n' "  Logs ansehen:            cd $${INSTALL_DIR} && sudo $${COMPOSE_CMD} logs -f"
-printf '%b\n' "  Status pruefen:          cd $${INSTALL_DIR} && sudo $${COMPOSE_CMD} ps"
-printf '%b\n' "  Auf Updates pruefen:     cd $${INSTALL_DIR} && sudo $${COMPOSE_CMD} pull"
+printf '%b\n' "  Stack neustarten:        cd ${INSTALL_DIR} && sudo ${COMPOSE_CMD} restart"
+printf '%b\n' "  Logs ansehen:            cd ${INSTALL_DIR} && sudo ${COMPOSE_CMD} logs -f"
+printf '%b\n' "  Status pruefen:          cd ${INSTALL_DIR} && sudo ${COMPOSE_CMD} ps"
+printf '%b\n' "  Auf Updates pruefen:     cd ${INSTALL_DIR} && sudo ${COMPOSE_CMD} pull"
 echo ""
-printf '%b\n' "  Mehr Tipps & Tutorials:  $${CYAN}https://pc-fee.com/blog$${RESET}"
-printf '%b\n' "  GitHub:                  $${CYAN}https://github.com/nephilim75/scripts$${RESET}"
+printf '%b\n' "  Mehr Tipps & Tutorials:  ${CYAN}https://pc-fee.com/blog${RESET}"
+printf '%b\n' "  GitHub:                  ${CYAN}https://github.com/nephilim75/scripts${RESET}"
 echo ""

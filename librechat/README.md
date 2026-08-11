@@ -12,7 +12,7 @@ Ein einzeiliges Installations-Script für **LibreChat** hinter einem bestehenden
 ## Schnellstart
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install.sh)
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install.sh)"
 ```
 
 Das war's. Das Script fragt Dich interaktiv nach den nötigen Eingaben (siehe [Konfiguration](#konfiguration)) und macht danach alles von selbst.
@@ -142,27 +142,28 @@ Login mit der Admin-E-Mail und dem Passwort aus der Installation
 
 ### 3. LLM-Provider einrichten
 
-Ohne Provider-Endpoint kann LibreChat nichts antworten. Trage sie in `librechat.yaml` ein:
+**Wichtig:** Endpoints und API-Schlüssel werden in der **`.env`** gesetzt — **nicht** in `librechat.yaml`. Die `.env` enthält bereits Vorlagen für die gängigsten Provider. Trage Deine Keys ein und kommentiere die Zeilen ein (`#` entfernen):
 
 ```bash
-sudo nano /opt/librechat/librechat.yaml
-# Beispiel-Block ergaenzen:
-#
-# endpoints:
-#   openAI:
-#     apiKey: "sk-..."
-#     models: ["gpt-4o", "gpt-4o-mini"]
-#   anthropic:
-#     apiKey: "sk-ant-..."
-#     models: ["claude-3-5-sonnet-20241022"]
-#   google:
-#     apiKey: "..."
-#     models: ["gemini-1.5-pro"]
-
-cd /opt/librechat && sudo docker compose restart api
+sudo nano /opt/librechat/.env
 ```
 
-Welche Provider-Keys Du wo bekommst, steht in der [LibreChat-Dokumentation](https://www.librechat.ai/docs/configuration/librechat_yaml).
+Beispiel:
+
+```
+OPENAI_API_KEY=sk-...
+OPENAI_MODELS=gpt-4o,gpt-4o-mini
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODELS=claude-3-5-sonnet-20241022
+```
+
+Welche Variablen welche Provider erwarten, steht in der [LibreChat-Dokumentation](https://www.librechat.ai/docs/configuration/dotenv).
+
+Danach api neu starten:
+
+```bash
+cd /opt/librechat && sudo docker compose restart api
+```
 
 ## Befehle zur Wiederholung
 
@@ -180,7 +181,7 @@ sudo docker compose logs -f api
 # Stack neustarten
 sudo docker compose restart
 
-# Nur api neustarten (nach librechat.yaml-Änderungen)
+# Nur api neustarten (nach .env-Änderungen)
 sudo docker compose restart api
 
 # Auf neue Image-Versionen prüfen
@@ -277,6 +278,14 @@ Das Admin-Panel hat **keinen** öffentlichen Port. Es ist **nur** über NPM erre
 - NPM-Container ist im `shared_proxy`-Netzwerk
 - SSL-Zertifikat wurde von Let's Encrypt ausgestellt (nicht selbstsigniert)
 
+### LLM-Antworten kommen nicht
+
+Prüfe:
+
+- API-Key steht **ohne** `#` davor in der `.env`
+- `OPENAI_MODELS` etc. sind nicht leer
+- `docker compose logs api` zeigt keinen Auth-Fehler
+
 ## Was bewusst nicht enthalten ist
 
 Diese Spec-Version (`v1.5`) deckt bewusst nur den Standard-Installationsweg ab:
@@ -289,7 +298,12 @@ Diese Spec-Version (`v1.5`) deckt bewusst nur den Standard-Installationsweg ab:
 
 ## AI Transparency
 
-Dieses Install-Script und die zugehörige README wurden mit Unterstützung von KI erstellt. Verwendetes Modell: **minimax3** (MiniMax M3). Erstellt durch: [Nils Weber, KI-Assistent bei pc-fee.com](https://pc-fee.com). Vor Veröffentlichung geprüft. Nutzung auf eigene Gefahr. Backups sind Pflicht.
+Dieses Install-Script und die zugehörige README wurden mit Unterstützung von KI erstellt.
+
+- **Erstellt durch:** Cody (KI-Assistent bei pc-fee.com)
+- **Verwendetes Modell:** minimax3 (MiniMax M3)
+
+Vor Veröffentlichung geprüft. Nutzung auf eigene Gefahr. Backups sind Pflicht.
 
 ## Mehr Infos
 

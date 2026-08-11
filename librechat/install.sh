@@ -23,7 +23,6 @@
 
 set -euo pipefail
 
-# ── Farben ──────────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -31,7 +30,6 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-# ── Hilfsfunktionen ─────────────────────────────────────────────────────────
 info()    { printf '%s\n' "$${CYAN}[INFO]$${RESET}  $*"; }
 success() { printf '%s\n' "$${GREEN}[OK]$${RESET}    $*"; }
 warn()    { printf '%s\n' "$${YELLOW}[WARN]$${RESET}  $*"; }
@@ -126,7 +124,6 @@ wait_for_healthy() {
   return 1
 }
 
-# ── Banner ──────────────────────────────────────────────────────────────────
 clear
 printf '%s' "${CYAN}"
 cat <<'EOF'
@@ -152,7 +149,6 @@ echo ""
 echo "------------------------------------------------------------"
 echo ""
 
-# ── SUDO-Helfer ─────────────────────────────────────────────────────────────
 SUDO=""
 if [[ "${EUID}" -ne 0 ]]; then
   if command -v sudo &>/dev/null; then
@@ -162,7 +158,6 @@ if [[ "${EUID}" -ne 0 ]]; then
   fi
 fi
 
-# ── Konstanten (Images, Defaults) ──────────────────────────────────────────
 IMAGE_API="registry.librechat.ai/danny-avila/librechat:dev-latest"
 IMAGE_ADMIN="registry.librechat.ai/clickhouse/librechat-admin-panel:latest"
 IMAGE_MONGO="mongo:8.0.20"
@@ -171,7 +166,6 @@ IMAGE_MEILI="getmeili/meilisearch:v1.35.1"
 DEFAULT_INSTALL_DIR="/opt/librechat"
 DEFAULT_NETWORK="shared_proxy"
 
-# ── Schritt 0: Voraussetzungen + Konflikt-Erkennung ────────────────────────
 echo ""
 printf '%s\n' "$${BOLD} Schritt 0: Voraussetzungen + Konflikt-Erkennung$${RESET}"
 echo "------------------------------------------------------------"
@@ -230,7 +224,7 @@ info "Pruefe auf bestehende LibreChat-Installation..."
 CONFLICT_FOUND=0
 
 EXISTING_CONTAINERS="$(docker ps -a --format '{{.Names}}' 2>/dev/null \
-  | grep -E '^(librechat|librechat-api|librechat-admin|librechat-mongo|librechat-meili)$' || true)"
+  | grep -E '^(librechat|librechat-api|librechat-admin|librechat-mongo|librechat-meili|librechat_task-runners)$' || true)"
 if [[ -n "${EXISTING_CONTAINERS}" ]]; then
   error "Bestehende LibreChat-Container gefunden:"
   echo "${EXISTING_CONTAINERS}" | sed 's/^/    /'
@@ -248,7 +242,7 @@ if [[ -n "${EXISTING_IMAGES}" ]]; then
 fi
 
 EXISTING_VOLUMES="$(docker volume ls --format '{{.Name}}' 2>/dev/null \
-  | grep -E '^(librechat|librechat_mongo|librechat_meili)' || true)"
+  | grep -E '^(librechat-data|librechat_mongo|librechat_meili|librechat_meili_data|librechat-code-interpreter_minio_data|librechat_code-interpreter_minio_data)$' || true)"
 if [[ -n "${EXISTING_VOLUMES}" ]]; then
   error "Bestehende LibreChat-Volumes gefunden:"
   echo "${EXISTING_VOLUMES}" | sed 's/^/    /'
@@ -273,7 +267,6 @@ if [[ "${CONFLICT_FOUND}" -ne 0 ]]; then
 fi
 success "Keine Konflikte gefunden."
 
-# ── Schritt 1: Interaktive Eingaben ─────────────────────────────────────────
 echo ""
 printf '%s\n' "$${BOLD} Schritt 1: Konfiguration$${RESET}"
 echo "------------------------------------------------------------"
@@ -355,7 +348,6 @@ if [[ "${confirm,,}" == "n" ]]; then
   exit 0
 fi
 
-# ── Schritt 2: Tokens + Dateien schreiben ──────────────────────────────────
 echo ""
 printf '%s\n' "$${BOLD} Schritt 2: Konfiguration schreiben$${RESET}"
 echo "------------------------------------------------------------"
@@ -560,7 +552,6 @@ EOF
 $${SUDO} chmod 644 "$${INSTALL_DIR}/docker-compose.yml"
 success "docker-compose.yml geschrieben."
 
-# ── Schritt 3: Stack hochfahren + Admin-Seed ────────────────────────────────
 echo ""
 printf '%s\n' "$${BOLD} Schritt 3: Stack starten + Admin-Seed$${RESET}"
 echo "------------------------------------------------------------"
@@ -598,8 +589,6 @@ fi
 echo ""
 info "Lege Admin-User '${ADMIN_USERNAME}' an..."
 
-# Workaround fuer LibreChat-Image-Bug: npm run create-user aus /app/config
-# aufrufen, nicht aus /app/api (sonst MODULE_NOT_FOUND).
 SEED_INPUT="${ADMIN_EMAIL}
 ${ADMIN_USERNAME}
 ${ADMIN_NAME}
@@ -626,7 +615,6 @@ info "Starte api neu (Seed-Aktivierung)..."
 $${SUDO} $${COMPOSE_CMD} restart api >/dev/null
 success "api neugestartet."
 
-# ── Schritt 4: Health-Checks + NPM-Proxy-Host-Hinweise ─────────────────────
 echo ""
 printf '%s\n' "$${BOLD} Schritt 4: Status + naechste Schritte$${RESET}"
 echo "------------------------------------------------------------"

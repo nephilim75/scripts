@@ -17,7 +17,8 @@
 # =============================================================================
 #
 #  AI Transparency: Dieses Script wurde mit Unterstuetzung von KI erstellt
-#  (Nils Weber, KI-Assistent bei pc-fee.com) und vor Veroeffentlichung geprueft.
+#  (Cody, KI-Assistent bei pc-fee.com) und vor Veroeffentlichung geprueft.
+#  Verwendetes Modell: minimax3 (MiniMax M3).
 #  Nutzung auf eigene Gefahr. Backups sind Pflicht.
 # =============================================================================
 
@@ -382,6 +383,10 @@ info "Schreibe .env..."
 $${SUDO} tee "$${INSTALL_DIR}/.env" >/dev/null <<EOF
 # LibreChat Umgebungsvariablen – generiert von pc-fee.com Install-Script
 # Mehr Infos: https://pc-fee.com/blog
+#
+# Endpoints und API-Keys werden HIER in der .env gesetzt, NICHT in
+# librechat.yaml. Beispiel unten – passe die Werte an und entferne die
+# fuehrenden '#' bei den Zeilen, die du nutzen willst.
 
 # --- Allgemein ---
 HOST=https://${CHAT_DOMAIN}
@@ -393,7 +398,7 @@ ALLOW_PASSWORD_RESET=false
 ADMIN_EMAIL=${ADMIN_EMAIL}
 ADMIN_USERNAME=${ADMIN_USERNAME}
 
-# --- Tokens (generiert) ---
+# --- Tokens (generiert, NICHT aendern ohne Datenmigration) ---
 JWT_SECRET=${JWT_SECRET}
 CREDS_KEY=${CREDS_KEY}
 CREDS_IV=${CREDS_IV}
@@ -405,6 +410,16 @@ MONGO_URI=mongodb://mongodb:27017/librechat
 # --- Meilisearch ---
 MEILI_URL=http://meilisearch:7700
 MEILI_NO_ANALYTICS=true
+
+# --- LLM-Provider (eigene Keys eintragen, Beispielwerte ersetzen) ---
+#OPENAI_API_KEY=sk-...
+#OPENAI_MODELS=gpt-4o,gpt-4o-mini
+#ANTHROPIC_API_KEY=sk-ant-...
+#ANTHROPIC_MODELS=claude-3-5-sonnet-20241022
+#GOOGLE_API_KEY=...
+#GOOGLE_MODELS=gemini-1.5-pro
+#OPENROUTER_API_KEY=sk-or-...
+#OPENROUTER_MODELS=openai/gpt-4o,anthropic/claude-3.5-sonnet
 EOF
 $${SUDO} chmod 600 "$${INSTALL_DIR}/.env"
 success ".env geschrieben (Berechtigungen: 600)."
@@ -412,7 +427,10 @@ success ".env geschrieben (Berechtigungen: 600)."
 info "Schreibe librechat.yaml..."
 $${SUDO} tee "$${INSTALL_DIR}/librechat.yaml" >/dev/null <<EOF
 # librechat.yaml – generiert von pc-fee.com Install-Script
-# Provider-Endpoints hier manuell ergaenzen (Format siehe librechat.ai Docs).
+#
+# Endpoints und API-Keys werden NICHT hier gesetzt, sondern in .env.
+# Diese Datei enthaelt nur Konfiguration, die nichts mit Secrets zu tun hat
+# (UI, Registration-Flags, Search-Endpoint, Cache, etc.).
 # Mehr Infos: https://pc-fee.com/blog
 
 version: 1.0.0
@@ -421,7 +439,25 @@ cache: true
 interface:
   customWelcome: "Willkommen bei deinem Chat"
 
-endpoints: {}
+endpoints:
+  custom:
+    - name: "OpenAI"
+      apiKey: "\${OPENAI_API_KEY}"
+      baseURL: "https://api.openai.com/v1"
+      models:
+        default: ["gpt-4o", "gpt-4o-mini"]
+        fetch: false
+      titleConvo: true
+      titleModel: "gpt-4o-mini"
+
+    - name: "Anthropic"
+      apiKey: "\${ANTHROPIC_API_KEY}"
+      baseURL: "https://api.anthropic.com"
+      models:
+        default: ["claude-3-5-sonnet-20241022"]
+        fetch: false
+      titleConvo: true
+      titleModel: "claude-3-5-sonnet-20241022"
 
 registration:
   disable: true
@@ -628,7 +664,8 @@ echo -e "  2. Erster Login:"
 echo -e "     Browser -> $${CYAN}https://$${CHAT_DOMAIN}${RESET}"
 echo -e "     Login mit: $${CYAN}$${ADMIN_EMAIL}${RESET}  /  <dein Passwort>"
 echo ""
-echo -e "  3. LLM-Provider in ${INSTALL_DIR}/librechat.yaml eintragen."
+echo -e "  3. LLM-Provider in ${INSTALL_DIR}/.env eintragen."
+echo -e "     Vorlagen findest Du im Kommentarblock der .env."
 echo -e "     Danach: cd $${INSTALL_DIR} && sudo $${COMPOSE_CMD} restart api"
 echo ""
 echo -e "  $${YELLOW}Wichtig:$${RESET} Bewahre deine .env sicher auf:"

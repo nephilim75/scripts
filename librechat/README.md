@@ -1,228 +1,321 @@
-# LibreChat Installer (pc-fee)
+<!-- TODO: Header-Screenshot hier einfuegen, wenn vorhanden -->
 
-> **Ein Befehl, komplette LibreChat-Instanz mit Admin-Panel, hinter deinem Nginx Proxy Manager.**
+# LibreChat Installer – powered by pc-fee.com
 
-Dieser Installer richtet LibreChat als Docker-Compose-Stack auf einem Debian-12/13-VPS ein. Voraussetzung: du hast bereits den [Nginx Proxy Manager (NPM)](https://pc-fee.com/2026/05/03/nginx-proxy-manager/) installiert.
+[![Blog](https://img.shields.io/badge/blog-pc--fee.com-blue)](https://pc-fee.com/blog)
+[![GitHub](https://img.shields.io/badge/github-nephilim75%2Fscripts-black)](https://github.com/nephilim75/scripts/tree/main/librechat)
 
-## Was du bekommst
+Ein einzeiliges Installations-Script für **LibreChat** hinter einem bestehenden **Nginx Proxy Manager** auf Debian 12/13. Inklusive MongoDB, Meilisearch und automatisch angelegtem Admin-User.
 
-- **Chat-UI** unter `https://chat.deinedomain.de`
-- **Admin-Panel** unter `https://chat-admin.deinedomain.de`
-- **Meilisearch** für Volltextsuche in Chat-Verläufen (optional)
-- **MongoDB** für persistente Daten
-- Alles erreichbar **ausschließlich über NPM** – kein direkter Container-Zugriff vom Internet
+> Zielgruppe: VPS-Betreiber mit Grundkenntnissen in Docker & DNS. Kein Tooling, kein Python, kein manuelles `docker compose` getippe.
 
-> **Hinweis zu API-Keys:** In dieser Version werden API-Keys für KI-Provider direkt in `librechat.yaml` hinterlegt (per Editor). Eine komfortablere Verwaltung im Admin-Panel ist für eine spätere Version geplant.
-
-## Voraussetzungen
-
-| | Anforderung | Anleitung |
-|---|---|---|
-| **VPS** | Debian 12 oder 13, ≥ 2 GB RAM, ≥ 10 GB frei | beliebiger Hoster |
-| **NPM** | läuft bereits, Netzwerk `shared_proxy` | [pc-fee.com/2026/05/03/nginx-proxy-manager/](https://pc-fee.com/2026/05/03/nginx-proxy-manager/) |
-| **Docker** | Version ≥ 20.10 mit Compose-Plugin v2 | [pc-fee.com/2026/05/03/docker-compose/](https://pc-fee.com/2026/05/03/docker-compose/) |
-| **Domain** | A-Record zeigt auf deine VPS-IP | beim Domain-Provider |
-| **SSH** | Zugriff mit `sudo` | – |
-
-## Installation
-
-### Schnellinstallation (Einzeiler)
+## Schnellstart
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install.sh)
 ```
 
-> ⚠️ Das Skript läuft mit Root-Rechten, weil Docker-Operationen und Verzeichnisse unter `/opt/librechat` diese benötigen. Du vertraust damit dem Code auf [GitHub](https://github.com/nephilim75/scripts/tree/main/librechat). Empfehlung: vor dem ersten Lauf einmal durchlesen.
+Das war's. Das Script fragt Dich interaktiv nach den nötigen Eingaben (siehe [Konfiguration](#konfiguration)) und macht danach alles von selbst.
 
-### Manuell mit Review
-
-```bash
-git clone https://github.com/nephilim75/scripts.git /tmp/pcfee-scripts
-cd /tmp/pcfee-scripts/librechat
-less install.sh   # vorher durchschauen
-sudo ./install.sh
-```
-
-## Was das Skript tut
-
-| Schritt | Was passiert |
-|---|---|
-| **0** | Voraussetzungen prüfen (OS, Docker, NPM, RAM, Disk, envsubst) |
-| **0.5** | Konflikte prüfen – bricht ab, wenn bereits Container/Volumes/Netzwerke/Ports belegt sind (Schutzregel: niemals überschreiben) |
-| **1** | Installationspfad, Netzwerk, Domains, Admin-Daten, JWT-Secret, Meilisearch j/n abfragen |
-| **2** | Templates rendern via `envsubst` → `docker-compose.yml`, `librechat.yaml`, `.env` |
-| **3** | Ersten Admin-User in MongoDB anlegen (bcrypt via Node im librechat-api-Image, Insert via mongosh) |
-| **4** | Container starten, auf Health-Checks warten, NPM-Hinweise ausgeben |
-
-## NPM-Proxy-Hosts einrichten
-
-Nach der Installation gibt dir das Skript zwei Hinweis-Blöcke für NPM. Lege sie manuell in NPM an:
-
-### Host 1: Chat-Domain
-
-| Feld | Wert |
-|---|---|
-| Domain | `chat.deinedomain.de` |
-| Scheme | `http` |
-| Forward Hostname/IP | `api` |
-| Forward Port | `3080` |
-| Websockets Support | ✅ |
-| SSL | Let's Encrypt |
-
-### Host 2: Admin-Panel-Domain
-
-| Feld | Wert |
-|---|---|
-| Domain | `chat-admin.deinedomain.de` |
-| Scheme | `http` |
-| Forward Hostname/IP | `admin-panel` |
-| Forward Port | `3000` |
-| Websockets Support | ✅ |
-| SSL | Let's Encrypt |
-
-## Erster Login
-
-1. Browser → `https://chat.deinedomain.de`
-2. Login mit deiner Admin-E-Mail + Passwort
-3. Klick oben rechts auf **Admin Panel**
-
-## API-Keys für KI-Provider hinterlegen
-
-In dieser Version (Scope 1.0) ohne Toolkit. Zwei Wege:
-
-### Weg 1: Über das LibreChat-Admin-Panel
-
-Falls deine LibreChat-Version das schon unterstützt:
-- Admin-Panel → **Endpoints** → Provider hinzufügen → API-Key eintragen
-
-### Weg 2: Manuell in `librechat.yaml` (empfohlen)
+### Manuell (für Debugging)
 
 ```bash
-sudo nano /opt/librechat/librechat.yaml
+curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install.sh -o /tmp/install.sh
+sudo bash /tmp/install.sh
 ```
 
-Trage unter `endpoints:` ein:
+## Voraussetzungen
 
-```yaml
-endpoints:
-  openAI:
-    apiKey: "sk-..."
-    models: ["gpt-4o", "gpt-4o-mini"]
-    title: "OpenAI"
-  anthropic:
-    apiKey: "sk-ant-..."
-    models: ["claude-3-5-sonnet-latest"]
-    title: "Anthropic"
+Bevor Du das Script startest, muss Folgendes bereits laufen:
+
+- **Docker + Docker Compose Plugin v2** sind installiert ([Anleitung](https://pc-fee.com/2026/05/03/docker-compose/))
+- **Nginx Proxy Manager (NPM)** läuft ([Anleitung](https://pc-fee.com/2026/05/03/nginx-proxy-manager/))
+- Das Docker-Netzwerk **`shared_proxy`** existiert (legt der NPM-Installer an)
+- Zwei Domains zeigen per A/AAAA-Record auf Deinen VPS:
+  - Eine für den Chat (z.B. `chat.deinedomain.de`)
+  - Eine für das Admin-Panel (z.B. `chat-admin.deinedomain.de`)
+
+## Was wird installiert
+
+Vier Docker-Container in zwei Docker-Netzwerken:
+
+| Service | Image | Interner Port | Netzwerk(e) |
+|---|---|---|---|
+| `librechat-mongo` | `mongo:8.0.20` | 27017 | `librechat_internal` |
+| `librechat-meili` | `getmeili/meilisearch:v1.35.1` | 7700 | `librechat_internal` |
+| `librechat-api` | `registry.librechat.ai/danny-avila/librechat:dev-latest` | 3080 | `shared_proxy` + `librechat_internal` |
+| `librechat-admin` | `registry.librechat.ai/clickhouse/librechat-admin-panel:latest` | 3000 | `shared_proxy` |
+
+**Wichtig:** Es gibt **keine** Host-Port-Bindings (`ports:`) auf api oder admin-panel. Beide sind nur über NPM und damit über Deine Domains erreichbar. Wer die Server-IP kennt, kommt nicht direkt dran.
+
+### Netzwerk-Topologie
+
+```
+                              ┌──────────────────────────┐
+   Internet ── HTTPS ────────►│   Nginx Proxy Manager    │
+                              │   (shared_proxy)         │
+                              └────────┬─────────────────┘
+                                       │
+              ┌────────────────────────┼────────────────────────┐
+              │                        │                        │
+              ▼                        ▼                        ▼
+       librechat-api           librechat-admin           (andere NPM-Services)
+       (Port 3080)             (Port 3000)
+              │                        │
+              ▼                        ▼
+   ┌──────────────────────────────────────────────────────────────────┐
+   │   librechat_internal (intern, vom Stack angelegt)                │
+   │                                                                  │
+   │   ┌────────────────┐                ┌────────────────────┐       │
+   │   │ librechat-mongo│◄──────────────►│  librechat-meili   │       │
+   │   │ (Port 27017)   │                │  (Port 7700)       │       │
+   │   └────────────────┘                └────────────────────┘       │
+   └──────────────────────────────────────────────────────────────────┘
 ```
 
-Speichern, dann API neu starten:
+## Konfiguration
+
+Das Script fragt Dich folgende Werte ab (Defaults in eckigen Klammern):
+
+| Frage | Default | Hinweis |
+|---|---|---|
+| Installationspfad | `/opt/librechat` | Absoluter Pfad, änderbar (z.B. `/srv/chat`) |
+| Docker-Netzwerk | `shared_proxy` | Muss vom NPM-Installer existieren |
+| Chat-Domain | — | Pflicht, z.B. `chat.deinedomain.de` |
+| Admin-Panel-Domain | — | Pflicht, muss ungleich der Chat-Domain sein |
+| Admin-E-Mail | — | Wird zum Login verwendet |
+| Admin-Username | aus E-Mail-Präfix | Default z.B. `admin` aus `admin@example.com` |
+| Admin-Anzeigename | = Username | Frei wählbar |
+| Admin-Passwort | — | Mind. 12 Zeichen, wird 2× abgefragt |
+| JWT-Secret | leer = generieren | Eigene Eingabe möglich, mind. 32 Zeichen empfohlen |
+
+Vor dem eigentlichen Start zeigt das Script eine **Zusammenfassung** zur Bestätigung. Erst nach Deinem `j` geht es los.
+
+## Was das Script macht
+
+Das Script läuft in fünf Schritten:
+
+1. **Schritt 0 – Voraussetzungen + Konflikt-Erkennung**
+   Prüft Docker, Compose, NPM, das Docker-Netzwerk und ob bereits LibreChat-Container/Images/Volumes existieren. Bricht sauber ab, wenn etwas nicht stimmt — bestehende Installationen werden **nie** überschrieben.
+
+2. **Schritt 1 – Interaktive Konfiguration**
+   Fragt alle Werte ab (siehe oben), validiert Domain- und E-Mail-Format.
+
+3. **Schritt 2 – Konfiguration schreiben**
+   Generiert die fehlenden Secrets (`JWT_SECRET`, `CREDS_KEY`, `CREDS_IV`, `MEILI_MASTER_KEY`), legt Datenverzeichnisse an und schreibt `.env`, `docker-compose.yml` und `librechat.yaml` in den Installationspfad.
+
+4. **Schritt 3 – Stack starten + Admin-Seed**
+   Startet MongoDB und Meilisearch, wartet auf deren Healthcheck, startet dann api und admin-panel. Anschließend wird der Admin-User via `npm run create-user` direkt in der MongoDB angelegt.
+
+5. **Schritt 4 – Status + nächste Schritte**
+   Zeigt den `docker compose ps`-Output und gibt Dir eine Anleitung, wie Du die zwei NPM-Proxy-Hosts einrichtest.
+
+## Nach der Installation
+
+### 1. NPM-Proxy-Hosts einrichten
+
+Lege in Deinem Nginx Proxy Manager **zwei** Proxy Hosts an:
+
+**Host 1 – Chat:**
+- Domain: `chat.deinedomain.de`
+- Scheme: `http`
+- Forward Hostname: `librechat-api`
+- Forward Port: `3080`
+- Websockets: **aktiviert**
+- SSL: **Request a new Certificate (Let's Encrypt)**, Force SSL an, HTTP/2 an, HSTS an
+
+**Host 2 – Admin-Panel:**
+- Domain: `chat-admin.deinedomain.de`
+- Scheme: `http`
+- Forward Hostname: `librechat-admin`
+- Forward Port: `3000`
+- Websockets: **aktiviert**
+- SSL: **Request a new Certificate (Let's Encrypt)**, Force SSL an, HTTP/2 an, HSTS an
+
+### 2. Erster Login
+
+```
+Browser → https://chat.deinedomain.de
+Login mit der Admin-E-Mail und dem Passwort aus der Installation
+```
+
+### 3. LLM-Provider einrichten
+
+**Wichtig:** Endpoints und API-Schlüssel werden in der **`.env`** gesetzt — **nicht** in `librechat.yaml`. Die `.env` enthält bereits Vorlagen für die gängigsten Provider. Trage Deine Keys ein und kommentiere die Zeilen ein (`#` entfernen):
 
 ```bash
+sudo nano /opt/librechat/.env
+```
+
+Beispiel:
+
+```
+OPENAI_API_KEY=sk-...
+OPENAI_MODELS=gpt-4o,gpt-4o-mini
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODELS=claude-3-5-sonnet-20241022
+```
+
+Welche Variablen welche Provider erwarten, steht in der [LibreChat-Dokumentation](https://www.librechat.ai/docs/configuration/dotenv).
+
+Danach api neu starten:
+
+```bash
+cd /opt/librechat && sudo docker compose restart api
+```
+
+## Befehle zur Wiederholung
+
+```bash
+# In den Installationsordner wechseln
 cd /opt/librechat
+
+# Status ansehen
+sudo docker compose ps
+
+# Logs ansehen
+sudo docker compose logs -f
+sudo docker compose logs -f api
+
+# Stack neustarten
+sudo docker compose restart
+
+# Nur api neustarten (nach .env-Änderungen)
 sudo docker compose restart api
+
+# Auf neue Image-Versionen prüfen
+sudo docker compose pull
+
+# Stack stoppen
+sudo docker compose down
+
+# Admin-User nachträglich anlegen (z.B. weitere Admins)
+sudo docker compose exec api sh -c 'cd /app/config && npm run create-user'
 ```
 
-> Die Datei hat `chmod 644`, du brauchst `sudo` zum Editieren.
+## Update / Upgrade
 
-## Wie update ich LibreChat?
+> **Hinweis:** Update-Mechanik ist aktuell **nicht** im Scope dieses Scripts. Empfohlene Vorgehensweise bei neuen Versionen:
 
 ```bash
 cd /opt/librechat
-sudo docker compose pull api admin-panel
-sudo docker compose up -d
+sudo docker compose pull          # neue Images laden
+sudo docker compose up -d         # Stack neu starten
+sudo docker system prune -f       # alte Images aufräumen
 ```
 
-(Später kommt ein `update.sh` im Installer.)
+Vor jedem Update: **Snapshot/Backup der MongoDB-Daten nicht vergessen.**
 
-## Was passiert, wenn ich das Skript erneut laufen lasse?
+## Datensicherung
 
-Das Skript erkennt eine bestehende Installation über `.librechat-install.conf` und fragt nach:
-- **Reconfigure** – nur Konfig ändern (z. B. Domain updaten)
-- **Reinstall** – Container neu starten, Daten bleiben
-- **Abbrechen**
+> **Hinweis:** Backup-Mechanik ist aktuell **nicht** im Scope dieses Scripts.
 
-**Es werden niemals Daten gelöscht ohne explizite Bestätigung.**
+Manuelles Backup der Daten:
 
-## Wo liegen meine Daten?
+```bash
+# MongoDB
+sudo docker exec librechat-mongo mongosh librechat --eval 'db.adminCommand({fsync:1})'
+sudo tar czf mongo-backup-$(date +%F).tar.gz -C /opt/librechat/data/mongo .
 
-```
-/opt/librechat/
-├── .env                              # Zugangsdaten — chmod 600
-├── .librechat-install.conf           # Konfiguration — chmod 600
-├── docker-compose.yml                # gerendert
-└── librechat.yaml                    # gerendert
+# Meilisearch
+sudo tar czf meili-backup-$(date +%F).tar.gz -C /opt/librechat/data/meili .
 ```
 
-## Wie deinstalliere ich alles?
+## Troubleshooting
+
+### Script bricht ab mit "Nginx Proxy Manager läuft nicht"
+
+NPM muss vor LibreChat installiert sein und laufen. Siehe [Voraussetzungen](#voraussetzungen).
+
+### Script bricht ab mit "Netzwerk shared_proxy fehlt"
+
+Das Netzwerk wird vom NPM-Installer angelegt. Entweder:
+
+- Du hast einen anderen Netzwerknamen verwendet → gib diesen beim Prompt an
+- Das Netzwerk existiert wirklich nicht → Script bietet an, es anzulegen. **Danach NPM neu starten**, damit es sich in das Netzwerk einklinkt.
+
+### Script bricht ab bei Konflikt mit bestehenden Containern
+
+Das ist Absicht. Die Schutzregel verhindert, dass eine bestehende LibreChat-Installation überschrieben wird. Lösung:
+
+```bash
+# Container stoppen und entfernen
+sudo docker rm -f librechat-api librechat-admin librechat-mongo librechat-meili
+
+# Volumes entfernen (ACHTUNG: löscht alle Daten!)
+sudo docker volume rm librechat_mongo librechat_meili
+```
+
+### api wird nicht healthy
 
 ```bash
 cd /opt/librechat
-sudo docker compose down -v   # ACHTUNG: löscht alle Daten!
-sudo rm -rf /opt/librechat
+sudo docker compose logs api
 ```
 
-## Häufige Fragen
+Häufigste Ursachen:
+- Falsche `JWT_SECRET` (muss mind. 32 Zeichen lang sein)
+- MongoDB noch nicht bereit (Script wartet 60s, manchmal reicht das nicht)
+- Falsche `librechat.yaml`-Syntax
 
-### Funktioniert das auf Windows/macOS?
+### Admin-Seed fehlgeschlagen
 
-Nur mit WSL2 auf Windows. macOS nativ nicht getestet.
-
-### Was ist mit RAG / Vektor-Datenbank?
-
-Aktuell nicht im Default-Scope. Du kannst später `librechat.yaml` erweitern und in `docker-compose.yml` zusätzliche Services eintragen (Anleitung in der offiziellen LibreChat-Doku).
-
-### Das Skript bricht mit "Konflikte gefunden" ab?
-
-Das ist Absicht (Schutzregel). Löse den Konflikt mit dem ausgegebenen Befehl, dann Skript erneut laufen lassen. Bestehende Daten werden **nie** überschrieben.
-
-### Ich habe mein Admin-Passwort vergessen?
+Das Script legt den Admin-User via `npm run create-user` an. Falls das fehlschlägt:
 
 ```bash
 cd /opt/librechat
-sudo docker compose exec mongodb mongosh librechat --eval '
-  db.users.updateOne(
-    {email: "deine@email.de"},
-    {$$set: {password: "\$2b\$12$$..."}}
-  )
-'
+sudo docker compose exec api sh -c 'cd /app/config && npm run create-user'
 ```
 
-(Zur Hash-Erzeugung denselben Node-Befehl wie der Installer verwenden — Details in einer späteren Anleitung.)
+Wenn die Fehlermeldung `MODULE_NOT_FOUND` lautet: das ist ein bekannter Bug im LibreChat-Image. Der Workaround `cd /app/config` ist im Script bereits eingebaut — wenn er trotzdem auftritt, bitte Issue auf GitHub melden.
 
-## Support
+### Einzeiler macht nichts oder zeigt Permission denied
 
-- GitHub Issues: [github.com/nephilim75/scripts/issues](https://github.com/nephilim75/scripts/issues)
-- Blog: [pc-fee.com/blog](https://pc-fee.com/blog)
-- NPM-Anleitung: [pc-fee.com/2026/05/03/nginx-proxy-manager/](https://pc-fee.com/2026/05/03/nginx-proxy-manager/)
-- Docker-Compose-Anleitung: [pc-fee.com/2026/05/03/docker-compose/](https://pc-fee.com/2026/05/03/docker-compose/)
-- Offizielle LibreChat-Doku: [librechat.ai/docs](https://www.librechat.ai/docs)
+Manche Distributionen/Bash-Versionen haben Probleme mit `bash <(curl ...)`. Dann manuell ausführen:
 
-## Lizenz
-
-MIT.
-
-## Architektur-Übersicht
-
-```
-Browser
-  │
-  ├── https://chat.deinedomain.de ─────► NPM ──► api:3080
-  │
-  └── https://chat-admin.deinedomain.de ► NPM ──► admin-panel:3000
-                                                │
-                                                ▼
-                          ┌─────────────────────────────────┐
-                          │  Docker-Netzwerk: shared_proxy  │
-                          │  (extern, vom NPM-Stack)        │
-                          └─────────────────────────────────┘
-                                                │
-                          ┌─────────────────────────────────┐
-                          │  Docker-Netzwerk: librechat_internal
-                          │  (intern, vom Installer erstellt)│
-                          │                                  │
-                          │  api ◄───► mongodb:27017        │
-                          │       ◄───► meilisearch:7700     │
-                          └─────────────────────────────────┘
+```bash
+curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install.sh -o /tmp/install.sh
+sudo bash /tmp/install.sh
 ```
 
-**Wichtig:** Kein Service exposed direkt an den Host. Alles geht durch NPM.
+### Admin-Panel nicht erreichbar
+
+Das Admin-Panel hat **keinen** öffentlichen Port. Es ist **nur** über NPM erreichbar. Prüfe:
+
+- NPM-Proxy-Host existiert mit korrekter Domain
+- NPM-Container ist im `shared_proxy`-Netzwerk
+- SSL-Zertifikat wurde von Let's Encrypt ausgestellt (nicht selbstsigniert)
+
+### LLM-Antworten kommen nicht
+
+Prüfe:
+
+- API-Key steht **ohne** `#` davor in der `.env`
+- `OPENAI_MODELS` etc. sind nicht leer
+- `docker compose logs api` zeigt keinen Auth-Fehler
+
+## Was bewusst nicht enthalten ist
+
+Diese Spec-Version (`v1.5`) deckt bewusst nur den Standard-Installationsweg ab:
+
+- ❌ **Passwort-Reset / SMTP / Mailgun** — kommt in einer späteren Version über eine CLI. Bis dahin ist `ALLOW_PASSWORD_RESET=false` hart gesetzt.
+- ❌ **Backup / Restore** — siehe manuelles Vorgehen oben
+- ❌ **Auto-Update-Mechanik** — manuelle `docker compose pull` wie oben beschrieben
+- ❌ **Multi-Tenant / mehrere Admins** — aktuell nur ein Admin-User per Installer; weitere über den `create-user`-Befehl
+- ❌ **Plugin-Entwicklung, Logging/Monitoring** — out of scope
+
+## AI Transparency
+
+Dieses Install-Script und die zugehörige README wurden mit Unterstützung von KI erstellt.
+
+- **Erstellt durch:** Cody (KI-Assistent bei pc-fee.com)
+- **Verwendetes Modell:** minimax3 (MiniMax M3)
+
+Vor Veröffentlichung geprüft. Nutzung auf eigene Gefahr. Backups sind Pflicht.
+
+## Mehr Infos
+
+- 📖 Blog-Artikel: <https://pc-fee.com/blog>
+- 💻 GitHub: <https://github.com/nephilim75/scripts/tree/main/librechat>
+- 📚 LibreChat-Doku: <https://www.librechat.ai/docs>
+- 🔧 Nginx Proxy Manager: <https://nginxproxymanager.com/>

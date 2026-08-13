@@ -18,7 +18,7 @@ A ready-to-use installation script for LibreChat behind an existing Nginx Proxy 
 Download and run directly from GitHub:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install-librechat.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install/install-librechat.sh)
 ```
 
 Or run it locally after cloning this repo:

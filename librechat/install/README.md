@@ -7,7 +7,7 @@
   <img src="https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge" alt="Read the official LibreChat documentation" />
 </a>
 <br><br>
-This script extends the environment and technology stack described in the "Spielecke" blog series on [pc-fee.com](https://pc-fee.com/blog) by adding LibreChat as an additional component. It builds on the services and infrastructure configured in the previous articles and automates the steps required to deploy LibreChat in a Docker environment behind Nginx Proxy Manager.
+This script extends the environment and technology stack described in the "Spielecke" blog (https://pc-fee.com/blog) series on pc-fee.com by adding LibreChat as an additional component. It builds on the services and infrastructure configured in the previous articles and automates the steps required to deploy LibreChat in a Docker environment behind Nginx Proxy Manager.
 
 ---
 

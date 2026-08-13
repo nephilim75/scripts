@@ -159,6 +159,14 @@ If a service is not ready, the log output is usually the fastest way to identify
 
 ---
 
+## AI Transparency
+
+This script was created with AI assistance.  
+**Models:** Minimax3 & Claude Sonnet 5 (Anthropic)  
+**Agent:** Cody (Senior AI Software Engineer, pc-fee.com)
+
+---
+
 ## 🔗 References
 
 - LibreChat: https://www.librechat.ai/

@@ -65,9 +65,9 @@ Before running the installer, make sure you have:
 - a Debian-based Linux server
 - root privileges or `sudo`
 - `git` installed
-- `docker` and it's Compose plugin installed/ enabled - [![Badge linking to blog post about Nginx Proxy Manager setup](https://img.shields.io/badge/pc--fee.com-Blogpost%20%22Docker%20Compose%22-fe5200
+- `docker` and it's Compose plugin installed/ enabled - :link: [![Badge linking to blog post about Nginx Proxy Manager setup](https://img.shields.io/badge/pc--fee.com-Blogpost%20%22Docker%20Compose%22-fe5200
 )](https://pc-fee.com/docker-compose/)
-- an existing Nginx Proxy Manager container with network called `shared_proxy` - [![Badge linking to blog post about Nginx Proxy Manager setup](https://img.shields.io/badge/pc--fee.com-Blogpost%20%22Nginx%20Proxy%20Manager%22-fe5200
+- an existing Nginx Proxy Manager container with network called `shared_proxy` - :link: [![Badge linking to blog post about Nginx Proxy Manager setup](https://img.shields.io/badge/pc--fee.com-Blogpost%20%22Nginx%20Proxy%20Manager%22-fe5200
 )](https://pc-fee.com/nginx-proxy-manager/)
 
 - valid domains for the chat and admin frontend

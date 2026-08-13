@@ -55,7 +55,6 @@ This installer:
 | Meilisearch | Search backend |
 | RAG API | Retrieval / AI context support |
 | Admin Panel | Admin interface |
-| Nginx Proxy Manager | Reverse proxy and SSL termination |
 
 ---
 
@@ -66,10 +65,8 @@ Before running the installer, make sure you have:
 - a Debian-based Linux server
 - root privileges or `sudo`
 - `git` installed
-- `docker` installed
-- Docker Compose plugin enabled
-- an existing Nginx Proxy Manager container
-- an existing Docker network, for example `shared_proxy`
+- `docker` and it's Compose plugin installed/ enabled - [![Blogpost](https://shields.io)](https://pc-fee.com/nginx-proxy-manager/)
+- an existing Nginx Proxy Manager container with network called `shared_proxy` - [![Blogpost](https://shields.io)](https://pc-fee.com/docker-compose/)
 - valid domains for the chat and admin frontend
 - an admin email address
 
@@ -117,8 +114,8 @@ In the target directory, the script creates or updates:
 
 After installation, the script guides you through the remaining setup:
 
-1. identify the server's public IPv4
-2. add two A-records for your domains
+1. identification of server's public IPv4 to become able to
+2. add two A-records for your domains at your domain provider
 3. create two proxy hosts in Nginx Proxy Manager
    - chat domain → `api:3080`
    - admin domain → `admin-panel:3000`

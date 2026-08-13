@@ -1,10 +1,10 @@
 # LibreChat Docker Installer
 
 <a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Blog-pc--fee.com-0A84FF?style=for-the-badge" alt="Blog" />
+  <img src="https://img.shields.io/badge/Blog-pc--fee.com-0A84FF?style=for-the-badge" alt="Visit the pc-fee.com blog for additional resources and tutorials" />
 </a>
 <a href="https://www.librechat.ai/docs" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge" alt="Docs" />
+  <img src="https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge" alt="Read the official LibreChat documentation" />
 </a>
 
 This installer is the practical companion to the step-by-step LibreChat setup described on the <a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">pc-fee.com blog</a>. It turns the blog walkthrough into a repeatable, scripted installation for a Docker-based environment behind Nginx Proxy Manager.
@@ -65,8 +65,11 @@ Before running the installer, make sure you have:
 - a Debian-based Linux server
 - root privileges or `sudo`
 - `git` installed
-- `docker` and it's Compose plugin installed/ enabled - [![Blogpost](https://shields.io)](https://pc-fee.com/nginx-proxy-manager/)
-- an existing Nginx Proxy Manager container with network called `shared_proxy` - [![Blogpost](https://shields.io)](https://pc-fee.com/docker-compose/)
+- `docker` and it's Compose plugin installed/ enabled - [![Badge linking to blog post about Nginx Proxy Manager setup](https://img.shields.io/badge/pc--fee.com-Blogpost%20%22Docker%20Compose%22-fe5200
+)](https://pc-fee.com/docker-compose/)
+- an existing Nginx Proxy Manager container with network called `shared_proxy` - [![Badge linking to blog post about Nginx Proxy Manager setup](https://img.shields.io/badge/pc--fee.com-Blogpost%20%22Nginx%20Proxy%20Manager%22-fe5200
+)](https://pc-fee.com/nginx-proxy-manager/)
+
 - valid domains for the chat and admin frontend
 - an admin email address
 

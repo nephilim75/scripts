@@ -8,35 +8,25 @@ A collection of scripts and guides for installing, maintaining and operating Lib
 
 | Folder | Description |
 |--------|-------------|
-| [install](https://github.com/nephilim75/scripts/tree/main/librechat/install) | LibreChat installation scripts and install guide |
-| [maintenance](https://github.com/nephilim75/scripts/tree/main/librechat/maintenance) | planned maintenance and health checks |
-| [backup](https://github.com/nephilim75/scripts/tree/main/librechat/backup) | planned backup and restore scripts |
-| [update](https://github.com/nephilim75/scripts/tree/main/librechat/update) | planned update procedures |
-| [troubleshooting](https://github.com/nephilim75/scripts/tree/main/librechat/troubleshooting) | planned diagnostics and log guides |
-
----
-
-## 🚀 Quickstart
-
-1. Read the install guide:
-   - [install/README.md](install/README.md)
-2. Start the installation:
-   ```bash
-   bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install/install-librechat.sh)
-   ```
-3. Follow the DNS and NPM proxy setup printed by the script.
+| install | LibreChat installation scripts and install guide |
+| maintenance | planned maintenance and health checks |
+| backup | planned backup and restore scripts |
+| update | planned update procedures |
+| troubleshooting | planned diagnostics and log guides |
 
 ---
 
 ## ✅ Current focus
 
-The current LibreChat section is centered on a clean Docker installation workflow behind an existing Nginx Proxy Manager setup.
+Start here for the installation flow:
 
-The project is intentionally kept modular so that later sections such as maintenance, updates, backup, and troubleshooting can be added without cluttering the initial install flow.
+- [install/README.md](install/README.md)
 
 ---
 
 ## 🧩 Goals
+
+The current LibreChat section is centered on a clean Docker installation workflow behind an existing Nginx Proxy Manager setup.
 
 This area is meant to provide:
 

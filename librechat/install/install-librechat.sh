@@ -406,10 +406,17 @@ cat <<NEXT
 
 3) Login:
    LibreChat:  https://${CHAT_DOMAIN}
+   Admin-Panel: https://${ADMIN_DOMAIN}
+   Admin-Username: ${ADMIN_USERNAME}
    Admin-Mail: ${ADMIN_EMAIL}
+   Admin-Passwort: (wie oben vergeben)
 
 Wichtige Befehle:
   Logs:    cd ${INSTALL_DIR} && ${COMPOSE_CMD} logs -f
   Status:  cd ${INSTALL_DIR} && ${COMPOSE_CMD} ps
   Update:  cd ${INSTALL_DIR} && git pull && ${COMPOSE_CMD} pull && ${COMPOSE_CMD} up -d
+
+GitHub-Referenz:
+  https://github.com/nephilim75/scripts/tree/main/librechat/install
+
 NEXT

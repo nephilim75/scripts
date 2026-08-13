@@ -1,7 +1,7 @@
 # LibreChat Docker Installer
 
 <a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Blog-pc--fee.com-0A84FF?style=for-the-badge" alt="Visit the pc-fee.com blog for additional resources and tutorials" />
+  <img src="https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge" alt="Visit the pc-fee.com blog for additional resources and tutorials" />
 </a>
 <a href="https://www.librechat.ai/docs" target="_blank" rel="noopener noreferrer">
   <img src="https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge" alt="Read the official LibreChat documentation" />

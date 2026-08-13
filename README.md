@@ -1,6 +1,6 @@
 # Scripts
 
-[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-0A84FF?style=for-the-badge)](https://pc-fee.com/blog/)
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 
 A collection of scripts for various use cases. Each subfolder contains its own README with details. The scripts are based on **pc-fee.com**'s [blog posts ↗](https://pc-fee.com/blog).
 

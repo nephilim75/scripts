@@ -6,10 +6,8 @@
 <a href="https://www.librechat.ai/docs" target="_blank" rel="noopener noreferrer">
   <img src="https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge" alt="Read the official LibreChat documentation" />
 </a>
-
-This installer is the practical companion to the step-by-step LibreChat setup described on the <a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">pc-fee.com blog</a>. It turns the blog walkthrough into a repeatable, scripted installation for a Docker-based environment behind Nginx Proxy Manager.
-
-A ready-to-use installation script for LibreChat behind an existing Nginx Proxy Manager (NPM) setup.
+<br><br>
+This script extends the environment and technology stack described in the ["Spielecke" blog](https://pc-fee.com/blog) series on pc-fee.com by adding LibreChat as an additional component. It builds on the services and infrastructure configured in the previous articles and automates the steps required to deploy LibreChat in a Docker environment behind Nginx Proxy Manager.
 
 ---
 

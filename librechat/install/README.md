@@ -1,5 +1,8 @@
 # LibreChat Docker Installer
 
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-0A84FF?style=for-the-badge)](https://pc-fee.com/blog/)
+[![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
+
 A ready-to-use installation script for LibreChat behind an existing Nginx Proxy Manager (NPM) setup.
 
 ---

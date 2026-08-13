@@ -1,9 +1,13 @@
 # LibreChat Docker Installer
 
-[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-0A84FF?style=for-the-badge)](https://pc-fee.com/blog/)
-[![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
+<a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">
+  <img src="https://img.shields.io/badge/Blog-pc--fee.com-0A84FF?style=for-the-badge" alt="Blog" />
+</a>
+<a href="https://www.librechat.ai/docs" target="_blank" rel="noopener noreferrer">
+  <img src="https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge" alt="Docs" />
+</a>
 
-This installer is the practical companion to the step-by-step LibreChat setup described on the [pc-fee.com blog](https://pc-fee.com/blog/). It turns the blog walkthrough into a repeatable, scripted installation for a Docker-based environment behind Nginx Proxy Manager.
+This installer is the practical companion to the step-by-step LibreChat setup described on the <a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">pc-fee.com blog</a>. It turns the blog walkthrough into a repeatable, scripted installation for a Docker-based environment behind Nginx Proxy Manager.
 
 A ready-to-use installation script for LibreChat behind an existing Nginx Proxy Manager (NPM) setup.
 

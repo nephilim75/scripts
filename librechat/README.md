@@ -1,6 +1,6 @@
 # LibreChat
 
-[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-0A84FF?style=for-the-badge)](https://pc-fee.com/blog/)
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
 
 A collection of scripts and guides for installing, maintaining and operating LibreChat in a Docker-based setup behind Nginx Proxy Manager.

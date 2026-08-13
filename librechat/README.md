@@ -12,10 +12,7 @@ A collection of scripts and guides for installing, maintaining and operating Lib
 | Folder | Description |
 |--------|-------------|
 | [install](install/README.md) | LibreChat installation scripts and install guide |
-| maintenance | planned maintenance and health checks |
-| backup | planned backup and restore scripts |
-| update | planned update procedures |
-| troubleshooting | planned diagnostics and log guides |
+| maintenance | planned maintenance , backup, user admin, email setup, etc. |
 
 ---
 

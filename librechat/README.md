@@ -1,9 +1,20 @@
-# LibreChat
+# 💬 LibreChat
 
 [![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
+[![GitHub](https://img.shields.io/badge/GitHub-LibreChat-181717?style=for-the-badge&logo=github)](https://github.com/danny-avila/LibreChat)
 
-A collection of scripts and guides for installing, maintaining and operating LibreChat in a Docker-based setup behind Nginx Proxy Manager.
+Automated scripts for self-hosted [LibreChat](https://www.librechat.ai) instance with MongoDB, Meilisearch, RAG API, and Admin Panel behind Nginx Proxy Manager.
+
+---
+
+## 🚀 Quick Install
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install/install-librechat.sh)
+```
+
+The installer sets up everything automatically: directories, `.env`, Docker Compose, containers, and admin user.
 
 ---
 
@@ -11,41 +22,34 @@ A collection of scripts and guides for installing, maintaining and operating Lib
 
 | Folder | Description |
 |--------|-------------|
-| [install](install/README.md) | LibreChat installation scripts and install guide |
-| maintenance | planned maintenance , backup, user admin, email setup, etc. |
+| [install](install/README.md) | Automated installation script & guide |
+| [maintenance](maintenance/) | Backup, update, restore, monitoring scripts |
 
 ---
 
-## ✅ Current focus
+## ✨ What You Get
 
-Start here for the installation flow:
-
-- [install/README.md](install/README.md)
-
----
-
-## 🧩 Goals
-
-The current LibreChat section is centered on a clean Docker installation workflow behind an existing Nginx Proxy Manager setup.
-
-This area is meant to provide:
-
-- simple installation
-- reproducible setup steps
-- clear operational guidance
-- a clean expansion path for future LibreChat maintenance tasks
+- ✅ Full LibreChat stack (API, Admin Panel, MongoDB, Meilisearch, RAG)
+- ✅ Behind Nginx Proxy Manager (no exposed ports)
+- ✅ HTTPS/SSL via Let's Encrypt
+- ✅ Automated admin user creation
+- ✅ Secure random `.env` generation
+- ✅ Production-ready setup
 
 ---
 
-## 📌 Notes
+## 📋 Requirements
 
-- The installation is designed for a Docker-based environment behind Nginx Proxy Manager.
-- Always validate the configuration before production use.
-- Keep scripts and documentation aligned as the project grows.
+- Linux server (Debian 12+)
+- Docker + Docker Compose
+- Nginx Proxy Manager running
+- Two domains (chat + admin panel)
 
 ---
 
 ## 🔗 References
 
-- [install/README.md](install/README.md)
-- [scripts/README.md](../README.md)
+- [Installation Guide](install/README.md)
+- [Official Docs](https://www.librechat.ai/docs)
+- [GitHub Repository](https://github.com/danny-avila/LibreChat)
+- [Blog](https://pc-fee.com/blog)

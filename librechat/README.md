@@ -23,7 +23,7 @@ The installer sets up everything automatically: directories, `.env`, containers 
 | Folder | Description |
 |--------|-------------|
 | [install](install/README.md) | Automated installation script & guide |
-| [maintenance](maintenance/) | Backup, update, restore, monitoring scripts |
+| [maintenance](maintenance/) | administration scripts |
 
 ---
 

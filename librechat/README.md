@@ -14,7 +14,7 @@ Automated scripts for self-hosted [LibreChat](https://www.librechat.ai) instance
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install/install-librechat.sh)
 ```
 
-The installer sets up everything automatically: directories, `.env`, Docker Compose, containers, and admin user.
+The installer sets up everything automatically: directories, `.env`, containers and admin user.
 
 ---
 
@@ -35,15 +35,6 @@ The installer sets up everything automatically: directories, `.env`, Docker Comp
 - ✅ Automated admin user creation
 - ✅ Secure random `.env` generation
 - ✅ Production-ready setup
-
----
-
-## 📋 Requirements
-
-- Linux server (Debian 12+)
-- Docker + Docker Compose
-- Nginx Proxy Manager running
-- Two domains (chat + admin panel)
 
 ---
 

@@ -12,7 +12,15 @@ Automated installer for self-hosted [LibreChat](https://www.librechat.ai/) insta
 
 This installer builds on and complements the official [LibreChat Docker guide](https://www.librechat.ai/docs/local/docker).
 
-Sets up LibreChat from scratch: directories, `.env`, `docker-compose.yml`, containers, and admin user.
+Sets up LibreChat from scratch: directories, `.env`, `docker-compose.yml`, containers and admin user.
+
+---
+
+## 🚀 Quick Install
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install/install-librechat.sh)
+```
 
 ---
 

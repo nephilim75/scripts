@@ -12,7 +12,7 @@ heading "== Neuen User anlegen =="
 info "Gleich fragt LibreChat selbst nach E-Mail, Name und Passwort."
 echo ""
 
-if run_librechat_cmd create-user; then
+if run_librechat_cmd create-user.js; then
     echo ""
     success "User wurde angelegt (siehe Ausgabe oben zur Bestaetigung)."
 else

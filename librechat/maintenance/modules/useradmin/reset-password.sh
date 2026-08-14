@@ -15,7 +15,7 @@ info "Gleich fragt LibreChat nach E-Mail und neuem Passwort."
 info "Der User wird NICHT per Mail benachrichtigt - das Passwort wird direkt gesetzt."
 echo ""
 
-if run_librechat_cmd reset-password; then
+if run_librechat_cmd reset-password.js; then
     echo ""
     success "Befehl wurde ausgefuehrt (siehe Ausgabe oben zur Bestaetigung)."
 else

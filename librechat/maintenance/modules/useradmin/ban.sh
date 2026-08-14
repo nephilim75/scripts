@@ -12,7 +12,7 @@ heading "== User bannen =="
 info "Gleich fragt LibreChat nach E-Mail und der Dauer des Banns."
 echo ""
 
-if run_librechat_cmd ban-user; then
+if run_librechat_cmd ban-user.js; then
     echo ""
     success "Befehl wurde ausgefuehrt (siehe Ausgabe oben zur Bestaetigung)."
 else

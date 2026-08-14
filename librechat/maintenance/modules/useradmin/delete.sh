@@ -26,7 +26,7 @@ if ! confirm "Bist du sicher?"; then
 fi
 
 echo ""
-if run_librechat_cmd delete-user "$user_email"; then
+if run_librechat_cmd delete-user.js "$user_email"; then
     echo ""
     success "Befehl wurde ausgefuehrt (siehe Ausgabe oben zur Bestaetigung)."
 else

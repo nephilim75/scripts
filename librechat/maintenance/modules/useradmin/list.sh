@@ -10,7 +10,7 @@ PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 heading "== Alle User auflisten =="
 echo ""
 
-if ! run_librechat_cmd list-users; then
+if ! run_librechat_cmd list-users.js; then
     echo ""
     error "Auflisten ist fehlgeschlagen."
 fi

@@ -9,7 +9,7 @@ C_RESET="\033[0m"
 C_GREEN="\033[0;32m"
 C_RED="\033[0;31m"
 C_YELLOW="\033[0;33m"
-C_BLUE="\033[0;34m"
+C_BLUE="\033[0;94m"
 C_BOLD="\033[1m"
 
 # --- Ausgabe-Funktionen -------------------------------------------------------
@@ -18,6 +18,9 @@ success() { printf "%b\n" "${C_GREEN}✓  $*${C_RESET}"; }
 error()   { printf "%b\n" "${C_RED}✗  $*${C_RESET}"; }
 warn()    { printf "%b\n" "${C_YELLOW}!  $*${C_RESET}"; }
 heading() { printf "%b\n" "${C_BOLD}${C_BLUE}$*${C_RESET}"; }
+# Fuer destruktive/gefaehrliche Bereiche (z.B. Loeschen/Neu-Einrichten) -
+# rot statt blau, damit sofort auffaellt: hier kann was Ernstes passieren.
+heading_danger() { printf "%b\n" "${C_BOLD}${C_RED}$*${C_RESET}"; }
 
 # --- Ja/Nein-Abfrage fuer kritische Aktionen ---------------------------------
 # Nutzung: confirm "Wirklich loeschen?" && <aktion>
@@ -43,12 +46,12 @@ confirm() {
 PROJECT_ROOT="${PROJECT_ROOT:-$(pwd)}"
 CONFIG_FILE="$PROJECT_ROOT/config.sh"
 
-# --- Standardwert fuer deinen Kosmos -----------------------------------------
+# --- Standardwerte fuer die Ziel-Installation --------------------------------
 DEFAULT_LIBRECHAT_DIR="/opt/librechat"
-DEFAULT_API_SERVICE="api"
+DEFAULT_LIBRECHAT_CONTAINER="LibreChat"
 
 # --- LibreChat-Pfad laden oder einmalig abfragen -----------------------------
-# Setzt am Ende: LIBRECHAT_DIR, API_SERVICE
+# Setzt am Ende: LIBRECHAT_DIR, LIBRECHAT_CONTAINER
 load_or_ask_librechat_path() {
     if [ -f "$CONFIG_FILE" ]; then
         . "$CONFIG_FILE"
@@ -56,7 +59,7 @@ load_or_ask_librechat_path() {
 
     # Fallback auf Default, falls Config leer/nicht vorhanden
     LIBRECHAT_DIR="${LIBRECHAT_DIR:-$DEFAULT_LIBRECHAT_DIR}"
-    API_SERVICE="${API_SERVICE:-$DEFAULT_API_SERVICE}"
+    LIBRECHAT_CONTAINER="${LIBRECHAT_CONTAINER:-$DEFAULT_LIBRECHAT_CONTAINER}"
 
     # Validierung: existiert der Pfad und liegt dort eine docker-compose.yml?
     if [ ! -d "$LIBRECHAT_DIR" ] || [ ! -f "$LIBRECHAT_DIR/docker-compose.yml" ]; then
@@ -70,27 +73,67 @@ load_or_ask_librechat_path() {
         LIBRECHAT_DIR="$eingabe"
         {
             echo "LIBRECHAT_DIR=\"$LIBRECHAT_DIR\""
-            echo "API_SERVICE=\"$API_SERVICE\""
+            echo "LIBRECHAT_CONTAINER=\"$LIBRECHAT_CONTAINER\""
         } > "$CONFIG_FILE"
         success "Pfad gespeichert in $CONFIG_FILE"
     fi
 }
 
-# --- Befehl im API-Container ausfuehren --------------------------------------
-# Nutzung: run_librechat_cmd create-user
+# --- CLI-Skript direkt im Container ausfuehren --------------------------------
+# WICHTIG: bewusst NICHT "npm run ...", sondern direkt "node config/<script>".
+# npm leitet Signale (z.B. Strg+C) unzuverlaessig an den node-Prozess weiter,
+# was zu haengenden, nicht abbrechbaren Sessions fuehren kann.
+# Nutzung: run_librechat_cmd create-user.js
 run_librechat_cmd() {
-    npm_script="$1"
+    node_script="$1"
     shift
 
-    if ! docker compose -f "$LIBRECHAT_DIR/docker-compose.yml" ps --services --status running 2>/dev/null | grep -q "^${API_SERVICE}$"; then
-        error "Der Service '${API_SERVICE}' laeuft nicht. Bitte pruefen: docker compose ps (in $LIBRECHAT_DIR)"
+    if ! docker ps --format '{{.Names}}' | grep -q "^${LIBRECHAT_CONTAINER}$"; then
+        error "Der Container '${LIBRECHAT_CONTAINER}' laeuft nicht. Bitte pruefen: docker ps"
         return 1
     fi
 
-    docker compose -f "$LIBRECHAT_DIR/docker-compose.yml" exec "$API_SERVICE" npm run "$npm_script" "$@"
+    docker exec -it "$LIBRECHAT_CONTAINER" node "config/${node_script}" "$@"
 }
 
-# --- Pruefen, ob Mailversand (SMTP) konfiguriert ist -------------------------
+# --- Sensiblen Wert teilweise maskiert anzeigen -------------------------------
+# Zeigt Anfang/Ende, damit Tippfehler auffallen, ohne den Wert komplett offenzulegen.
+# Nutzung: mask_secret "$passwort"
+mask_secret() {
+    wert="$1"
+    laenge=${#wert}
+    if [ "$laenge" -le 4 ]; then
+        printf '%s' "****"
+        return
+    fi
+    anfang=$(printf '%s' "$wert" | cut -c1-2)
+    ende=$(printf '%s' "$wert" | cut -c$((laenge - 1))-"$laenge")
+    printf '%s***%s (Laenge: %d)' "$anfang" "$ende" "$laenge"
+}
+
+# --- .env-Werte lesen und schreiben ------------------------------------------
+# Nutzung: get_env_value EMAIL_HOST
+get_env_value() {
+    key="$1"
+    env_file="$LIBRECHAT_DIR/.env"
+    [ -f "$env_file" ] || return 1
+    grep -E "^${key}=" "$env_file" | head -n1 | cut -d '=' -f2-
+}
+
+# Nutzung: set_env_value EMAIL_HOST smtp.example.com
+# Ersetzt die Zeile falls vorhanden, haengt sie sonst an. Robust gegenueber
+# Sonderzeichen im Wert (kein sed, um Escaping-Probleme zu vermeiden).
+set_env_value() {
+    key="$1"
+    value="$2"
+    env_file="$LIBRECHAT_DIR/.env"
+
+    if grep -q "^${key}=" "$env_file" 2>/dev/null; then
+        awk -F= -v k="$key" -v v="$value" 'BEGIN{OFS="="} $1==k{$0=k"="v} {print}' "$env_file" > "${env_file}.tmp" && mv "${env_file}.tmp" "$env_file"
+    else
+        echo "${key}=${value}" >> "$env_file"
+    fi
+}
 # Nutzung: check_mailer_configured || return 1
 check_mailer_configured() {
     env_file="$LIBRECHAT_DIR/.env"
@@ -106,6 +149,18 @@ check_mailer_configured() {
         return 1
     fi
     return 0
+}
+
+# --- Aktuelle SMTP-Konfiguration uebersichtlich anzeigen ---------------------
+show_smtp_summary() {
+    echo "  EMAIL_HOST:           $(get_env_value EMAIL_HOST)"
+    echo "  EMAIL_PORT:           $(get_env_value EMAIL_PORT)"
+    echo "  EMAIL_ENCRYPTION:     $(get_env_value EMAIL_ENCRYPTION)"
+    echo "  EMAIL_USERNAME:       $(get_env_value EMAIL_USERNAME)"
+    echo "  EMAIL_PASSWORD:       $(mask_secret "$(get_env_value EMAIL_PASSWORD)")"
+    echo "  EMAIL_FROM_NAME:      $(get_env_value EMAIL_FROM_NAME)"
+    echo "  EMAIL_FROM:           $(get_env_value EMAIL_FROM)"
+    echo "  ALLOW_PASSWORD_RESET: $(get_env_value ALLOW_PASSWORD_RESET)"
 }
 
 # --- Initialisierung, die jedes Modul beim Einbinden ausfuehren soll --------

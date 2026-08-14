@@ -94,6 +94,25 @@ menu_mail() {
         esac
     done
 }
+# --- Untermenue: Willkommensnachricht -----------------------------------------
+menu_welcome() {
+    while true; do
+        clear
+        heading "== Willkommensnachricht =="
+        echo "1) Aktuelle Nachricht anzeigen"
+        echo "2) Nachricht aendern"
+        echo "0) Zurueck zum Hauptmenue"
+        echo ""
+        printf "%b" "${C_BLUE}Auswahl: ${C_RESET}"
+        read -r wahl
+        case "$wahl" in
+            1) "$PROJECT_ROOT/modules/welcome/show.sh"; pause ;;
+            2) "$PROJECT_ROOT/modules/welcome/set.sh"; pause ;;
+            0) return ;;
+            *) warn "Ungueltige Auswahl."; pause ;;
+        esac
+    done
+}
 while true; do
     clear
     heading "=================================="
@@ -118,7 +137,7 @@ while true; do
         3) not_yet_built; pause ;;
         4) not_yet_built; pause ;;
         5) not_yet_built; pause ;;
-        6) not_yet_built; pause ;;
+        6) menu_welcome ;;
         7) not_yet_built; pause ;;
         8) menu_lifecycle ;;
         0) echo ""; info "Bis zum naechsten Mal."; exit 0 ;;

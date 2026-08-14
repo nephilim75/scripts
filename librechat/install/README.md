@@ -10,9 +10,7 @@
 
 Automated installer for self-hosted [LibreChat](https://www.librechat.ai/) instance (API, Admin Panel, MongoDB, Meilisearch, RAG), running behind [Nginx Proxy Manager](https://nginxproxymanager.com/) via Docker Compose.
 
-This installer builds on and complements the official [LibreChat Docker guide](https://www.librechat.ai/docs/local/docker).
-
-Sets up LibreChat from scratch: directories, `.env`, `docker-compose.yml`, containers and admin user.
+This installer builds on and complements the official [LibreChat Docker guide](https://www.librechat.ai/docs/local/docker). Sets up LibreChat from scratch: directories, `.env`, `docker-compose.yml`, containers and admin user.
 
 ---
 

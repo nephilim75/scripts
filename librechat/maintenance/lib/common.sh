@@ -163,5 +163,40 @@ show_smtp_summary() {
     echo "  ALLOW_PASSWORD_RESET: $(get_env_value ALLOW_PASSWORD_RESET)"
 }
 
+# --- Willkommensnachricht (librechat.yaml: interface.customWelcome) ---------
+# Bewusst spezifisch statt generischer YAML-Editor, da nur dieser eine
+# Schluessel benoetigt wird und echtes YAML-Parsing in POSIX-sh zu fehleranfaellig waere.
+
+get_welcome_message() {
+    yaml_file="$LIBRECHAT_DIR/librechat.yaml"
+    [ -f "$yaml_file" ] || return 1
+    grep "customWelcome:" "$yaml_file" | head -n1 | sed -E "s/^[[:space:]]*customWelcome:[[:space:]]*//; s/^'//; s/'$//; s/^\"//; s/\"$//" | sed "s/''/'/g"
+}
+
+# Nutzung: set_welcome_message "Neuer Text"
+set_welcome_message() {
+    neuer_text="$1"
+    yaml_file="$LIBRECHAT_DIR/librechat.yaml"
+    [ -f "$yaml_file" ] || { error "librechat.yaml nicht gefunden unter $LIBRECHAT_DIR"; return 1; }
+
+    if ! grep -q "customWelcome:" "$yaml_file"; then
+        error "Kein 'customWelcome'-Eintrag in librechat.yaml gefunden. Bitte manuell pruefen."
+        return 1
+    fi
+
+    # Einfache Anfuehrungszeichen im Text verdoppeln (YAML-Escaping fuer single-quoted strings)
+    escaped=$(printf '%s' "$neuer_text" | sed "s/'/''/g")
+
+    awk -v val="$escaped" '
+        /^[[:space:]]*customWelcome:/ {
+            match($0, /^[[:space:]]*/)
+            indent = substr($0, RSTART, RLENGTH)
+            print indent "customWelcome: '"'"'" val "'"'"'"
+            next
+        }
+        { print }
+    ' "$yaml_file" > "${yaml_file}.tmp" && mv "${yaml_file}.tmp" "$yaml_file"
+}
+
 # --- Initialisierung, die jedes Modul beim Einbinden ausfuehren soll --------
 load_or_ask_librechat_path

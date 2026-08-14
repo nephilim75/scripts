@@ -8,9 +8,7 @@
 </a>
 <br><br>
 
-Interactive menu-driven maintenance tool for deployed [LibreChat](https://www.librechat.ai/) instances based on pc-fee.com's [blog posts](https://pc-fee.com/blog).
-
-Handles user management, SMTP configuration, backups, purging, and reinstallation. And a lot more to come...
+Interactive menu-driven maintenance tool for deployed [LibreChat](https://www.librechat.ai/) instances based on pc-fee.com's [blog posts](https://pc-fee.com/blog). Handles user management, SMTP configuration, backups, purging, and reinstallation. And a lot more to come...
 
 ---
 

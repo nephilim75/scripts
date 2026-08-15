@@ -34,4 +34,4 @@ case "$modus" in
 esac
 
 echo ""
-warn "Damit die Aenderung wirkt, muss LibreChat neu gestartet werden: docker restart ${LIBRECHAT_CONTAINER}"
+warn_restart_required

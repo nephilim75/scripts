@@ -63,5 +63,4 @@ success "SMTP-Konfiguration wurde gespeichert. ALLOW_PASSWORD_RESET=true gesetzt
 echo ""
 heading "-- Zusammenfassung (bitte pruefen) --"
 show_smtp_summary
-echo ""
-warn "Damit die Aenderungen wirken, muss LibreChat neu gestartet werden: docker restart ${LIBRECHAT_CONTAINER}"
+warn_restart_required

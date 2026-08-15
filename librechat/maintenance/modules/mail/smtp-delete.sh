@@ -33,4 +33,4 @@ set_env_value ALLOW_PASSWORD_RESET "false"
 
 echo ""
 success "SMTP-Konfiguration wurde geloescht. ALLOW_PASSWORD_RESET=false gesetzt."
-warn "Damit die Aenderungen wirken, muss LibreChat neu gestartet werden: docker restart ${LIBRECHAT_CONTAINER}"
+warn_restart_required

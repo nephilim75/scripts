@@ -33,8 +33,7 @@ if set_welcome_message "$neuer_text"; then
     echo ""
     success "Willkommensnachricht wurde geaendert."
     echo "  \"$(get_welcome_message)\""
-    echo ""
-    warn "Damit die Aenderung wirkt, muss LibreChat neu gestartet werden: docker restart ${LIBRECHAT_CONTAINER}"
+    warn_restart_required
 else
     error "Aendern ist fehlgeschlagen."
 fi

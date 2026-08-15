@@ -119,6 +119,20 @@ run_compose() {
     (cd "$LIBRECHAT_DIR" && docker compose "$@")
 }
 
+# --- Hinweis: Stop+Start noetig, ein reiner "docker restart" reicht NICHT --
+# .env-Werte und gemountete Dateien wie librechat.yaml werden von Docker nur
+# bei einem echten Stop+Start neu eingelesen, nicht bei "docker restart"
+# (das startet lediglich denselben laufenden Prozess neu, ohne Config/Env
+# erneut zu laden). Zentrale Funktion, damit der Hinweis ueberall (SMTP,
+# Registrierung, Willkommensnachricht, ...) identisch bleibt.
+warn_restart_required() {
+    echo ""
+    warn "Damit die Aenderung wirkt, muss LibreChat gestoppt und wieder gestartet werden."
+    warn "Ein reiner Neustart (docker restart) reicht NICHT aus."
+    info "Befehl: docker stop ${LIBRECHAT_CONTAINER} && docker start ${LIBRECHAT_CONTAINER}"
+    info "Alternativ im Menue: Anwendungssteuerung -> LibreChat -> erst Stoppen, dann Starten."
+}
+
 # --- Sensiblen Wert teilweise maskiert anzeigen -------------------------------
 # Zeigt Anfang/Ende, damit Tippfehler auffallen, ohne den Wert komplett offenzulegen.
 # Nutzung: mask_secret "$passwort"

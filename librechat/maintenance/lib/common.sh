@@ -61,6 +61,7 @@ CONFIG_FILE="$PROJECT_ROOT/config.sh"
 # --- Standardwerte fuer die Ziel-Installation --------------------------------
 DEFAULT_LIBRECHAT_DIR="/opt/librechat"
 DEFAULT_LIBRECHAT_CONTAINER="LibreChat"
+DEFAULT_BACKUP_DIR="/opt/librechat-backups"
 
 # --- LibreChat-Pfad laden oder einmalig abfragen -----------------------------
 # Setzt am Ende: LIBRECHAT_DIR, LIBRECHAT_CONTAINER
@@ -117,6 +118,31 @@ run_librechat_cmd() {
 # Container auf dem Host.
 run_compose() {
     (cd "$LIBRECHAT_DIR" && docker compose "$@")
+}
+
+# --- Backup-Verzeichnis sicherstellen ----------------------------------------
+# Setzt BACKUP_DIR (Default siehe DEFAULT_BACKUP_DIR) und legt es an.
+ensure_backup_dir() {
+    BACKUP_DIR="${BACKUP_DIR:-$DEFAULT_BACKUP_DIR}"
+    if ! mkdir -p "$BACKUP_DIR" 2>/dev/null; then
+        error "Backup-Verzeichnis $BACKUP_DIR konnte nicht angelegt werden."
+        return 1
+    fi
+}
+
+# --- Bind-Mount-Verzeichnisse aus docker-compose.yml erkennen ---------------
+# Findet Host-Verzeichnisse, die per Bind-Mount eingebunden sind, z.B. aus
+# einer Zeile "./data-node:/data/db" wird "data-node" zurueckgegeben.
+# Bewusst simples Grep-Pattern statt echtem YAML-Parsing (gleiche Philosophie
+# wie bei get_welcome_message) - deckt die uebliche kurze Volume-Syntax ab,
+# erkennt aber keine exotischen YAML-Listen-Schreibweisen. Config-Dateien
+# (.env, librechat.yaml, docker-compose*.yml) werden herausgefiltert, da sie
+# bereits separat als "Konfiguration" gesichert werden.
+detect_bind_mounts() {
+    grep -hoE '\./[A-Za-z0-9_.-]+:' "$LIBRECHAT_DIR/docker-compose.yml" "$LIBRECHAT_DIR/docker-compose.override.yml" 2>/dev/null \
+        | sed 's#^\./##; s/:$//' \
+        | grep -vE '^(\.env.*|librechat\.ya?ml|docker-compose.*\.ya?ml)$' \
+        | sort -u
 }
 
 # --- Hinweis: Stop+Start noetig, ein reiner "docker restart" reicht NICHT --

@@ -198,6 +198,32 @@ menu_instance() {
     done
 }
 
+# --- Untermenue: Backup -------------------------------------------------------
+menu_backup() {
+    while true; do
+        clear
+        heading "== Backup =="
+        echo "1) Backup erstellen - Konfiguration"
+        echo "2) Backup erstellen - Konfiguration + Datenbank"
+        echo "3) Backup erstellen - Alles"
+        printf "%b\n" "${C_RED}4) Backup wiederherstellen${C_RESET}"
+        echo "5) Vorhandene Backups anzeigen/verwalten"
+        echo "0) Zurueck zum Hauptmenue"
+        echo ""
+        printf "%b" "${C_BLUE}Auswahl: ${C_RESET}"
+        read -r wahl
+        case "$wahl" in
+            1) "$PROJECT_ROOT/modules/backup/create.sh" config; pause ;;
+            2) "$PROJECT_ROOT/modules/backup/create.sh" config-db; pause ;;
+            3) "$PROJECT_ROOT/modules/backup/create.sh" full; pause ;;
+            4) "$PROJECT_ROOT/modules/backup/restore.sh"; pause ;;
+            5) "$PROJECT_ROOT/modules/backup/list.sh"; pause ;;
+            0) return ;;
+            *) warn "Ungueltige Auswahl."; pause ;;
+        esac
+    done
+}
+
 while true; do
     clear
     heading "=================================="
@@ -221,7 +247,7 @@ while true; do
         3) menu_mail ;;
         4) menu_instance ;;
         5) not_yet_built; pause ;;
-        6) not_yet_built; pause ;;
+        6) menu_backup ;;
         7) menu_lifecycle ;;
         0) echo ""; info "Bis zum naechsten Mal."; exit 0 ;;
         *) warn "Ungueltige Auswahl."; pause ;;

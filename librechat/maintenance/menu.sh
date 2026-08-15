@@ -150,6 +150,32 @@ menu_appctl() {
     done
 }
 
+# --- Untermenue: Instanz-Einstellungen ---------------------------------------
+# Fasst Konfigurationspunkte zusammen, die man einmalig einrichtet und danach
+# selten anfasst - im Gegensatz zu Themenfeldern wie User-Verwaltung, die man
+# haeufig braucht. Willkommensnachricht bleibt technisch eigenstaendig
+# (eigene menu_welcome-Funktion), wird hier nur als Unterpunkt eingehaengt.
+menu_instance() {
+    while true; do
+        clear
+        heading "== Instanz-Einstellungen =="
+        echo "1) Willkommensnachricht"
+        echo "2) Registrierung an/aus"
+        echo "3) API-Key-Verwaltung"
+        echo "0) Zurueck zum Hauptmenue"
+        echo ""
+        printf "%b" "${C_BLUE}Auswahl: ${C_RESET}"
+        read -r wahl
+        case "$wahl" in
+            1) menu_welcome ;;
+            2) not_yet_built; pause ;;
+            3) not_yet_built; pause ;;
+            0) return ;;
+            *) warn "Ungueltige Auswahl."; pause ;;
+        esac
+    done
+}
+
 while true; do
     clear
     heading "=================================="
@@ -157,26 +183,24 @@ while true; do
     heading "=================================="
     echo ""
     echo "1) User-Verwaltung"
-    echo "2) Mail & Passwort-Reset (SMTP)"
-    echo "3) Code Interpreter"
-    echo "4) Registrierung an/aus"
-    echo "5) API-Key-Verwaltung"
-    echo "6) Willkommensnachricht"
-    echo "7) Anwendungssteuerung"
-    printf "%b\n" "${C_RED}8) LibreChat loeschen/neu einrichten${C_RESET}"
+    echo "2) Anwendungssteuerung"
+    echo "3) Mail & Passwort-Reset (SMTP)"
+    echo "4) Instanz-Einstellungen"
+    echo "5) Code Interpreter"
+    echo "6) Backup"
+    printf "%b\n" "${C_RED}7) LibreChat loeschen/neu einrichten${C_RESET}"
     echo "0) Beenden"
     echo ""
     printf "%b" "${C_BLUE}Auswahl: ${C_RESET}"
     read -r wahl
     case "$wahl" in
         1) menu_useradmin ;;
-        2) menu_mail ;;
-        3) not_yet_built; pause ;;
-        4) not_yet_built; pause ;;
+        2) menu_appctl ;;
+        3) menu_mail ;;
+        4) menu_instance ;;
         5) not_yet_built; pause ;;
-        6) menu_welcome ;;
-        7) menu_appctl ;;
-        8) menu_lifecycle ;;
+        6) not_yet_built; pause ;;
+        7) menu_lifecycle ;;
         0) echo ""; info "Bis zum naechsten Mal."; exit 0 ;;
         *) warn "Ungueltige Auswahl."; pause ;;
     esac

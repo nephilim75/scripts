@@ -22,6 +22,18 @@ heading() { printf "%b\n" "${C_BOLD}${C_BLUE}$*${C_RESET}"; }
 # rot statt blau, damit sofort auffaellt: hier kann was Ernstes passieren.
 heading_danger() { printf "%b\n" "${C_BOLD}${C_RED}$*${C_RESET}"; }
 
+# --- Strg+C soll das Menue NICHT beenden -------------------------------------
+# Ohne diesen Trap wuerde Strg+C (SIGINT) waehrend eines laufenden Befehls
+# (z.B. "Logs anzeigen", docker compose logs -f) das komplette Menue inkl.
+# aller Elternskripte beenden, da alle Prozesse in derselben Terminal-
+# Vordergrundgruppe haengen. "trap ':' INT" faengt SIGINT im Skript selbst ab
+# (Skript laeuft weiter) - gestartete Kindprozesse wie "docker" bekommen beim
+# Ausfuehren trotzdem das normale SIGINT-Verhalten (POSIX: nur wirklich
+# ignorierte Signale ueber "trap '' SIG" vererben sich an exec'te
+# Kindprozesse, abgefangene wie hier nicht - Ctrl+C beendet also weiterhin
+# z.B. "docker compose logs -f", nicht aber unser Menue).
+trap ':' INT
+
 # --- Ja/Nein-Abfrage fuer kritische Aktionen ---------------------------------
 # Nutzung: confirm "Wirklich loeschen?" && <aktion>
 confirm() {

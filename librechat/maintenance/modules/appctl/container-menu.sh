@@ -41,7 +41,7 @@ while true; do
             ;;
         2)
             echo ""
-            info "Letzte 100 Zeilen, danach live. Mit Strg+C beenden."
+            info "Letzte 100 Zeilen, danach live. Mit Strg+C beenden (zurueck zu diesem Menue)."
             run_compose logs --tail=100 -f "$SERVICE"
             pause
             ;;

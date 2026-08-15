@@ -81,8 +81,8 @@ load_or_ask_librechat_path() {
 
 # --- CLI-Skript direkt im Container ausfuehren --------------------------------
 # WICHTIG: bewusst NICHT "npm run ...", sondern direkt "node config/<script>".
-# npm leitet Signale (z.B. Strg+C) unzuverlaessig an den node-Prozess weiter,
-# was zu haengenden, nicht abbrechbaren Sessions fuehren kann.
+# npm leitet Signale (z.B. Strg+C) unzuverlaessig weiter, was zu haengenden,
+# nicht abbrechbaren Sessions fuehren kann.
 # Nutzung: run_librechat_cmd create-user.js
 run_librechat_cmd() {
     node_script="$1"
@@ -94,6 +94,17 @@ run_librechat_cmd() {
     fi
 
     docker exec -it "$LIBRECHAT_CONTAINER" node "config/${node_script}" "$@"
+}
+
+# --- Docker-Compose-Befehl im LibreChat-Projektverzeichnis ausfuehren -------
+# Nutzung: run_compose restart | run_compose up -d <service> | run_compose ps
+# Per "cd" statt "-f <pfad>", damit docker-compose.override.yml (liegt im
+# selben Verzeichnis) automatisch mit eingelesen wird, wie beim normalen
+# "docker compose"-Aufruf im Projektordner ueblich. Betrifft ausschliesslich
+# die in docker-compose.yml + override definierten Dienste, keine fremden
+# Container auf dem Host.
+run_compose() {
+    (cd "$LIBRECHAT_DIR" && docker compose "$@")
 }
 
 # --- Sensiblen Wert teilweise maskiert anzeigen -------------------------------

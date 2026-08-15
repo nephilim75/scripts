@@ -113,6 +113,43 @@ menu_welcome() {
         esac
     done
 }
+
+# --- Untermenue: Anwendungssteuerung -----------------------------------------
+# Punkte 1-6 rufen das generische container-menu.sh mit Anzeigename und
+# Compose-Servicename auf (ein Skript fuer alle Dienste statt sechs Kopien).
+# Kein "pause" danach, da container-menu.sh bereits selbst vor der Rueckkehr
+# pausiert.
+menu_appctl() {
+    while true; do
+        clear
+        heading "== Anwendungssteuerung =="
+        echo "1) LibreChat"
+        echo "2) MongoDB"
+        echo "3) Meilisearch"
+        echo "4) RAG API"
+        echo "5) Vector-DB"
+        echo "6) Admin-Panel"
+        echo "7) Gesamten Stack neu starten (ohne Datenverlust)"
+        echo "8) LibreChat aktualisieren (Update)"
+        echo "0) Zurueck zum Hauptmenue"
+        echo ""
+        printf "%b" "${C_BLUE}Auswahl: ${C_RESET}"
+        read -r wahl
+        case "$wahl" in
+            1) "$PROJECT_ROOT/modules/appctl/container-menu.sh" "LibreChat" "api" ;;
+            2) "$PROJECT_ROOT/modules/appctl/container-menu.sh" "MongoDB" "mongodb" ;;
+            3) "$PROJECT_ROOT/modules/appctl/container-menu.sh" "Meilisearch" "meilisearch" ;;
+            4) "$PROJECT_ROOT/modules/appctl/container-menu.sh" "RAG API" "rag_api" ;;
+            5) "$PROJECT_ROOT/modules/appctl/container-menu.sh" "Vector-DB" "vectordb" ;;
+            6) "$PROJECT_ROOT/modules/appctl/container-menu.sh" "Admin-Panel" "admin-panel" ;;
+            7) "$PROJECT_ROOT/modules/appctl/restart-stack.sh"; pause ;;
+            8) "$PROJECT_ROOT/modules/appctl/update.sh"; pause ;;
+            0) return ;;
+            *) warn "Ungueltige Auswahl."; pause ;;
+        esac
+    done
+}
+
 while true; do
     clear
     heading "=================================="
@@ -138,7 +175,7 @@ while true; do
         4) not_yet_built; pause ;;
         5) not_yet_built; pause ;;
         6) menu_welcome ;;
-        7) not_yet_built; pause ;;
+        7) menu_appctl ;;
         8) menu_lifecycle ;;
         0) echo ""; info "Bis zum naechsten Mal."; exit 0 ;;
         *) warn "Ungueltige Auswahl."; pause ;;

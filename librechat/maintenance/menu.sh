@@ -150,6 +150,28 @@ menu_appctl() {
     done
 }
 
+# --- Untermenue: Registrierung an/aus -----------------------------------------
+menu_registration() {
+    while true; do
+        clear
+        heading "== Registrierung an/aus =="
+        echo "1) Status anzeigen"
+        echo "2) Registrierung aktivieren"
+        echo "3) Registrierung deaktivieren"
+        echo "0) Zurueck"
+        echo ""
+        printf "%b" "${C_BLUE}Auswahl: ${C_RESET}"
+        read -r wahl
+        case "$wahl" in
+            1) "$PROJECT_ROOT/modules/instance/registration-show.sh"; pause ;;
+            2) "$PROJECT_ROOT/modules/instance/registration-set.sh" an; pause ;;
+            3) "$PROJECT_ROOT/modules/instance/registration-set.sh" aus; pause ;;
+            0) return ;;
+            *) warn "Ungueltige Auswahl."; pause ;;
+        esac
+    done
+}
+
 # --- Untermenue: Instanz-Einstellungen ---------------------------------------
 # Fasst Konfigurationspunkte zusammen, die man einmalig einrichtet und danach
 # selten anfasst - im Gegensatz zu Themenfeldern wie User-Verwaltung, die man
@@ -168,7 +190,7 @@ menu_instance() {
         read -r wahl
         case "$wahl" in
             1) menu_welcome ;;
-            2) not_yet_built; pause ;;
+            2) menu_registration ;;
             3) not_yet_built; pause ;;
             0) return ;;
             *) warn "Ungueltige Auswahl."; pause ;;

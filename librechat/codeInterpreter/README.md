@@ -4,14 +4,12 @@
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
 [![GitHub](https://img.shields.io/badge/GitHub-LibreChat-181717?style=for-the-badge&logo=github)](https://github.com/danny-avila/LibreChat)
 
-*[Deutsche Fassung](./README.md)*
-
 Installation scripts for a **self-hosted code interpreter** that LibreChat can use
 instead of the paid service from LibreChat.ai.
 
 ---
 
-## Part of the blog series "Die Spielecke"
+## Part of the blog series "Spielecke"
 
 These scripts belong to the series on **[pc-fee.com](https://pc-fee.com/blog/)** and
 build on the server that takes shape there step by step. If you followed the series,

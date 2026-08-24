@@ -10,8 +10,6 @@
 [![Tested](https://img.shields.io/badge/Tested-Debian%2012%20%7C%2013-A81D33?style=flat-square&logo=debian&logoColor=white)](#prerequisites)
 [![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
 
-*[Deutsche Fassung](./README.md)*
-
 Installs `LibreChat-AI/code-interpreter` — a fork of `ClickHouse/code-interpreter`,
 maintained by the LibreChat team — in a fully hardened configuration behind an Nginx
 Proxy Manager.
@@ -49,6 +47,13 @@ something is missing. It never overwrites anything that already exists.
 - in "local" mode: an existing LibreChat installation on the same server
 
 All of this is checked by the script before anything is written.
+
+These prerequisites are built up step by step in the blog series "Spielecke" on
+**[pc-fee.com](https://pc-fee.com/blog/)**:
+[Docker & Docker Compose](https://pc-fee.com/2026/05/03/docker-compose/),
+[Nginx Proxy Manager](https://pc-fee.com/2026/05/03/nginx-proxy-manager/) and
+[installing LibreChat](../../install/). If you followed the series, you are ready to
+go here. (The articles are in German; any equivalent guide will do just as well.)
 
 ---
 

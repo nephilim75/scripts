@@ -1,203 +1,205 @@
-# Code Interpreter – Variante LibreChat-AI
+# Code Interpreter – LibreChat-AI option
 
 [![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
 [![GitHub](https://img.shields.io/badge/GitHub-code--interpreter-181717?style=for-the-badge&logo=github)](https://github.com/LibreChat-AI/code-interpreter)
 
 [![Isolation](https://img.shields.io/badge/Isolation-MicroVM%20%2B%20NsJail-2E7D32?style=flat-square)](https://github.com/LibreChat-AI/code-interpreter#security-disclaimer)
-[![Auth](https://img.shields.io/badge/Auth-JWT%20EdDSA-2E7D32?style=flat-square)](#absicherung-per-jwt)
-[![Ports](https://img.shields.io/badge/Host--Ports-keine-2E7D32?style=flat-square)](#sicherheit)
-[![Getestet](https://img.shields.io/badge/Getestet-Debian%2012%20%7C%2013-A81D33?style=flat-square&logo=debian&logoColor=white)](#voraussetzungen)
+[![Auth](https://img.shields.io/badge/Auth-JWT%20EdDSA-2E7D32?style=flat-square)](#securing-jobs-with-jwt)
+[![Ports](https://img.shields.io/badge/Host--ports-none-2E7D32?style=flat-square)](#security)
+[![Tested](https://img.shields.io/badge/Tested-Debian%2012%20%7C%2013-A81D33?style=flat-square&logo=debian&logoColor=white)](#prerequisites)
 [![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
 
-Installiert `LibreChat-AI/code-interpreter` – einen Fork von
-`ClickHouse/code-interpreter`, gepflegt vom LibreChat-Team – in voll gehärteter
-Konfiguration hinter einem Nginx Proxy Manager.
+*[Deutsche Fassung](./README.md)*
 
-> **Nicht verwechseln:** Der Ordnername „LibreChat-AI" bezeichnet die
-> GitHub-Organisation, unter der dieses Interpreter-Projekt liegt. Es ist **nicht**
-> LibreChat selbst, sondern eine Erweiterung dafür.
+Installs `LibreChat-AI/code-interpreter` — a fork of `ClickHouse/code-interpreter`,
+maintained by the LibreChat team — in a fully hardened configuration behind an Nginx
+Proxy Manager.
+
+> **Don't get confused:** the folder name "LibreChat-AI" refers to the GitHub
+> organisation this interpreter project lives under. It is **not** LibreChat itself,
+> but an extension for it.
 
 ---
 
 ## Installation
 
-Ein Befehl, root-Shell oder mit `sudo`:
+One command, in a root shell or with `sudo`:
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/LibreChat-AI/install/install-avila-code-interpreter.sh)"
 ```
 
-Das Skript führt durch alles Weitere und bricht mit einer verständlichen Meldung ab,
-wenn etwas fehlt. Es überschreibt nichts Vorhandenes.
+The script walks you through everything else and aborts with a clear message if
+something is missing. It never overwrites anything that already exists.
 
-> **Nimm `tmux` oder `screen`.** Der Build dauert 10–30+ Minuten. Bricht die
-> SSH-Verbindung ab, ist die Installation sonst mittendrin tot.
-
----
-
-## Voraussetzungen
-
-- **Debian 12 oder 13** mit Docker und Docker-Compose-Plugin (auf anderen
-  Distributionen nicht getestet)
-- laufender **Nginx Proxy Manager** und das Docker-Netzwerk **`shared_proxy`**
-- `git` und `openssl`
-- **mindestens 15 GB** freier Plattenplatz (ohne KVM: **20 GB**)
-- `/dev/kvm` für die volle Härtung – siehe unten
-- im Modus „lokal": eine bestehende LibreChat-Installation auf demselben Server
-
-Alles davon wird vom Skript geprüft, bevor irgendetwas geschrieben wird.
+> **Use `tmux` or `screen`.** The build takes 10–30+ minutes. If the SSH connection
+> drops, the installation dies halfway through otherwise.
 
 ---
 
-## Was das Skript fragt
+## Prerequisites
 
-| Frage | Bedeutung |
+- **Debian 12 or 13** with Docker and the Docker Compose plugin (not tested on other
+  distributions)
+- a running **Nginx Proxy Manager** and the Docker network **`shared_proxy`**
+- `git` and `openssl`
+- **at least 15 GB** of free disk space (without KVM: **20 GB**)
+- `/dev/kvm` for full hardening — see below
+- in "local" mode: an existing LibreChat installation on the same server
+
+All of this is checked by the script before anything is written.
+
+---
+
+## What the script asks
+
+| Question | Meaning |
 |---|---|
-| **Installationspfad** | Standard `/opt/avila-code-interpreter` |
-| **Modus: lokal oder extern** | siehe nächster Abschnitt |
-| **Pfad zu LibreChat** | nur im Modus „lokal", Standard `/opt/librechat` |
-| **Domain** | nur im Modus „extern" |
-| **Aufträge per JWT absichern?** | dringend empfohlen, Standard: ja |
-| **Swap-Datei anlegen?** | nur falls kein Swap vorhanden |
-| **Ohne KVM trotzdem weiter?** | nur falls `/dev/kvm` fehlt |
+| **Installation path** | default `/opt/avila-code-interpreter` |
+| **Mode: local or external** | see next section |
+| **Path to LibreChat** | only in "local" mode, default `/opt/librechat` |
+| **Domain** | only in "external" mode |
+| **Secure jobs with JWT?** | strongly recommended, default: yes |
+| **Create a swap file?** | only if no swap exists |
+| **Continue without KVM?** | only if `/dev/kvm` is missing |
 
-### Modus „lokal" oder „extern"
+### "Local" or "external" mode
 
-**Lokal** – LibreChat läuft auf **demselben** Server. Beide Container sprechen sich
-direkt über den Container-Namen im Netzwerk `shared_proxy` an. Es wird **keine
-Domain** und **kein Proxy Host** gebraucht. Das ist der einfachere und sicherere Weg.
+**Local** — LibreChat runs on the **same** server. Both containers reach each other
+directly by container name on the `shared_proxy` network. **No domain** and **no
+proxy host** are needed. This is the simpler and safer route.
 
-**Extern** – LibreChat läuft auf einem **anderen** Server. Dann bekommt der
-Interpreter eine eigene Domain über den Nginx Proxy Manager.
+**External** — LibreChat runs on a **different** server. The interpreter then gets
+its own domain through the Nginx Proxy Manager.
 
-### Absicherung per JWT
+### Securing jobs with JWT
 
-Ohne JWT nimmt der Interpreter **jeden** Auftrag an, der ihn erreicht. Mit JWT
-unterschreibt LibreChat jeden Auftrag mit einem privaten Schlüssel, der Interpreter
-prüft die Unterschrift mit dem passenden öffentlichen Schlüssel. Das Schlüsselpaar
-(Ed25519 / EdDSA) erzeugt das Skript automatisch.
+Without JWT the interpreter accepts **any** job that reaches it. With JWT, LibreChat
+signs every job with a private key and the interpreter verifies the signature with
+the matching public key. The script generates the key pair (Ed25519 / EdDSA)
+automatically.
 
-Der **private Schlüssel gehört ausschließlich auf die LibreChat-Seite**. Im Modus
-„lokal" trägt das Skript ihn auf Wunsch direkt in LibreChats `.env` ein und löscht
-danach seine eigene Kopie. Im Modus „extern" legt es einen fertigen Textblock unter
-`librechat-jwt-block.txt` ab, den du auf den LibreChat-Server überträgst – und dort
-anschließend löschst.
+The **private key belongs exclusively on the LibreChat side**. In "local" mode the
+script writes it straight into LibreChat's `.env` if you want, then deletes its own
+copy. In "external" mode it leaves a ready-made text block at
+`librechat-jwt-block.txt` for you to transfer to the LibreChat server — and to delete
+there afterwards.
 
-### MicroVM oder NsJail
+### MicroVM or NsJail
 
-Findet das Skript ein nutzbares `/dev/kvm`, läuft die Sandbox im **MicroVM-Modus**:
-jede Ausführung bekommt einen eigenen Gast-Kernel. Das ist die Konfiguration, die
-die Projekt-Doku als angemessen abgesichert bezeichnet.
+If the script finds a usable `/dev/kvm`, the sandbox runs in **MicroVM mode**: every
+execution gets its own guest kernel. That is the configuration the project
+documentation describes as adequately secured.
 
-Fehlt KVM, bleibt nur der **NsJail-Modus**, der sich den Kernel mit dem Host teilt.
-Laut Projekt-Doku ist das für lokale Tests geeignet, **nicht** für produktive
-Systeme mit unbekannten Nutzern. Das Skript zeigt diesen Hinweis und fragt
-ausdrücklich nach, bevor es fortfährt.
-
----
-
-## Was das Skript einrichtet
-
-- klont das Repository nach `/opt/avila-code-interpreter`
-- erzeugt alle Secrets und ein Ed25519-Schlüsselpaar für signierte Ausführungs-Manifeste
-- schreibt eine `.env` mit `chmod 600`
-- legt ein `docker-compose.override.yml` an: feste Container-Namen (`avila-*`),
-  Anbindung an `shared_proxy`, **alle Host-Ports entfernt**
-- baut die Images lokal und startet den Stack
-- im NsJail-Modus zusätzlich: erzeugt die Laufzeitumgebungen (Python, Node, Bun,
-  Bash) unter `data/pkgs` und spielt drei Korrekturen für bekannte Upstream-Fehler
-  per schreibgeschütztem Volume-Mount ein – das geklonte Repo bleibt unverändert
-- prüft am Ende, dass wirklich kein Container einen öffentlichen Port hat
+Without KVM, only **NsJail mode** remains, which shares the kernel with the host.
+According to the project documentation that is fine for local testing, **not** for
+production systems with unknown users. The script shows this notice and asks
+explicitly before continuing.
 
 ---
 
-## Nach der Installation
+## What the script sets up
 
-### Modus „lokal"
+- clones the repository to `/opt/avila-code-interpreter`
+- generates all secrets plus an Ed25519 key pair for signed execution manifests
+- writes a `.env` with `chmod 600`
+- creates a `docker-compose.override.yml`: fixed container names (`avila-*`),
+  attachment to `shared_proxy`, **all host ports removed**
+- builds the images locally and starts the stack
+- in NsJail mode additionally: builds the runtimes (Python, Node, Bun, Bash) under
+  `data/pkgs` and applies three fixes for known upstream bugs via a read-only volume
+  mount — the cloned repo itself stays untouched
+- verifies at the end that no container has a public port
 
-In LibreChats `.env` steht dann (bzw. wird vom Skript eingetragen):
+---
+
+## After the installation
+
+### "Local" mode
+
+LibreChat's `.env` then contains (or gets this written by the script):
 
 ```
 LIBRECHAT_CODE_BASEURL=http://avila-api:3112/v1
 ```
 
-Danach LibreChat **stoppen und starten**:
+Then **stop and start** LibreChat:
 
 ```bash
 docker stop LibreChat && docker start LibreChat
 ```
 
-### Modus „extern"
+### "External" mode
 
-1. A-Record der Domain auf diesen Server setzen (das Skript zeigt die IP an)
-2. Proxy Host im Nginx Proxy Manager anlegen:
+1. Point an A record for the domain at this server (the script shows the IP)
+2. Create a proxy host in the Nginx Proxy Manager:
 
-   | Feld | Wert |
+   | Field | Value |
    |---|---|
-   | Domain | deine Interpreter-Domain |
+   | Domain | your interpreter domain |
    | Scheme | `http` |
    | Forward Hostname | `avila-api` |
    | Forward Port | `3112` |
-   | Websockets Support | an |
+   | Websockets Support | on |
    | SSL | Let's Encrypt, Force SSL, HTTP/2, HSTS |
 
-3. Den Block aus `librechat-jwt-block.txt` auf den LibreChat-Server übertragen und
-   dort in die `.env` eintragen. Danach LibreChat stoppen und starten.
-4. Empfohlen: in NPM eine **Access List** anlegen, die nur die IP des
-   LibreChat-Servers erlaubt.
+3. Transfer the block from `librechat-jwt-block.txt` to the LibreChat server and add
+   it to the `.env` there. Then stop and start LibreChat.
+4. Recommended: create an **Access List** in NPM that allows only the IP of the
+   LibreChat server.
 
 ---
 
-## Bekannte Fallstricke
+## Known pitfalls
 
-**`docker restart` reicht nicht.** Ein reiner Neustart liest die `.env` **nicht**
-neu ein. Es braucht `docker stop` und `docker start` – oder im Admin-Tool
-„Anwendungssteuerung → LibreChat → erst Stoppen, dann Starten".
+**`docker restart` is not enough.** A plain restart does **not** re-read the `.env`.
+You need `docker stop` and `docker start` — or, in the admin tool, "Application
+control → LibreChat → stop first, then start".
 
-**In der `.env` gewinnt die letzte Zuweisung.** Stehen weiter unten noch alte Zeilen
-mit `LIBRECHAT_CODE_BASEURL=` oder `CODEAPI_` von einem früheren Interpreter,
-überschreiben sie die neuen Werte. Typisches Fehlerbild: `unknown_kid`, weil noch
-die alte Schlüssel-Kennung gilt. Alte Zeilen entfernen oder auskommentieren.
+**In a `.env` the last assignment wins.** If older lines with
+`LIBRECHAT_CODE_BASEURL=` or `CODEAPI_` from a previous interpreter are still further
+down the file, they override the new values. Typical symptom: `unknown_kid`, because
+the old key identifier is still in effect. Remove or comment out the old lines.
 
-**Fehler `<runtime> is unknown`** bei jeder Codeausführung im NsJail-Modus bedeutet
-fehlende Laufzeitumgebungen unter `data/pkgs`, nicht ein Problem der Anfrage. Das
-Skript erzeugt sie und prüft das Ergebnis – die Meldung sollte also nicht auftreten.
+**The error `<runtime> is unknown`** on every code execution in NsJail mode means the
+runtimes under `data/pkgs` are missing — it is not a problem with the request. The
+script builds them and verifies the result, so this message should not come up.
 
-**Der Build wird ohne Meldung abgeschossen.** Das ist ein OOM-Kill durch zu wenig
-RAM. Deshalb bietet das Skript vorher eine 4-GB-Swap-Datei an.
+**The build gets killed without a message.** That is an OOM kill caused by too little
+RAM. This is why the script offers a 4 GB swap file beforehand.
 
 ---
 
-## Wichtige Befehle
+## Useful commands
 
 ```bash
 cd /opt/avila-code-interpreter
 
-docker compose ps          # Status
-docker compose logs -f     # Logs, Abbruch mit Strg+C
-docker compose logs -f api # Logs nur der API
+docker compose ps          # status
+docker compose logs -f     # logs, quit with Ctrl+C
+docker compose logs -f api # logs of the API only
 
-# Update
+# update
 git pull && docker compose build && docker compose up -d
 ```
 
 ---
 
-## Deinstallation
+## Uninstalling
 
-Reihenfolge beachten – die Anbindung wird zuerst gelöst, danach wird gelöscht.
+Mind the order — the connection is severed first, deletion comes after.
 
-**1. LibreChat vom Interpreter trennen.** In `/opt/librechat/.env` die Zeilen
-`LIBRECHAT_CODE_BASEURL=` und alle Zeilen, die mit `CODEAPI_` beginnen, entfernen
-oder auskommentieren. Diese Datei gehört zu LibreChat und bleibt selbstverständlich
-bestehen – gelöscht wird gleich nur das Verzeichnis des Interpreters.
+**1. Disconnect LibreChat from the interpreter.** In `/opt/librechat/.env`, remove or
+comment out the line `LIBRECHAT_CODE_BASEURL=` and every line starting with
+`CODEAPI_`. That file belongs to LibreChat and of course stays — what gets deleted in
+a moment is only the interpreter's directory.
 
 ```bash
 docker stop LibreChat && docker start LibreChat
 ```
 
-**2. Den Interpreter entfernen.**
+**2. Remove the interpreter.**
 
 ```bash
 cd /opt/avila-code-interpreter
@@ -206,28 +208,28 @@ docker rmi avila-package-init
 cd /opt && rm -rf avila-code-interpreter
 ```
 
-Der Zusatz `--rmi all` löscht auch die Images. Hier lohnt sich das besonders: Sie
-wurden lokal gebaut und belegen mehrere GB. Nutzt ein anderer Stack auf dem Server
-zufällig dasselbe Image, lehnt Docker das Löschen von sich aus ab und sagt das auch –
-es kann nichts kaputtgehen.
+The `--rmi all` flag deletes the images as well. It is particularly worthwhile here:
+they were built locally and take up several GB. If another stack on the server
+happens to use the same image, Docker refuses the deletion on its own and says so —
+nothing can break.
 
-Das Image `avila-package-init` entsteht nur im NsJail-Modus und gehört nicht zum
-Compose-Projekt, deshalb der eigene Befehl. Gab es keinen NsJail-Modus, meldet Docker
-schlicht, dass es das Image nicht kennt – auch das ist in Ordnung.
+The image `avila-package-init` only exists in NsJail mode and is not part of the
+Compose project, hence the separate command. If there was no NsJail mode, Docker
+simply reports that it doesn't know the image — that is fine too.
 
-Ob noch etwas übrig ist, zeigt:
+To check whether anything is left over:
 
 ```bash
 docker images | grep -i -E 'avila|code-interpreter'
 ```
 
-**3. Nur im Modus „extern": Proxy Host aufräumen.** Im Nginx Proxy Manager den
-Proxy Host der Interpreter-Domain löschen – und beim Domain-Provider den A-Record,
-falls die Domain nicht anderweitig gebraucht wird. Im Modus „lokal" entfällt das,
-dort gab es beides nie.
+**3. Only in "external" mode: clean up the proxy host.** Delete the proxy host for
+the interpreter domain in the Nginx Proxy Manager — and the A record at your domain
+provider, unless the domain is needed elsewhere. In "local" mode this step doesn't
+apply; neither of them ever existed there.
 
-**4. Optional: Swap-Datei.** Hat das Skript eine angelegt, bleibt sie bestehen und
-schadet nicht. Wird sie nicht mehr gebraucht:
+**4. Optional: the swap file.** If the script created one, it stays and does no harm.
+If it is no longer needed:
 
 ```bash
 swapoff /swapfile-avila-code-interpreter
@@ -237,20 +239,21 @@ rm /swapfile-avila-code-interpreter
 
 ---
 
-## Sicherheit
+## Security
 
-- Kein Container bindet einen Port öffentlich am Host – geprüft am Ende der Installation
-- Redis und MinIO hängen nicht im `shared_proxy`-Netz und sind ausschließlich
-  containerintern erreichbar
-- Ausführungs-Manifeste sind signiert (Ed25519)
-- Egress-Gateway und Hardened Mode sind aktiviert
-- Die `.env` steht auf `chmod 600` und enthält Secrets – nicht in ein Git-Repo legen
+- No container binds a port publicly on the host — verified at the end of the
+  installation
+- Redis and MinIO are not attached to the `shared_proxy` network and are reachable
+  only from inside the project's own network
+- Execution manifests are signed (Ed25519)
+- Egress gateway and hardened mode are enabled
+- The `.env` is `chmod 600` and contains secrets — do not put it in a Git repo
 
 ---
 
-<sub>Dieses Skript wurde unter Einsatz von KI-Modellen recherchiert, erstellt und
-iterativ überarbeitet. Alle technischen Aussagen wurden gegen die offizielle
-Projekt-Dokumentation und den Quellcode geprüft. Vor produktivem Einsatz bitte
-eigenverantwortlich prüfen.</sub>
+<sub>This script was researched, written and iteratively revised with the help of AI
+models. All technical statements were checked against the official project
+documentation and source code. Please verify for yourself before using it in
+production.</sub>
 
-<sub>[← Zurück zur Übersicht](../)</sub>
+<sub>[← Back to the overview](../)</sub>

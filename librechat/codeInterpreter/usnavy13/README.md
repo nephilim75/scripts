@@ -1,226 +1,223 @@
-# Code Interpreter – Variante usnavy13
+# Code Interpreter – usnavy13 option
 
 [![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
 [![GitHub](https://img.shields.io/badge/GitHub-LibreCodeInterpreter-181717?style=for-the-badge&logo=github)](https://github.com/usnavy13/LibreCodeInterpreter)
 
-[![Isolation](https://img.shields.io/badge/Sandbox-NsJail-2E7D32?style=flat-square)](#sicherheit)
-[![Auth](https://img.shields.io/badge/Auth-API--Key-2E7D32?style=flat-square)](#der-master_api_key)
-[![Ports](https://img.shields.io/badge/Host--Ports-keine-2E7D32?style=flat-square)](#sicherheit)
-[![Getestet](https://img.shields.io/badge/Getestet-Debian%2012%20%7C%2013-A81D33?style=flat-square&logo=debian&logoColor=white)](#voraussetzungen)
+[![Sandbox](https://img.shields.io/badge/Sandbox-NsJail-2E7D32?style=flat-square)](#security)
+[![Auth](https://img.shields.io/badge/Auth-API--key-2E7D32?style=flat-square)](#the-two-keys--dont-mix-them-up)
+[![Ports](https://img.shields.io/badge/Host--ports-none-2E7D32?style=flat-square)](#security)
+[![Tested](https://img.shields.io/badge/Tested-Debian%2012%20%7C%2013-A81D33?style=flat-square&logo=debian&logoColor=white)](#prerequisites)
 [![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
 
-Installiert `usnavy13/LibreCodeInterpreter` hinter einem Nginx Proxy Manager – die
-schlanke Variante: fertige Images, wenige Minuten Installationszeit, kein
-Kompilieren.
+*[Deutsche Fassung](./README.md)*
 
-> **Zur Einordnung:** Der Code läuft hier in NsJail-Sandboxen – getrennte
-> Namespaces, Seccomp-Filter, Cgroup-Limits, Ausführung als Nicht-root-Nutzer. Das
-> entspricht dem NsJail-Modus der [MicroVM-Variante](../LibreChat-AI/); was dort
-> zusätzlich möglich ist, ist ein eigener Gast-Kernel pro Ausführung. Siehe
-> [Entscheidungshilfe](../).
+Installs `usnavy13/LibreCodeInterpreter` behind an Nginx Proxy Manager — the lean
+option: prebuilt images, a few minutes of installation time, no compiling.
+
+> **For context:** the code here runs in NsJail sandboxes — separate namespaces,
+> seccomp filters, cgroup limits, execution as a non-root user. That matches the
+> NsJail mode of the [MicroVM option](../LibreChat-AI/); what is additionally
+> possible there is a dedicated guest kernel per execution. See the
+> [decision guide](../).
 
 ---
 
 ## Installation
 
-Ein Befehl, root-Shell oder mit `sudo`:
+One command, in a root shell or with `sudo`:
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/usnavy13/install/install-librecodeinterpreter.sh)"
 ```
 
-Das Skript prüft zuerst alle Voraussetzungen und bricht mit einer verständlichen
-Meldung ab, wenn etwas fehlt. Es überschreibt nichts Vorhandenes.
+The script checks all prerequisites first and aborts with a clear message if
+something is missing. It never overwrites anything that already exists.
 
 ---
 
-## Voraussetzungen
+## Prerequisites
 
-- **Debian 12 oder 13** mit Docker und Docker-Compose-Plugin (auf anderen
-  Distributionen nicht getestet)
-- laufender **Nginx Proxy Manager** und das Docker-Netzwerk **`shared_proxy`**
-- `git` und `openssl`
-- eine **Domain**, die auf diesen Server zeigt
-- `/opt/LibreCodeInterpreter` darf noch nicht existieren
+- **Debian 12 or 13** with Docker and the Docker Compose plugin (not tested on other
+  distributions)
+- a running **Nginx Proxy Manager** and the Docker network **`shared_proxy`**
+- `git` and `openssl`
+- a **domain** pointing at this server
+- `/opt/LibreCodeInterpreter` must not exist yet
 
 ---
 
-## Was das Skript fragt
+## What the script asks
 
-| Frage | Bedeutung |
+| Question | Meaning |
 |---|---|
-| **Docker-Netzwerk des NPM** | Standard `shared_proxy`, wird auf Existenz geprüft |
-| **Domain** | z. B. `code.example.de` |
+| **NPM's Docker network** | default `shared_proxy`, checked for existence |
+| **Domain** | e.g. `code.example.com` |
 
-Mehr nicht. Alles Weitere passiert automatisch.
-
----
-
-## Was das Skript einrichtet
-
-- klont das Repository nach `/opt/LibreCodeInterpreter`
-- erzeugt einen zufälligen **`MASTER_API_KEY`** (32 Byte, hex) – damit meldest du
-  dich am Admin-Dashboard an
-- schreibt die `.env` mit `chmod 600` und setzt `PORT=127.0.0.1:8000` – der Port ist
-  damit **nicht** öffentlich am Host gebunden
-- legt ein `docker-compose.override.yml` an, das den API-Container zusätzlich ins
-  Netzwerk des Nginx Proxy Managers hängt
-- lädt die Images und startet den Stack (`redis`, `garage`, `api`)
-- prüft am Ende, dass kein Container öffentlich erreichbar ist
+That's all. Everything else happens automatically.
 
 ---
 
-## Nach der Installation
+## What the script sets up
+
+- clones the repository to `/opt/LibreCodeInterpreter`
+- generates a random **`MASTER_API_KEY`** (32 bytes, hex) — this is what you sign in
+  to the admin dashboard with
+- writes the `.env` with `chmod 600`
+- creates a `docker-compose.override.yml` that removes every host port binding and
+  attaches the API container to the Nginx Proxy Manager's network
+- pulls the images and starts the stack (`redis`, `garage`, `api`)
+- verifies at the end that no container is publicly reachable
+
+---
+
+## After the installation
 
 ### 1. DNS
 
-Einen A-Record für deine Domain auf diesen Server setzen. Das Skript zeigt die
-ermittelte öffentliche IP an.
+Point an A record for your domain at this server. The script prints the public IP it
+detected.
 
-### 2. Proxy Host im Nginx Proxy Manager
+### 2. Proxy host in the Nginx Proxy Manager
 
-**Reiter Details**
+**Details tab**
 
-| Feld | Wert |
+| Field | Value |
 |---|---|
-| Domain | deine Interpreter-Domain |
+| Domain | your interpreter domain |
 | Scheme | `http` |
 | Forward Hostname | `code-interpreter-api` |
 | Forward Port | `8000` |
-| Websockets Support | an |
+| Websockets Support | on |
 
-**Reiter SSL** – Let's Encrypt anfordern, Force SSL, HTTP/2 und HSTS aktivieren.
+**SSL tab** — request Let's Encrypt, enable Force SSL, HTTP/2 and HSTS.
 
-> Den exakten Container-Namen gibt das Skript am Ende aus, falls er abweicht.
+> The script prints the exact container name at the end, in case it differs.
 
-### 3. Prüfen
+### 3. Check
 
-| Zweck | URL |
+| Purpose | URL |
 |---|---|
-| Health-Check | `https://DEINE-DOMAIN/health` |
-| Admin-Dashboard | `https://DEINE-DOMAIN/admin-dashboard` |
+| Health check | `https://YOUR-DOMAIN/health` |
+| Admin dashboard | `https://YOUR-DOMAIN/admin-dashboard` |
 
-### 4. Eigenen API-Key im Dashboard erzeugen
+### 4. Create your own API key in the dashboard
 
-**Das ist der Schritt, den man leicht überspringt.** Der `MASTER_API_KEY` aus der
-Installation ist **nicht** der Schlüssel, mit dem LibreChat sich anmeldet. Er dient
-allein dazu, dich am Admin-Dashboard anzumelden. Trägst du ihn in LibreChat ein,
-funktioniert die Anbindung nicht.
+**This is the step people skip.** The `MASTER_API_KEY` from the installation is
+**not** the key LibreChat authenticates with. It only serves to sign you in to the
+admin dashboard. If you put it into LibreChat, the connection will not work.
 
-Der Schlüssel für LibreChat wird im Dashboard erzeugt:
+The key for LibreChat is created in the dashboard:
 
-1. `https://DEINE-DOMAIN/admin-dashboard` öffnen
-2. mit dem `MASTER_API_KEY` anmelden
-3. dort einen neuen API-Key anlegen
-4. den angezeigten Key kopieren – er ist in der Regel nur **einmal** vollständig
-   sichtbar
+1. open `https://YOUR-DOMAIN/admin-dashboard`
+2. sign in with the `MASTER_API_KEY`
+3. create a new API key there
+4. copy the key shown — it is usually visible in full only **once**
 
-Der Vorteil dieser Trennung: Du kannst diesen einen Key später zurückziehen oder
-ersetzen, ohne den Zugang zum Dashboard anzufassen.
+The advantage of this separation: you can revoke or replace this one key later
+without touching dashboard access.
 
-### 5. Anbindung an LibreChat
+### 5. Connecting LibreChat
 
-In `/opt/librechat/.env` **eine einzige Zeile**:
+In `/opt/librechat/.env`, **a single line**:
 
 ```
-LIBRECHAT_CODE_BASEURL=https://<der Key aus dem Dashboard>@DEINE-DOMAIN
+LIBRECHAT_CODE_BASEURL=https://<the key from the dashboard>@YOUR-DOMAIN
 ```
 
-Beispiel mit `code.example.de` und einem Key `abc123`:
+Example with `code.example.com` and a key `abc123`:
 
 ```
-LIBRECHAT_CODE_BASEURL=https://abc123@code.example.de
+LIBRECHAT_CODE_BASEURL=https://abc123@code.example.com
 ```
 
-Danach LibreChat **stoppen und starten**:
+Then **stop and start** LibreChat:
 
 ```bash
 docker stop LibreChat && docker start LibreChat
 ```
 
-Ein reines `docker restart` liest die `.env` **nicht** neu ein. Ob die Werte
-angekommen sind, zeigt:
+A plain `docker restart` does **not** re-read the `.env`. To confirm the values
+arrived:
 
 ```bash
 docker exec LibreChat env | grep LIBRECHAT_CODE
 ```
 
-#### Warum der Key in der URL steht
+#### Why the key sits in the URL
 
-Naheliegend wäre die dokumentierte Variante mit zwei getrennten Zeilen und
-`LIBRECHAT_CODE_API_KEY`. Die funktioniert hier **nicht**: In LibreChat v0.8.8-rc1
-wird diese Variable nirgends ausgelesen. Ohne aktive JWT-Authentifizierung sendet
-LibreChat schlicht keine Auth-Header, der Interpreter antwortet mit 401, und im
-Chat erscheint „Code execution is not authorized". Der Key in der URL ist deshalb
-kein Notbehelf, sondern der einzige Weg, der derzeit trägt.
+The obvious approach would be the documented one, with two separate lines and
+`LIBRECHAT_CODE_API_KEY`. That does **not** work here: in LibreChat v0.8.8-rc1 this
+variable is never read anywhere. Without active JWT authentication LibreChat simply
+sends no auth header, the interpreter answers with 401, and the chat shows "Code
+execution is not authorized". The key in the URL is therefore not a makeshift fix but
+the only route that currently holds.
 
-Zwei Dinge, die man dabei leicht übersieht:
+Two things that are easy to miss:
 
-- **Kein `/v1` am Ende.** Die Adresse endet mit der Domain, sonst nichts. Wer aus
-  Gewohnheit `/v1` anhängt, bekommt Fehler 404.
-- **Der Key landet in den Access-Logs des Nginx Proxy Managers**, weil er Teil der
-  URL ist. Wer diese Logs archiviert oder weitergibt, sollte das wissen. Ist der Key
-  einmal draußen, ziehst du ihn im Dashboard zurück und legst einen neuen an.
+- **No `/v1` at the end.** The address ends with the domain, nothing more. Appending
+  `/v1` out of habit gets you a 404.
+- **The key ends up in the Nginx Proxy Manager's access logs**, because it is part of
+  the URL. Anyone archiving or sharing those logs should know that. If the key does
+  get out, revoke it in the dashboard and create a new one.
 
-> Für diesen Schritt ist im [Admin-Tool](../../maintenance/) eine Option vorgesehen,
-> die den Key abfragt und die Zeile selbst in die `.env` schreibt. Bis dahin trägst
-> du sie von Hand ein.
+> An option is planned in the [admin tool](../../maintenance/) that asks for the key
+> and writes the line into the `.env` for you. Until then, enter it by hand.
 
 ---
 
-## Die zwei Schlüssel – nicht verwechseln
+## The two keys — don't mix them up
 
-| | wofür | woher |
+| | what for | where from |
 |---|---|---|
-| **`MASTER_API_KEY`** | Anmeldung am Admin-Dashboard | erzeugt das Skript, steht in der `.env` |
-| **API-Key** | Anmeldung von LibreChat am Interpreter | erzeugst du selbst im Dashboard |
+| **`MASTER_API_KEY`** | signing in to the admin dashboard | generated by the script, stored in the `.env` |
+| **API key** | LibreChat authenticating against the interpreter | you create it yourself in the dashboard |
 
-Der Master-Key ist der Generalschlüssel: Wer ihn hat, kommt ins Dashboard und kann
-dort beliebig viele API-Keys anlegen. Er gehört deshalb **nirgendwo** in LibreChats
-Konfiguration – dort steht ausschließlich der im Dashboard erzeugte Key.
+The master key is the skeleton key: whoever has it gets into the dashboard and can
+create as many API keys as they like. It therefore belongs **nowhere** in LibreChat's
+configuration — only the key created in the dashboard goes there.
 
-Das Skript zeigt den Master-Key am Ende einmal an. Er steht außerdem dauerhaft in
-`/opt/LibreCodeInterpreter/.env` und lässt sich jederzeit auslesen:
+The script shows the master key once at the end. It is also stored permanently in
+`/opt/LibreCodeInterpreter/.env` and can be read at any time:
 
 ```bash
 grep MASTER_API_KEY /opt/LibreCodeInterpreter/.env
 ```
 
-Behandle beide Schlüssel wie Passwörter.
+Treat both keys like passwords.
 
 ---
 
-## Wichtige Befehle
+## Useful commands
 
 ```bash
 cd /opt/LibreCodeInterpreter
 
-docker compose ps            # Status
-docker compose logs -f api   # Logs, Abbruch mit Strg+C
+docker compose ps            # status
+docker compose logs -f api   # logs, quit with Ctrl+C
 
-# Update
+# update
 docker compose pull && docker compose up -d
 ```
 
 ---
 
-## Deinstallation
+## Uninstalling
 
-Reihenfolge beachten – die Anbindung wird zuerst gelöst, danach wird gelöscht.
+Mind the order — the connection is severed first, deletion comes after.
 
-**1. LibreChat vom Interpreter trennen.** In `/opt/librechat/.env` die Zeile
-`LIBRECHAT_CODE_BASEURL=` entfernen oder auskommentieren. Diese Datei gehört zu
-LibreChat und bleibt bestehen – gelöscht wird gleich nur das Verzeichnis des
-Interpreters unter `/opt/LibreCodeInterpreter`.
+**1. Disconnect LibreChat from the interpreter.** In `/opt/librechat/.env`, remove or
+comment out the line `LIBRECHAT_CODE_BASEURL=`. That file belongs to LibreChat and
+stays — what gets deleted in a moment is only the interpreter's directory under
+`/opt/LibreCodeInterpreter`.
 
 ```bash
 docker stop LibreChat && docker start LibreChat
 ```
 
-**2. Den Interpreter entfernen.** Damit verschwinden Container, Volumes, Images und
-die `.env` mit dem Master-Key. Im Dashboard erzeugte API-Keys sind danach ebenfalls
-weg, ein Zurückziehen einzelner Keys erübrigt sich also.
+**2. Remove the interpreter.** This clears out containers, volumes, images and the
+`.env` holding the master key. API keys created in the dashboard are gone afterwards
+too, so revoking individual keys is unnecessary.
 
 ```bash
 cd /opt/LibreCodeInterpreter
@@ -228,69 +225,69 @@ docker compose down -v --rmi all
 cd /opt && rm -rf LibreCodeInterpreter
 ```
 
-Der Zusatz `--rmi all` löscht auch die heruntergeladenen Images – sonst belegen die
-weiter Platz, obwohl nichts mehr läuft. Nutzt ein anderer Stack auf dem Server
-zufällig dasselbe Image (etwa Redis), lehnt Docker das Löschen von sich aus ab und
-sagt das auch. Es kann also nichts kaputtgehen.
+The `--rmi all` flag also deletes the pulled images — otherwise they keep taking up
+space although nothing is running any more. If another stack on the server happens to
+use the same image (Redis, say), Docker refuses the deletion on its own and says so.
+So nothing can break.
 
-**3. Proxy Host aufräumen.** Im Nginx Proxy Manager den Proxy Host der
-Interpreter-Domain löschen – und beim Domain-Provider den A-Record, falls die Domain
-nicht anderweitig gebraucht wird.
-
----
-
-## Sicherheit
-
-### Wie der Code abgeschirmt wird
-
-Laut Projekt-Dokumentation läuft jede Ausführung in einer **NsJail-Sandbox**:
-
-- getrennte Namespaces für Prozesse, Dateisystem und Netzwerk
-- Seccomp-Filter, die die erlaubten Systemaufrufe einschränken
-- Cgroup-Limits gegen das Ausreizen von CPU, Speicher und Prozessanzahl
-- rlimits für Dateigrößen und offene Dateien
-- Ausführung als Nicht-root-Nutzer (Standard-UID `1001`)
-- Laufzeitumgebungen und Bibliotheken sind nur lesend eingehängt
-
-### Wer drankommt
-
-Die Domain ist öffentlich erreichbar – wer sie kennt, kann sie aufrufen. Nutzen kann
-er den Dienst deshalb aber nicht: **alle Endpunkte verlangen einen API-Key**, das
-Dashboard zusätzlich den Master-Key. Ohne Schlüssel gibt es nur eine Abweisung. Der
-Schutz liegt also beim Key, nicht bei der Geheimhaltung der Adresse.
-
-Daraus folgt der wichtigste praktische Punkt: **Behandle beide Schlüssel wie
-Passwörter.** Gerät der Dashboard-Key in falsche Hände, ziehst du ihn im Dashboard
-zurück und legst einen neuen an. Die `.env` steht auf `chmod 600` und enthält den
-Master-Key – sie gehört in kein Git-Repo.
-
-### Was das Skript zusätzlich tut
-
-- Der Dienst lauscht nur auf `127.0.0.1:8000`, kein Container bindet einen Port
-  öffentlich am Host – das prüft das Skript am Ende der Installation
-- Der Zugriff von außen läuft ausschließlich über den Nginx Proxy Manager
-
-### Access List – optional, kein Muss
-
-In NPM lässt sich eine **Access List** anlegen, die nur bestimmte IP-Adressen
-durchlässt. Das ist eine zusätzliche Hürde, kein Ersatz für den API-Key, und
-sinnvoll vor allem dann, wenn **LibreChat auf einem anderen Server** läuft: dann ist
-der Absender eine feste, bekannte IP, die du eintragen kannst.
-
-Läuft LibreChat auf **demselben** Server, lass es besser bleiben. Die Anfragen von
-LibreChat kommen dann aus dem Docker-Netz und tragen eine interne Adresse wie
-`172.18.0.5`, nicht die öffentliche IP deines Servers. Eine Liste mit deiner eigenen
-IP würde LibreChat aussperren – Dashboard erreichbar, Codeausführung tot. Ein
-Fehlerbild, dessen Ursache man lange sucht.
-
-> Weitere Details zur Absicherung stehen in der
-> [Projekt-Dokumentation](https://github.com/usnavy13/LibreCodeInterpreter/blob/main/docs/SECURITY.md).
+**3. Clean up the proxy host.** Delete the proxy host for the interpreter domain in
+the Nginx Proxy Manager — and the A record at your domain provider, unless the domain
+is needed elsewhere.
 
 ---
 
-<sub>Dieses Skript wurde unter Einsatz von KI-Modellen recherchiert, erstellt und
-iterativ überarbeitet. Alle technischen Aussagen wurden gegen die Projekt-
-Dokumentation und den Quellcode geprüft. Vor produktivem Einsatz bitte
-eigenverantwortlich prüfen.</sub>
+## Security
 
-<sub>[← Zurück zur Übersicht](../)</sub>
+### How the code is shielded
+
+According to the project documentation, every execution runs in an **NsJail
+sandbox**:
+
+- separate namespaces for processes, filesystem and network
+- seccomp filters restricting the permitted system calls
+- cgroup limits against exhausting CPU, memory and process count
+- rlimits for file sizes and open files
+- execution as a non-root user (default UID `1001`)
+- runtimes and libraries are mounted read-only
+
+### Who gets through
+
+The domain is publicly reachable — anyone who knows it can call it up. That doesn't
+mean they can use the service: **every endpoint requires an API key**, and the
+dashboard additionally requires the master key. Without a key there is nothing but a
+rejection. Protection therefore rests on the key, not on keeping the address secret.
+
+From which follows the most important practical point: **treat both keys like
+passwords.** If the dashboard key falls into the wrong hands, revoke it in the
+dashboard and create a new one. The `.env` is `chmod 600` and holds the master key —
+it belongs in no Git repo.
+
+### What the script does on top
+
+- No container binds a port on the host — the override removes every port binding.
+  The service stays reachable inside the Docker networks, but not from the host or
+  from outside. This is verified at the end of the installation
+- Access from outside runs exclusively through the Nginx Proxy Manager
+
+### Access list — optional, not required
+
+An **access list** in NPM lets only certain IP addresses through. It is an additional
+hurdle, not a replacement for the API key, and mainly worthwhile when **LibreChat
+runs on a different server**: the sender is then a fixed, known IP you can enter.
+
+If LibreChat runs on the **same** server, better leave it alone. Requests from
+LibreChat then come out of the Docker network and carry an internal address such as
+`172.18.0.5`, not your server's public IP. A list containing your own IP would lock
+LibreChat out — dashboard reachable, code execution dead. A symptom whose cause takes
+a long time to find.
+
+> Further details on hardening are in the
+> [project documentation](https://github.com/usnavy13/LibreCodeInterpreter/blob/main/docs/SECURITY.md).
+
+---
+
+<sub>This script was researched, written and iteratively revised with the help of AI
+models. All technical statements were checked against the project documentation and
+source code. Please verify for yourself before using it in production.</sub>
+
+<sub>[← Back to the overview](../)</sub>

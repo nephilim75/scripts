@@ -220,8 +220,16 @@ ADMIN_PANEL_SESSION_SECRET="$(rand_hex 64)"
 patch_env() {
   local key="$1" value="$2" escaped
   escaped="$(printf '%s' "$value" | sed -e 's/[&|]/\\&/g')"
-  if grep -qE "^${key}=" .env; then
+  # Die .env ist chmod 600 und gehoert root - ohne ${SUDO} scheitert schon das
+  # Lesen, wenn das Skript per sudo aus einem normalen Nutzerkonto laeuft. Der
+  # grep meldet dann faelschlich "Schluessel nicht vorhanden", und die Zeile
+  # wird angehaengt statt ersetzt. Ergebnis: Dubletten in der .env. Der Wert
+  # stimmt zwar (die letzte Zuweisung gewinnt), aber Skripte, die spaeter mit
+  # grep lesen, treffen womoeglich den ersten - also den alten - Eintrag.
+  if ${SUDO} grep -qE "^${key}=" .env; then
     ${SUDO} sed -i "s|^${key}=.*|${key}=${escaped}|" .env
+  elif ${SUDO} grep -qE "^#\\s*${key}=" .env; then
+    ${SUDO} sed -i "s|^#\\s*${key}=.*|${key}=${escaped}|" .env
   else
     printf '%s=%s\n' "${key}" "${value}" | ${SUDO} tee -a .env >/dev/null
   fi

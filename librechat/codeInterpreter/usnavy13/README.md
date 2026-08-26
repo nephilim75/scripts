@@ -1,22 +1,23 @@
-# Code Interpreter – LibreChat-AI option
+# Code Interpreter – usnavy13 option
 
 [![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
-[![GitHub](https://img.shields.io/badge/GitHub-code--interpreter-181717?style=for-the-badge&logo=github)](https://github.com/LibreChat-AI/code-interpreter)
+[![GitHub](https://img.shields.io/badge/GitHub-LibreCodeInterpreter-181717?style=for-the-badge&logo=github)](https://github.com/usnavy13/LibreCodeInterpreter)
 
-[![Isolation](https://img.shields.io/badge/Isolation-MicroVM%20%2B%20NsJail-2E7D32?style=flat-square)](https://github.com/LibreChat-AI/code-interpreter#security-disclaimer)
-[![Auth](https://img.shields.io/badge/Auth-JWT%20EdDSA-2E7D32?style=flat-square)](#securing-jobs-with-jwt)
+[![Sandbox](https://img.shields.io/badge/Sandbox-NsJail-2E7D32?style=flat-square)](#security)
+[![Auth](https://img.shields.io/badge/Auth-API--key-2E7D32?style=flat-square)](#the-two-keys--dont-mix-them-up)
 [![Ports](https://img.shields.io/badge/Host--ports-none-2E7D32?style=flat-square)](#security)
 [![Tested](https://img.shields.io/badge/Tested-Debian%2012%20%7C%2013-A81D33?style=flat-square&logo=debian&logoColor=white)](#prerequisites)
 [![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
 
-Installs `LibreChat-AI/code-interpreter` — a fork of `ClickHouse/code-interpreter`,
-maintained by the LibreChat team — in a fully hardened configuration behind an Nginx
-Proxy Manager.
+Installs `usnavy13/LibreCodeInterpreter` behind an Nginx Proxy Manager — the lean
+option: prebuilt images, a few minutes of installation time, no compiling.
 
-> **Don't get confused:** the folder name "LibreChat-AI" refers to the GitHub
-> organisation this interpreter project lives under. It is **not** LibreChat itself,
-> but an extension for it.
+> **For context:** the code here runs in NsJail sandboxes — separate namespaces,
+> seccomp filters, cgroup limits, execution as a non-root user. That matches the
+> NsJail mode of the [MicroVM option](../LibreChat-AI/); what is additionally
+> possible there is a dedicated guest kernel per execution. See the
+> [decision guide](../).
 
 ---
 
@@ -25,14 +26,11 @@ Proxy Manager.
 One command, in a root shell or with `sudo`:
 
 ```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/LibreChat-AI/install/install-avila-code-interpreter.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/usnavy13/install/install-librecodeinterpreter.sh)"
 ```
 
-The script walks you through everything else and aborts with a clear message if
+The script checks all prerequisites first and aborts with a clear message if
 something is missing. It never overwrites anything that already exists.
-
-> **Use `tmux` or `screen`.** The build takes 10–30+ minutes. If the SSH connection
-> drops, the installation dies halfway through otherwise.
 
 ---
 
@@ -42,9 +40,8 @@ something is missing. It never overwrites anything that already exists.
   distributions)
 - a running **Nginx Proxy Manager** and the Docker network **`shared_proxy`**
 - `git` and `openssl`
-- **at least 15 GB** of free disk space (without KVM: **20 GB**)
-- `/dev/kvm` for full hardening — see below
-- in "local" mode: an existing LibreChat installation on the same server
+- a **domain** pointing at this server
+- `/opt/LibreCodeInterpreter` must not exist yet
 
 All of this is checked by the script before anything is written.
 
@@ -61,72 +58,84 @@ go here. (The articles are in German; any equivalent guide will do just as well.
 
 | Question | Meaning |
 |---|---|
-| **Installation path** | default `/opt/avila-code-interpreter` |
-| **Mode: local or external** | see next section |
-| **Path to LibreChat** | only in "local" mode, default `/opt/librechat` |
-| **Domain** | only in "external" mode |
-| **Secure jobs with JWT?** | strongly recommended, default: yes |
-| **Create a swap file?** | only if no swap exists |
-| **Continue without KVM?** | only if `/dev/kvm` is missing |
+| **NPM's Docker network** | default `shared_proxy`, checked for existence |
+| **Domain** | e.g. `code.example.com` |
 
-### "Local" or "external" mode
-
-**Local** — LibreChat runs on the **same** server. Both containers reach each other
-directly by container name on the `shared_proxy` network. **No domain** and **no
-proxy host** are needed. This is the simpler and safer route.
-
-**External** — LibreChat runs on a **different** server. The interpreter then gets
-its own domain through the Nginx Proxy Manager.
-
-### Securing jobs with JWT
-
-Without JWT the interpreter accepts **any** job that reaches it. With JWT, LibreChat
-signs every job with a private key and the interpreter verifies the signature with
-the matching public key. The script generates the key pair (Ed25519 / EdDSA)
-automatically.
-
-The **private key belongs exclusively on the LibreChat side**. In "local" mode the
-script writes it straight into LibreChat's `.env` if you want, then deletes its own
-copy. In "external" mode it leaves a ready-made text block at
-`librechat-jwt-block.txt` for you to transfer to the LibreChat server — and to delete
-there afterwards.
-
-### MicroVM or NsJail
-
-If the script finds a usable `/dev/kvm`, the sandbox runs in **MicroVM mode**: every
-execution gets its own guest kernel. That is the configuration the project
-documentation describes as adequately secured.
-
-Without KVM, only **NsJail mode** remains, which shares the kernel with the host.
-According to the project documentation that is fine for local testing, **not** for
-production systems with unknown users. The script shows this notice and asks
-explicitly before continuing.
+That's all. Everything else happens automatically.
 
 ---
 
 ## What the script sets up
 
-- clones the repository to `/opt/avila-code-interpreter`
-- generates all secrets plus an Ed25519 key pair for signed execution manifests
-- writes a `.env` with `chmod 600`
-- creates a `docker-compose.override.yml`: fixed container names (`avila-*`),
-  attachment to `shared_proxy`, **all host ports removed**
-- builds the images locally and starts the stack
-- in NsJail mode additionally: builds the runtimes (Python, Node, Bun, Bash) under
-  `data/pkgs` and applies three fixes for known upstream bugs via a read-only volume
-  mount — the cloned repo itself stays untouched
-- verifies at the end that no container has a public port
+- clones the repository to `/opt/LibreCodeInterpreter`
+- generates a random **`MASTER_API_KEY`** (32 bytes, hex) — this is what you sign in
+  to the admin dashboard with
+- writes the `.env` with `chmod 600`
+- creates a `docker-compose.override.yml` that removes every host port binding and
+  attaches the API container to the Nginx Proxy Manager's network
+- pulls the images and starts the stack (`redis`, `garage`, `api`)
+- verifies at the end that no container is publicly reachable
 
 ---
 
 ## After the installation
 
-### "Local" mode
+### 1. DNS
 
-LibreChat's `.env` then contains (or gets this written by the script):
+Point an A record for your domain at this server. The script prints the public IP it
+detected.
+
+### 2. Proxy host in the Nginx Proxy Manager
+
+**Details tab**
+
+| Field | Value |
+|---|---|
+| Domain | your interpreter domain |
+| Scheme | `http` |
+| Forward Hostname | `code-interpreter-api` |
+| Forward Port | `8000` |
+| Websockets Support | on |
+
+**SSL tab** — request Let's Encrypt, enable Force SSL, HTTP/2 and HSTS.
+
+> The script prints the exact container name at the end, in case it differs.
+
+### 3. Check
+
+| Purpose | URL |
+|---|---|
+| Health check | `https://YOUR-DOMAIN/health` |
+| Admin dashboard | `https://YOUR-DOMAIN/admin-dashboard` |
+
+### 4. Create your own API key in the dashboard
+
+**This is the step people skip.** The `MASTER_API_KEY` from the installation is
+**not** the key LibreChat authenticates with. It only serves to sign you in to the
+admin dashboard. If you put it into LibreChat, the connection will not work.
+
+The key for LibreChat is created in the dashboard:
+
+1. open `https://YOUR-DOMAIN/admin-dashboard`
+2. sign in with the `MASTER_API_KEY`
+3. create a new API key there
+4. copy the key shown — it is usually visible in full only **once**
+
+The advantage of this separation: you can revoke or replace this one key later
+without touching dashboard access.
+
+### 5. Connecting LibreChat
+
+In `/opt/librechat/.env`, **a single line**:
 
 ```
-LIBRECHAT_CODE_BASEURL=http://avila-api:3112/v1
+LIBRECHAT_CODE_BASEURL=https://<the key from the dashboard>@YOUR-DOMAIN
+```
+
+Example with `code.example.com` and a key `abc123`:
+
+```
+LIBRECHAT_CODE_BASEURL=https://abc123@code.example.com
 ```
 
 Then **stop and start** LibreChat:
@@ -135,58 +144,67 @@ Then **stop and start** LibreChat:
 docker stop LibreChat && docker start LibreChat
 ```
 
-### "External" mode
+A plain `docker restart` does **not** re-read the `.env`. To confirm the values
+arrived:
 
-1. Point an A record for the domain at this server (the script shows the IP)
-2. Create a proxy host in the Nginx Proxy Manager:
+```bash
+docker exec LibreChat env | grep LIBRECHAT_CODE
+```
 
-   | Field | Value |
-   |---|---|
-   | Domain | your interpreter domain |
-   | Scheme | `http` |
-   | Forward Hostname | `avila-api` |
-   | Forward Port | `3112` |
-   | Websockets Support | on |
-   | SSL | Let's Encrypt, Force SSL, HTTP/2, HSTS |
+#### Why the key sits in the URL
 
-3. Transfer the block from `librechat-jwt-block.txt` to the LibreChat server and add
-   it to the `.env` there. Then stop and start LibreChat.
-4. Recommended: create an **Access List** in NPM that allows only the IP of the
-   LibreChat server.
+The obvious approach would be the documented one, with two separate lines and
+`LIBRECHAT_CODE_API_KEY`. That does **not** work here: in LibreChat v0.8.8-rc1 this
+variable is never read anywhere. Without active JWT authentication LibreChat simply
+sends no auth header, the interpreter answers with 401, and the chat shows "Code
+execution is not authorized". The key in the URL is therefore not a makeshift fix but
+the only route that currently holds.
+
+Two things that are easy to miss:
+
+- **No `/v1` at the end.** The address ends with the domain, nothing more. Appending
+  `/v1` out of habit gets you a 404.
+- **The key ends up in the Nginx Proxy Manager's access logs**, because it is part of
+  the URL. Anyone archiving or sharing those logs should know that. If the key does
+  get out, revoke it in the dashboard and create a new one.
+
+> An option is planned in the [admin tool](../../maintenance/) that asks for the key
+> and writes the line into the `.env` for you. Until then, enter it by hand.
 
 ---
 
-## Known pitfalls
+## The two keys — don't mix them up
 
-**`docker restart` is not enough.** A plain restart does **not** re-read the `.env`.
-You need `docker stop` and `docker start` — or, in the admin tool, "Application
-control → LibreChat → stop first, then start".
+| | what for | where from |
+|---|---|---|
+| **`MASTER_API_KEY`** | signing in to the admin dashboard | generated by the script, stored in the `.env` |
+| **API key** | LibreChat authenticating against the interpreter | you create it yourself in the dashboard |
 
-**In a `.env` the last assignment wins.** If older lines with
-`LIBRECHAT_CODE_BASEURL=` or `CODEAPI_` from a previous interpreter are still further
-down the file, they override the new values. Typical symptom: `unknown_kid`, because
-the old key identifier is still in effect. Remove or comment out the old lines.
+The master key is the skeleton key: whoever has it gets into the dashboard and can
+create as many API keys as they like. It therefore belongs **nowhere** in LibreChat's
+configuration — only the key created in the dashboard goes there.
 
-**The error `<runtime> is unknown`** on every code execution in NsJail mode means the
-runtimes under `data/pkgs` are missing — it is not a problem with the request. The
-script builds them and verifies the result, so this message should not come up.
+The script shows the master key once at the end. It is also stored permanently in
+`/opt/LibreCodeInterpreter/.env` and can be read at any time:
 
-**The build gets killed without a message.** That is an OOM kill caused by too little
-RAM. This is why the script offers a 4 GB swap file beforehand.
+```bash
+grep MASTER_API_KEY /opt/LibreCodeInterpreter/.env
+```
+
+Treat both keys like passwords.
 
 ---
 
 ## Useful commands
 
 ```bash
-cd /opt/avila-code-interpreter
+cd /opt/LibreCodeInterpreter
 
-docker compose ps          # status
-docker compose logs -f     # logs, quit with Ctrl+C
-docker compose logs -f api # logs of the API only
+docker compose ps            # status
+docker compose logs -f api   # logs, quit with Ctrl+C
 
 # update
-git pull && docker compose build && docker compose up -d
+docker compose pull && docker compose up -d
 ```
 
 ---
@@ -196,69 +214,87 @@ git pull && docker compose build && docker compose up -d
 Mind the order — the connection is severed first, deletion comes after.
 
 **1. Disconnect LibreChat from the interpreter.** In `/opt/librechat/.env`, remove or
-comment out the line `LIBRECHAT_CODE_BASEURL=` and every line starting with
-`CODEAPI_`. That file belongs to LibreChat and of course stays — what gets deleted in
-a moment is only the interpreter's directory.
+comment out the line `LIBRECHAT_CODE_BASEURL=`. That file belongs to LibreChat and
+stays — what gets deleted in a moment is only the interpreter's directory under
+`/opt/LibreCodeInterpreter`.
 
 ```bash
 docker stop LibreChat && docker start LibreChat
 ```
 
-**2. Remove the interpreter.**
+**2. Remove the interpreter.** This clears out containers, volumes, images and the
+`.env` holding the master key. API keys created in the dashboard are gone afterwards
+too, so revoking individual keys is unnecessary.
 
 ```bash
-cd /opt/avila-code-interpreter
+cd /opt/LibreCodeInterpreter
 docker compose down -v --rmi all
-docker rmi avila-package-init
-cd /opt && rm -rf avila-code-interpreter
+cd /opt && rm -rf LibreCodeInterpreter
 ```
 
-The `--rmi all` flag deletes the images as well. It is particularly worthwhile here:
-they were built locally and take up several GB. If another stack on the server
-happens to use the same image, Docker refuses the deletion on its own and says so —
-nothing can break.
+The `--rmi all` flag also deletes the pulled images — otherwise they keep taking up
+space although nothing is running any more. If another stack on the server happens to
+use the same image (Redis, say), Docker refuses the deletion on its own and says so.
+So nothing can break.
 
-The image `avila-package-init` only exists in NsJail mode and is not part of the
-Compose project, hence the separate command. If there was no NsJail mode, Docker
-simply reports that it doesn't know the image — that is fine too.
-
-To check whether anything is left over:
-
-```bash
-docker images | grep -i -E 'avila|code-interpreter'
-```
-
-**3. Only in "external" mode: clean up the proxy host.** Delete the proxy host for
-the interpreter domain in the Nginx Proxy Manager — and the A record at your domain
-provider, unless the domain is needed elsewhere. In "local" mode this step doesn't
-apply; neither of them ever existed there.
-
-**4. Optional: the swap file.** If the script created one, it stays and does no harm.
-If it is no longer needed:
-
-```bash
-swapoff /swapfile-avila-code-interpreter
-sed -i '\|^/swapfile-avila-code-interpreter |d' /etc/fstab
-rm /swapfile-avila-code-interpreter
-```
+**3. Clean up the proxy host.** Delete the proxy host for the interpreter domain in
+the Nginx Proxy Manager — and the A record at your domain provider, unless the domain
+is needed elsewhere.
 
 ---
 
 ## Security
 
-- No container binds a port publicly on the host — verified at the end of the
-  installation
-- Redis and MinIO are not attached to the `shared_proxy` network and are reachable
-  only from inside the project's own network
-- Execution manifests are signed (Ed25519)
-- Egress gateway and hardened mode are enabled
-- The `.env` is `chmod 600` and contains secrets — do not put it in a Git repo
+### How the code is shielded
+
+According to the project documentation, every execution runs in an **NsJail
+sandbox**:
+
+- separate namespaces for processes, filesystem and network
+- seccomp filters restricting the permitted system calls
+- cgroup limits against exhausting CPU, memory and process count
+- rlimits for file sizes and open files
+- execution as a non-root user (default UID `1001`)
+- runtimes and libraries are mounted read-only
+
+### Who gets through
+
+The domain is publicly reachable — anyone who knows it can call it up. That doesn't
+mean they can use the service: **every endpoint requires an API key**, and the
+dashboard additionally requires the master key. Without a key there is nothing but a
+rejection. Protection therefore rests on the key, not on keeping the address secret.
+
+From which follows the most important practical point: **treat both keys like
+passwords.** If the dashboard key falls into the wrong hands, revoke it in the
+dashboard and create a new one. The `.env` is `chmod 600` and holds the master key —
+it belongs in no Git repo.
+
+### What the script does on top
+
+- No container binds a port on the host — the override removes every port binding.
+  The service stays reachable inside the Docker networks, but not from the host or
+  from outside. This is verified at the end of the installation
+- Access from outside runs exclusively through the Nginx Proxy Manager
+
+### Access list — optional, not required
+
+An **access list** in NPM lets only certain IP addresses through. It is an additional
+hurdle, not a replacement for the API key, and mainly worthwhile when **LibreChat
+runs on a different server**: the sender is then a fixed, known IP you can enter.
+
+If LibreChat runs on the **same** server, better leave it alone. Requests from
+LibreChat then come out of the Docker network and carry an internal address such as
+`172.18.0.5`, not your server's public IP. A list containing your own IP would lock
+LibreChat out — dashboard reachable, code execution dead. A symptom whose cause takes
+a long time to find.
+
+> Further details on hardening are in the
+> [project documentation](https://github.com/usnavy13/LibreCodeInterpreter/blob/main/docs/SECURITY.md).
 
 ---
 
 <sub>This script was researched, written and iteratively revised with the help of AI
-models. All technical statements were checked against the official project
-documentation and source code. Please verify for yourself before using it in
-production.</sub>
+models. All technical statements were checked against the project documentation and
+source code. Please verify for yourself before using it in production.</sub>
 
 <sub>[← Back to the overview](../)</sub>

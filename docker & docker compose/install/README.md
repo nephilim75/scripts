@@ -84,7 +84,7 @@ Every other step runs on its own; there's nothing else to answer.
 Example:
 
 ```bash
-sudo ADD_USER=carsten bash install-docker.sh
+sudo ADD_USER=username bash install-docker.sh
 ```
 
 Unattended, e.g. from another script or a CI pipeline:

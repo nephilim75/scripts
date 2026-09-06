@@ -87,7 +87,9 @@ fi
 # im eigenen Verzeichnis), scheitern sonst spaetere Aufrufe mit
 # 'getcwd: cannot access parent directories'. Das Script nutzt ausschliesslich
 # absolute Pfade, ein bestimmtes Arbeitsverzeichnis wird nicht gebraucht.
-cd / || die "Konnte nicht nach / wechseln."
+# stderr unterdrueckt: bash warnt hier ueber die alte, geloeschte CWD,
+# der Wechsel selbst gelingt trotzdem.
+cd / 2>/dev/null || die "Konnte nicht nach / wechseln."
 
 # -- Voraussetzungen pruefen ---------------------------------------------------
 echo ""
@@ -163,6 +165,19 @@ echo -e "------------------------------------------------------------"
 info "Erstelle Verzeichnisse unter ${INSTALL_DIR}..."
 mkdir -p "${INSTALL_DIR}/data" "${INSTALL_DIR}/letsencrypt" "${INSTALL_DIR}/backups"
 success "Verzeichnisse erstellt."
+
+# Das Netzwerk wird im Compose-File als 'external' eingebunden. Compose legt
+# externe Netzwerke NICHT selbst an - fehlt es, bricht 'up' ab mit
+# "network ... declared as external, but could not be found". Also vorher
+# anlegen. 'external' ist Absicht: so ueberlebt das Netz ein 'compose down'
+# im NPM-Verzeichnis, und andere Stacks daran laufen weiter.
+if docker network inspect "${PROXY_NETWORK}" &>/dev/null; then
+  info "Docker-Netzwerk '${PROXY_NETWORK}' bereits vorhanden."
+else
+  docker network create "${PROXY_NETWORK}" >/dev/null \
+    || die "Netzwerk '${PROXY_NETWORK}' konnte nicht erstellt werden."
+  success "Netzwerk '${PROXY_NETWORK}' erstellt."
+fi
 
 info "Schreibe docker-compose.yml..."
 cat > "${INSTALL_DIR}/docker-compose.yml" <<EOF

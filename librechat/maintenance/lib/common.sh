@@ -356,3 +356,38 @@ C_DIM="\033[2m"
 breadcrumb() {
     printf "%b\n" "${C_DIM}$*${C_RESET}"
 }
+
+# --- Neustart anbieten statt nur darauf hinweisen ----------------------------
+# Ergaenzt warn_restart_required(): fragt, ob der noetige Stop+Start gleich
+# erledigt werden soll. Verneint der Nutzer, folgt der uebliche Hinweistext,
+# damit er den Weg trotzdem kennt.
+# Bewusst "docker stop/start" statt "docker restart" - nur Ersteres liest
+# .env und gemountete Dateien neu ein (live auf dem VPS geprueft).
+# Rueckgabe: 0 wenn neu gestartet wurde, sonst 1.
+offer_librechat_restart() {
+    echo ""
+    if ! confirm "LibreChat jetzt stoppen und starten, damit die Aenderung wirkt?"; then
+        warn_restart_required
+        return 1
+    fi
+
+    echo ""
+    info "Stoppe ${LIBRECHAT_CONTAINER} ..."
+    if ! docker stop "$LIBRECHAT_CONTAINER" >/dev/null 2>&1; then
+        error "${LIBRECHAT_CONTAINER} konnte nicht gestoppt werden."
+        warn_restart_required
+        return 1
+    fi
+
+    info "Starte ${LIBRECHAT_CONTAINER} ..."
+    if ! docker start "$LIBRECHAT_CONTAINER" >/dev/null 2>&1; then
+        error "${LIBRECHAT_CONTAINER} konnte nicht gestartet werden."
+        error "LibreChat ist derzeit gestoppt!"
+        info "Starten im Menue: Containerverwaltung (Docker) -> LibreChat -> Starten"
+        return 1
+    fi
+
+    success "${LIBRECHAT_CONTAINER} wurde gestoppt und wieder gestartet."
+    info "Bis die Oberflaeche erreichbar ist, vergehen einige Sekunden."
+    return 0
+}

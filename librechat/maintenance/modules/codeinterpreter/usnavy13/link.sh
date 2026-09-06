@@ -160,8 +160,22 @@ if [ -n "$(get_env_value LIBRECHAT_CODE_API_KEY 2>/dev/null)" ]; then
     fi
 fi
 
-# --- Abschluss ----------------------------------------------------------------
-warn_restart_required
-echo ""
-info "Danach pruefbar mit: docker exec ${LIBRECHAT_CONTAINER} env | grep LIBRECHAT_CODE"
+# --- Abschluss: Neustart anbieten und Ergebnis pruefen ------------------------
+if offer_librechat_restart; then
+    # Kurz warten: unmittelbar nach dem Start nimmt der Container noch keine
+    # exec-Aufrufe an.
+    sleep 3
+    echo ""
+    info "Pruefe, ob der Wert angekommen ist ..."
+    if docker exec "$LIBRECHAT_CONTAINER" env 2>/dev/null | grep -q '^LIBRECHAT_CODE_BASEURL='; then
+        success "LibreChat kennt die Anbindung."
+    else
+        warn "Der Wert konnte nicht bestaetigt werden."
+        info "Moeglicherweise laeuft der Container noch an. Spaeter pruefbar mit:"
+        info "  docker exec ${LIBRECHAT_CONTAINER} env | grep LIBRECHAT_CODE"
+    fi
+else
+    echo ""
+    info "Spaeter pruefbar mit: docker exec ${LIBRECHAT_CONTAINER} env | grep LIBRECHAT_CODE"
+fi
 echo ""

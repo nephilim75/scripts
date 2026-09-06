@@ -282,7 +282,8 @@ menu_ci_usnavy() {
             1) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/install.sh"; pause ;;
             3) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/status.sh"; pause ;;
             2) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/link.sh"; pause ;;
-            4|5|6|7) not_yet_built; pause ;;
+            4) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/control.sh" ;;
+            5|6|7) not_yet_built; pause ;;
             0) return ;;
             *) warn "Ungueltige Auswahl."; pause ;;
         esac

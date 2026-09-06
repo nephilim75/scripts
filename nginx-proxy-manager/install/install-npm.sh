@@ -82,6 +82,12 @@ if [[ "${EUID}" -ne 0 ]]; then
   die "Bitte als root oder mit sudo ausfuehren."
 fi
 
+# Falls das Verzeichnis, aus dem das Script gestartet wurde, nicht mehr
+# existiert, in ein sicheres wechseln - sonst schlagen spaetere Aufrufe fehl.
+if ! pwd -P &>/dev/null; then
+  cd / || die "Konnte nicht nach / wechseln."
+fi
+
 # -- Voraussetzungen pruefen ---------------------------------------------------
 echo ""
 echo -e "${BOLD} Voraussetzungen${RESET}"
@@ -115,18 +121,6 @@ if docker ps -a --format '{{.Image}}' | grep -q 'nginx-proxy-manager'; then
   warn "Es laeuft bereits ein Nginx-Proxy-Manager-Container."
   echo -e " Dieses Script bricht ab, um eine bestehende Installation nicht zu ueberschreiben."
   die "Installation abgebrochen."
-fi
-
-# -- shared_proxy-Netzwerk -----------------------------------------------------
-# Das Netzwerk wird im Compose-File als 'external' eingebunden und muss daher
-# existieren. Es wird ohne Rueckfrage angelegt - das ist Teil der Installation.
-if docker network inspect "${PROXY_NETWORK}" &>/dev/null; then
-  success "Docker-Netzwerk '${PROXY_NETWORK}' gefunden."
-else
-  info "Docker-Netzwerk '${PROXY_NETWORK}' existiert nicht - wird angelegt..."
-  docker network create "${PROXY_NETWORK}" >/dev/null \
-    || die "Netzwerk '${PROXY_NETWORK}' konnte nicht erstellt werden."
-  success "Netzwerk '${PROXY_NETWORK}' erstellt."
 fi
 
 # -- Konfiguration -------------------------------------------------------------
@@ -192,8 +186,11 @@ EOF
 success "docker-compose.yml geschrieben."
 
 info "Starte Nginx Proxy Manager..."
-cd "${INSTALL_DIR}"
-${COMPOSE_CMD} up -d
+# Bewusst kein 'cd': Wurde das aktuelle Verzeichnis der aufrufenden Shell
+# zwischenzeitlich geloescht (z.B. 'rm -rf' im eigenen Verzeichnis), scheitert
+# jedes cd mit 'getcwd: cannot access parent directories'. Mit -f ist der
+# Compose-Aufruf unabhaengig vom Arbeitsverzeichnis.
+${COMPOSE_CMD} -f "${INSTALL_DIR}/docker-compose.yml" up -d
 success "Container gestartet."
 
 # -- Abschluss -----------------------------------------------------------------

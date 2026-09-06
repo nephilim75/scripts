@@ -34,7 +34,7 @@ sudo rm -rf temp
 3. Make all scripts executable:
 
 ```bash
-sudo chmod +x menu.sh lib/*.sh modules/*/*.sh
+sudo chmod +x menu.sh lib/*.sh modules/*/*.sh modules/*/*/*.sh
 ```
 
 ### Run Maintenance Tool

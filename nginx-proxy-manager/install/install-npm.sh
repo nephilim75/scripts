@@ -82,11 +82,12 @@ if [[ "${EUID}" -ne 0 ]]; then
   die "Bitte als root oder mit sudo ausfuehren."
 fi
 
-# Falls das Verzeichnis, aus dem das Script gestartet wurde, nicht mehr
-# existiert, in ein sicheres wechseln - sonst schlagen spaetere Aufrufe fehl.
-if ! pwd -P &>/dev/null; then
-  cd / || die "Konnte nicht nach / wechseln."
-fi
+# Unbedingt in ein garantiert existierendes Verzeichnis wechseln. Wurde das
+# Verzeichnis der aufrufenden Shell zwischenzeitlich geloescht (z.B. 'rm -rf'
+# im eigenen Verzeichnis), scheitern sonst spaetere Aufrufe mit
+# 'getcwd: cannot access parent directories'. Das Script nutzt ausschliesslich
+# absolute Pfade, ein bestimmtes Arbeitsverzeichnis wird nicht gebraucht.
+cd / || die "Konnte nicht nach / wechseln."
 
 # -- Voraussetzungen pruefen ---------------------------------------------------
 echo ""

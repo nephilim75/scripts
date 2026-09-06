@@ -269,7 +269,8 @@ menu_ci_usnavy() {
         printf "%b" "${C_BLUE}Auswahl: ${C_RESET}"
         read -r wahl
         case "$wahl" in
-            1|2|3|4|5|6|7) not_yet_built; pause ;;
+            1) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/install.sh"; pause ;;
+            2|3|4|5|6|7) not_yet_built; pause ;;
             0) return ;;
             *) warn "Ungueltige Auswahl."; pause ;;
         esac

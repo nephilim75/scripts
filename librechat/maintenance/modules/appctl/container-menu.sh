@@ -18,7 +18,7 @@ pause() {
 }
 while true; do
     clear
-    breadcrumb "Hauptmenue > Anwendungssteuerung > $ANZEIGENAME"
+    breadcrumb "Hauptmenue > Containerverwaltung (Docker) > $ANZEIGENAME"
     heading "== $ANZEIGENAME =="
     echo "1) Status anzeigen"
     echo "2) Logs anzeigen"

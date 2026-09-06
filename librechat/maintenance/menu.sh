@@ -118,7 +118,7 @@ menu_welcome() {
     done
 }
 
-# --- Untermenue: Anwendungssteuerung -----------------------------------------
+# --- Untermenue: Containerverwaltung (Docker) --------------------------------
 # Punkte 1-6 rufen das generische container-menu.sh mit Anzeigename und
 # Compose-Servicename auf (ein Skript fuer alle Dienste statt sechs Kopien).
 # Kein "pause" danach, da container-menu.sh bereits selbst vor der Rueckkehr
@@ -126,8 +126,8 @@ menu_welcome() {
 menu_appctl() {
     while true; do
         clear
-        breadcrumb "Hauptmenue > Anwendungssteuerung"
-        heading "== Anwendungssteuerung =="
+        breadcrumb "Hauptmenue > Containerverwaltung (Docker)"
+        heading "== Containerverwaltung (Docker) =="
         echo "1) LibreChat"
         echo "2) MongoDB"
         echo "3) Meilisearch"
@@ -296,12 +296,13 @@ while true; do
     heading "=================================="
     echo ""
     echo "1) User-Verwaltung"
-    echo "2) Anwendungssteuerung"
+    echo "2) Containerverwaltung (Docker)"
     echo "3) Mail & Passwort-Reset (SMTP)"
     echo "4) Instanz-Einstellungen"
     echo "5) Code Interpreter"
     echo "6) Backup"
     printf "%b\n" "${C_RED}7) LibreChat loeschen/neu einrichten${C_RESET}"
+    echo "8) Admin-Tool aktualisieren"
     echo "0) Beenden"
     echo ""
     printf "%b" "${C_BLUE}Auswahl: ${C_RESET}"
@@ -314,6 +315,9 @@ while true; do
         5) menu_codeinterpreter ;;
         6) menu_backup ;;
         7) menu_lifecycle ;;
+        # "exec": das Menue endet hier sauber. Das Update-Skript ersetzt die
+        # Dateien und startet menu.sh danach selbst wieder.
+        8) exec "$PROJECT_ROOT/modules/selfupdate/update-tool.sh" ;;
         0) echo ""; info "Bis zum naechsten Mal."; exit 0 ;;
         *) warn "Ungueltige Auswahl."; pause ;;
     esac

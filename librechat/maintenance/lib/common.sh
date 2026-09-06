@@ -156,7 +156,7 @@ warn_restart_required() {
     warn "Damit die Aenderung wirkt, muss LibreChat gestoppt und wieder gestartet werden."
     warn "Ein reiner Neustart (docker restart) reicht NICHT aus."
     info "Befehl: docker stop ${LIBRECHAT_CONTAINER} && docker start ${LIBRECHAT_CONTAINER}"
-    info "Alternativ im Menue: Anwendungssteuerung -> LibreChat -> erst Stoppen, dann Starten."
+    info "Alternativ im Menue: Containerverwaltung (Docker) -> LibreChat -> erst Stoppen, dann Starten."
 }
 
 # --- Sensiblen Wert teilweise maskiert anzeigen -------------------------------

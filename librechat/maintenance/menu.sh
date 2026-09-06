@@ -273,8 +273,7 @@ menu_ci_usnavy() {
         echo "4) Starten / Stoppen / Neustarten"
         echo "5) Logs anzeigen"
         echo "6) Aktualisieren"
-        echo "7) Testlauf: zeigen, was entfernt wuerde (ungefaehrlich)"
-        printf "%b\n" "${C_RED}8) Entfernen${C_RESET}"
+        printf "%b\n" "${C_RED}7) Entfernen${C_RESET}"
         echo "0) Zurueck"
         echo ""
         printf "%b" "${C_BLUE}Auswahl: ${C_RESET}"
@@ -286,8 +285,7 @@ menu_ci_usnavy() {
             4) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/control.sh" ;;
             5) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/logs.sh" ;;
             6) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/update.sh"; pause ;;
-            7) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/remove.sh" --dry-run; pause ;;
-            8) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/remove.sh"; pause ;;
+            7) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/remove.sh"; pause ;;
             0) return ;;
             *) warn "Ungueltige Auswahl."; pause ;;
         esac

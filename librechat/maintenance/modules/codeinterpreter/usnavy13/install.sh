@@ -103,24 +103,66 @@ echo ""
 
 # --- Ausfuehren ---------------------------------------------------------------
 # Das Skript regelt root/sudo selbst und stellt seine Fragen direkt am Terminal.
-bash "$tmp_installer"
-rc=$?
+#
+# Die Ausgabe wird dabei mitgeschrieben, um die Domain daraus zu lesen - das
+# Installationsskript zeigt sie nur an und speichert sie nirgends.
+# Aufgezeichnet wird mit "script" und nicht per Pipe: eine Pipe wuerde die
+# Ausgabe blockweise puffern, sodass Meldungen und Rueckfragen verspaetet
+# erscheinen. "script" haelt ein Pseudoterminal offen, alles bleibt wie gewohnt.
+protokoll="$(mktemp /tmp/lci-install-log.XXXXXX)" || protokoll=""
+# Das Protokoll enthaelt den MASTER_API_KEY im Klartext und wird darum in
+# jedem Fall wieder entfernt.
+trap 'rm -f "$tmp_installer" "$protokoll"' EXIT
+
+if [ -n "$protokoll" ] && command -v script >/dev/null 2>&1; then
+    script -q -e -c "bash $tmp_installer" "$protokoll"
+    rc=$?
+else
+    protokoll=""
+    bash "$tmp_installer"
+    rc=$?
+fi
 
 echo ""
 if [ "$rc" -eq 0 ] && ci_installed "$CI_USNAVY_DIR"; then
     success "Installation abgeschlossen."
     echo ""
 
-    # Das Installationsskript zeigt die Domain nur an, speichert sie aber nicht.
-    # Hier einmal nachfragen und merken - dann steht sie spaeter jederzeit unter
-    # 'Status anzeigen', auch wenn dieses Fenster laengst geschlossen ist.
-    info "Zum Merken: unter welcher Domain hast du den Code Interpreter"
-    info "eingerichtet? Sie erscheint dann kuenftig im Status."
-    printf "%b" "${C_BLUE}Domain (leer lassen zum Ueberspringen): ${C_RESET}"
-    read -r ci_domain
+    # Domain aus dem Protokoll lesen. Das Installationsskript gibt sie in
+    # seiner Zusammenfassung als "Domain:  <wert>" aus. Farbcodes werden
+    # vorher entfernt, sonst haengen sie am Wert.
+    ci_domain=""
+    if [ -n "$protokoll" ] && [ -r "$protokoll" ]; then
+        ci_domain="$(sed 's/\x1b\[[0-9;]*m//g' "$protokoll" 2>/dev/null \
+            | grep -E '^[[:space:]]*Domain:[[:space:]]' \
+            | head -n1 | awk '{print $NF}' | tr -d '\r')"
+        # Plausibilitaetspruefung: mindestens ein Punkt, keine Leerzeichen.
+        case "$ci_domain" in
+            ""|*" "*|*[!a-zA-Z0-9.-]*) ci_domain="" ;;
+            *.*) : ;;
+            *) ci_domain="" ;;
+        esac
+    fi
+
+    # Eingabe mit Vorbelegung statt Ja/Nein-Frage: Enter uebernimmt die
+    # erkannte Domain, Tippen korrigiert sie. Eine confirm()-Abfrage waere
+    # hier verkehrt, weil dort Enter "nein" bedeutet - und der Normalfall
+    # ist, dass die Erkennung stimmt.
+    if [ -n "$ci_domain" ]; then
+        info "Erkannte Domain: $ci_domain"
+        printf "%b" "${C_BLUE}Enter uebernimmt sie, sonst korrigieren: ${C_RESET}"
+        read -r eingabe
+        [ -n "$eingabe" ] && ci_domain="$eingabe"
+    else
+        info "Unter welcher Domain hast du den Code Interpreter eingerichtet?"
+        info "Sie erscheint dann kuenftig im Status."
+        printf "%b" "${C_BLUE}Domain (leer lassen zum Ueberspringen): ${C_RESET}"
+        read -r ci_domain
+    fi
+
     if [ -n "$ci_domain" ]; then
         if ci_set_domain "$CI_USNAVY_DIR" "$ci_domain"; then
-            success "Domain gemerkt."
+            success "Domain gemerkt: $ci_domain"
         else
             warn "Domain konnte nicht gespeichert werden - halb so wild,"
             warn "der Status fragt bei Bedarf noch einmal nach."

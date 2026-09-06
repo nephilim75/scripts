@@ -270,7 +270,8 @@ menu_ci_usnavy() {
         read -r wahl
         case "$wahl" in
             1) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/install.sh"; pause ;;
-            2|3|4|5|6|7) not_yet_built; pause ;;
+            3) "$PROJECT_ROOT/modules/codeinterpreter/usnavy13/status.sh"; pause ;;
+            2|4|5|6|7) not_yet_built; pause ;;
             0) return ;;
             *) warn "Ungueltige Auswahl."; pause ;;
         esac

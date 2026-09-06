@@ -287,3 +287,63 @@ ci_status_label() {
         printf "%b" "${C_YELLOW}[nicht installiert]${C_RESET}"
     fi
 }
+
+# --- Code-Interpreter: Werte lesen -------------------------------------------
+# Datei, in der sich das Admin-Tool Angaben merkt, die das Installationsskript
+# nur einmalig anzeigt (vor allem die Domain). Liegt im Installationsordner,
+# damit sie beim Entfernen automatisch mitverschwindet.
+CI_INFO_FILE=".admin-lc-info"
+
+# Einen KEY=WERT-Eintrag aus einer beliebigen Datei lesen.
+# Nutzung: ci_env_get MASTER_API_KEY /opt/LibreCodeInterpreter/.env
+ci_env_get() {
+    ci_key="$1"
+    ci_file="$2"
+    [ -r "$ci_file" ] || return 1
+    grep -E "^${ci_key}=" "$ci_file" 2>/dev/null | head -n1 | cut -d '=' -f2-
+}
+
+# Domain ermitteln - zwei Quellen, in dieser Reihenfolge:
+#   1. die gemerkte Info-Datei im Installationsordner
+#   2. rekonstruiert aus LIBRECHAT_CODE_BASEURL in LibreChats .env
+#      (Form: https://<KEY>@domain). Das hilft bei Installationen, die vor
+#      dieser Funktion angelegt wurden.
+# Gibt nichts aus und liefert 1, wenn die Domain unbekannt ist.
+ci_get_domain() {
+    ci_dir="$1"
+    ci_dom="$(ci_env_get CI_DOMAIN "$ci_dir/$CI_INFO_FILE" 2>/dev/null)"
+    if [ -n "$ci_dom" ]; then
+        printf '%s' "$ci_dom"
+        return 0
+    fi
+
+    ci_base="$(get_env_value LIBRECHAT_CODE_BASEURL 2>/dev/null)"
+    if [ -n "$ci_base" ]; then
+        ci_dom="${ci_base#*://}"   # Protokoll weg
+        ci_dom="${ci_dom#*@}"      # API-Key weg (falls vorhanden)
+        ci_dom="${ci_dom%%/*}"     # eventueller Pfad weg
+        if [ -n "$ci_dom" ]; then
+            printf '%s' "$ci_dom"
+            return 0
+        fi
+    fi
+    return 1
+}
+
+# Domain merken. Nutzung: ci_set_domain "$CI_USNAVY_DIR" code.example.de
+ci_set_domain() {
+    ci_dir="$1"
+    ci_dom="$2"
+    [ -d "$ci_dir" ] || return 1
+    printf 'CI_DOMAIN=%s\n' "$ci_dom" > "$ci_dir/$CI_INFO_FILE" 2>/dev/null || return 1
+    chmod 600 "$ci_dir/$CI_INFO_FILE" 2>/dev/null
+    return 0
+}
+
+# docker compose im Installationsordner der jeweiligen Variante ausfuehren.
+# Nutzung: ci_compose "$CI_USNAVY_DIR" ps
+ci_compose() {
+    ci_dir="$1"
+    shift
+    (cd "$ci_dir" && docker compose "$@")
+}

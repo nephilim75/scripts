@@ -109,6 +109,24 @@ echo ""
 if [ "$rc" -eq 0 ] && ci_installed "$CI_USNAVY_DIR"; then
     success "Installation abgeschlossen."
     echo ""
+
+    # Das Installationsskript zeigt die Domain nur an, speichert sie aber nicht.
+    # Hier einmal nachfragen und merken - dann steht sie spaeter jederzeit unter
+    # 'Status anzeigen', auch wenn dieses Fenster laengst geschlossen ist.
+    info "Zum Merken: unter welcher Domain hast du den Code Interpreter"
+    info "eingerichtet? Sie erscheint dann kuenftig im Status."
+    printf "%b" "${C_BLUE}Domain (leer lassen zum Ueberspringen): ${C_RESET}"
+    read -r ci_domain
+    if [ -n "$ci_domain" ]; then
+        if ci_set_domain "$CI_USNAVY_DIR" "$ci_domain"; then
+            success "Domain gemerkt."
+        else
+            warn "Domain konnte nicht gespeichert werden - halb so wild,"
+            warn "der Status fragt bei Bedarf noch einmal nach."
+        fi
+    fi
+
+    echo ""
     info "Naechster Schritt: im Menue 'Anbindung an LibreChat' - dort wird der"
     info "API-Key eingetragen, damit LibreChat den Code Interpreter nutzen kann."
 else

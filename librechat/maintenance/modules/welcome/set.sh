@@ -7,6 +7,7 @@
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 . "$PROJECT_ROOT/lib/common.sh"
 
+breadcrumb "Hauptmenue > Instanz-Einstellungen > Willkommensnachricht > Aendern"
 heading "== Willkommensnachricht aendern =="
 echo ""
 
@@ -33,7 +34,8 @@ if set_welcome_message "$neuer_text"; then
     echo ""
     success "Willkommensnachricht wurde geaendert."
     echo "  \"$(get_welcome_message)\""
-    warn_restart_required
+    echo ""
+    warn "Damit die Aenderung wirkt, muss LibreChat neu gestartet werden: docker restart ${LIBRECHAT_CONTAINER}"
 else
     error "Aendern ist fehlgeschlagen."
 fi

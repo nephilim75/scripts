@@ -11,6 +11,7 @@ PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 
 modus="${1:-create}"
 
+breadcrumb "Hauptmenue > Mail & Passwort-Reset > Konfiguration anlegen/aendern"
 heading "== SMTP-Konfiguration =="
 if [ "$modus" = "overwrite" ]; then
     info "Bestehende SMTP-Werte werden mit deinen neuen Angaben ueberschrieben."
@@ -63,4 +64,5 @@ success "SMTP-Konfiguration wurde gespeichert. ALLOW_PASSWORD_RESET=true gesetzt
 echo ""
 heading "-- Zusammenfassung (bitte pruefen) --"
 show_smtp_summary
-warn_restart_required
+echo ""
+warn "Damit die Aenderungen wirken, muss LibreChat neu gestartet werden: docker restart ${LIBRECHAT_CONTAINER}"

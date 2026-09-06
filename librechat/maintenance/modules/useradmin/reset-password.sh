@@ -10,6 +10,7 @@
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 . "$PROJECT_ROOT/lib/common.sh"
 
+breadcrumb "Hauptmenue > User-Verwaltung > Passwort zuruecksetzen"
 heading "== Passwort zuruecksetzen =="
 info "Gleich fragt LibreChat nach E-Mail und neuem Passwort."
 info "Der User wird NICHT per Mail benachrichtigt - das Passwort wird direkt gesetzt."

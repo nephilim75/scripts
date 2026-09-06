@@ -7,6 +7,7 @@
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 . "$PROJECT_ROOT/lib/common.sh"
 
+breadcrumb "Hauptmenue > Mail & Passwort-Reset > Konfiguration loeschen"
 heading "== SMTP-Konfiguration loeschen =="
 echo ""
 info "Aktuell gesetzte Werte:"
@@ -33,4 +34,4 @@ set_env_value ALLOW_PASSWORD_RESET "false"
 
 echo ""
 success "SMTP-Konfiguration wurde geloescht. ALLOW_PASSWORD_RESET=false gesetzt."
-warn_restart_required
+warn "Damit die Aenderungen wirken, muss LibreChat neu gestartet werden: docker restart ${LIBRECHAT_CONTAINER}"

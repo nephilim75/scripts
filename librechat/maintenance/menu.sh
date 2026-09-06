@@ -19,6 +19,7 @@ not_yet_built() {
 menu_lifecycle() {
     while true; do
         clear
+        breadcrumb "Hauptmenue > LibreChat loeschen/neu einrichten"
         heading_danger "== LibreChat loeschen/neu einrichten =="
         printf "%b\n" "${C_RED}Achtung: Dieser Bereich enthaelt destruktive Aktionen.${C_RESET}"
         echo ""
@@ -49,6 +50,7 @@ pause() {
 menu_useradmin() {
     while true; do
         clear
+        breadcrumb "Hauptmenue > User-Verwaltung"
         heading "== User-Verwaltung =="
         echo "1) User anlegen"
         echo "2) User loeschen"
@@ -75,6 +77,7 @@ menu_useradmin() {
 menu_mail() {
     while true; do
         clear
+        breadcrumb "Hauptmenue > Mail & Passwort-Reset"
         heading "== Mail & Passwort-Reset (SMTP) =="
         echo "1) Aktuelle Konfiguration anzeigen"
         echo "2) Neue Konfiguration anlegen"
@@ -98,6 +101,7 @@ menu_mail() {
 menu_welcome() {
     while true; do
         clear
+        breadcrumb "Hauptmenue > Instanz-Einstellungen > Willkommensnachricht"
         heading "== Willkommensnachricht =="
         echo "1) Aktuelle Nachricht anzeigen"
         echo "2) Nachricht aendern"
@@ -122,6 +126,7 @@ menu_welcome() {
 menu_appctl() {
     while true; do
         clear
+        breadcrumb "Hauptmenue > Anwendungssteuerung"
         heading "== Anwendungssteuerung =="
         echo "1) LibreChat"
         echo "2) MongoDB"
@@ -154,6 +159,7 @@ menu_appctl() {
 menu_registration() {
     while true; do
         clear
+        breadcrumb "Hauptmenue > Instanz-Einstellungen > Registrierung"
         heading "== Registrierung an/aus =="
         echo "1) Status anzeigen"
         echo "2) Registrierung aktivieren"
@@ -180,6 +186,7 @@ menu_registration() {
 menu_instance() {
     while true; do
         clear
+        breadcrumb "Hauptmenue > Instanz-Einstellungen"
         heading "== Instanz-Einstellungen =="
         echo "1) Willkommensnachricht"
         echo "2) Registrierung an/aus"
@@ -202,6 +209,7 @@ menu_instance() {
 menu_backup() {
     while true; do
         clear
+        breadcrumb "Hauptmenue > Backup"
         heading "== Backup =="
         echo "1) Backup erstellen - Konfiguration"
         echo "2) Backup erstellen - Konfiguration + Datenbank"
@@ -231,6 +239,7 @@ menu_backup() {
 menu_codeinterpreter() {
     while true; do
         clear
+        breadcrumb "Hauptmenue > Code Interpreter"
         heading "== Code Interpreter =="
         echo "Fuehrt Programmcode aus, den die KI im Chat schreibt - z.B. um"
         echo "eine Tabelle auszuwerten oder ein Diagramm zu erzeugen."
@@ -254,6 +263,7 @@ menu_codeinterpreter() {
 menu_ci_usnavy() {
     while true; do
         clear
+        breadcrumb "Hauptmenue > Code Interpreter > usnavy13"
         heading "== Code Interpreter: usnavy13 =="
         printf "%b\n" "Status: $(ci_status_label "$CI_USNAVY_DIR")   Pfad: $CI_USNAVY_DIR"
         echo ""

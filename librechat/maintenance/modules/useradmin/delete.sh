@@ -8,6 +8,7 @@
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 . "$PROJECT_ROOT/lib/common.sh"
 
+breadcrumb "Hauptmenue > User-Verwaltung > User loeschen"
 heading "== User loeschen =="
 
 printf "%b" "${C_BLUE}E-Mail-Adresse des zu loeschenden Users: ${C_RESET}"

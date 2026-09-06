@@ -11,6 +11,7 @@ PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 
 INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install/install-librechat.sh"
 
+breadcrumb "Hauptmenue > LibreChat loeschen/neu einrichten > Neu einrichten"
 heading_danger "== LibreChat neu einrichten =="
 info "Holt das Install-Skript von GitHub und fuehrt es aus."
 info "Falls unter /opt/librechat schon was liegt, bricht es von selbst ab."

@@ -347,3 +347,12 @@ ci_compose() {
     shift
     (cd "$ci_dir" && docker compose "$@")
 }
+
+# --- Brotkrumen-Pfad ----------------------------------------------------------
+# Zeigt oberhalb der Ueberschrift, wo im Menue man sich gerade befindet.
+# Gedaempft dargestellt, damit die Ueberschrift die Hauptsache bleibt.
+# Nutzung: breadcrumb "Hauptmenue > Code Interpreter > usnavy13"
+C_DIM="\033[2m"
+breadcrumb() {
+    printf "%b\n" "${C_DIM}$*${C_RESET}"
+}

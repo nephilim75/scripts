@@ -7,21 +7,18 @@
 # So gibt es nur EIN Skript fuer alle Dienste (Wartung an einer Stelle statt
 # in sechs Kopien).
 # =============================================================================
-
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 . "$PROJECT_ROOT/lib/common.sh"
-
 ANZEIGENAME="${1:?Anzeigename fehlt}"
 SERVICE="${2:?Compose-Servicename fehlt}"
-
 pause() {
     echo ""
     printf "%b" "${C_BLUE}Enter druecken, um fortzufahren...${C_RESET}"
     read -r _dummy
 }
-
 while true; do
     clear
+    breadcrumb "Hauptmenue > Anwendungssteuerung > $ANZEIGENAME"
     heading "== $ANZEIGENAME =="
     echo "1) Status anzeigen"
     echo "2) Logs anzeigen"

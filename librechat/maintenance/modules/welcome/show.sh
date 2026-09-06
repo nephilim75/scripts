@@ -7,6 +7,7 @@
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 . "$PROJECT_ROOT/lib/common.sh"
 
+breadcrumb "Hauptmenue > Instanz-Einstellungen > Willkommensnachricht > Anzeigen"
 heading "== Aktuelle Willkommensnachricht =="
 echo ""
 

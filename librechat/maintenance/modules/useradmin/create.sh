@@ -8,6 +8,7 @@
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 . "$PROJECT_ROOT/lib/common.sh"
 
+breadcrumb "Hauptmenue > User-Verwaltung > User anlegen"
 heading "== Neuen User anlegen =="
 info "Gleich fragt LibreChat selbst nach E-Mail, Name und Passwort."
 echo ""

@@ -17,6 +17,7 @@ PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)"
 
 INSTALLER_URL="https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/usnavy13/install/install-librecodeinterpreter.sh"
 
+breadcrumb "Hauptmenue > Code Interpreter > usnavy13 > Installieren"
 heading "== Code Interpreter installieren (usnavy13) =="
 echo ""
 

@@ -12,6 +12,7 @@ PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 
 ensure_backup_dir || exit 1
 
+breadcrumb "Hauptmenue > Backup > Wiederherstellen"
 heading_danger "== Backup wiederherstellen =="
 echo ""
 

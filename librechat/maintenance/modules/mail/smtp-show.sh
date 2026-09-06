@@ -7,6 +7,7 @@
 PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
 . "$PROJECT_ROOT/lib/common.sh"
 
+breadcrumb "Hauptmenue > Mail & Passwort-Reset > Konfiguration anzeigen"
 heading "== Aktuelle SMTP-Konfiguration =="
 echo ""
 show_smtp_summary

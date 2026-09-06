@@ -14,6 +14,7 @@ PROJECT_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../../.." && pwd)"
 
 load_or_ask_librechat_path
 
+breadcrumb "Hauptmenue > Code Interpreter > usnavy13 > Anbindung"
 heading "== Anbindung an LibreChat (usnavy13) =="
 echo ""
 

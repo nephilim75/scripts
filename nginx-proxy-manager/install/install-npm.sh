@@ -27,6 +27,11 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
+# -- Konstanten ----------------------------------------------------------------
+readonly NPM_GUIDE="https://pc-fee.com/2026/05/03/nginx-proxy-manager/"
+readonly DOCKER_COMPOSE_GUIDE="https://pc-fee.com/2026/05/03/docker-compose/"
+readonly PROXY_NETWORK="shared_proxy"
+
 # -- Hilfsfunktionen -----------------------------------------------------------
 info()    { echo -e "${CYAN}[INFO]${RESET} $*"; }
 success() { echo -e "${GREEN}[OK]${RESET} $*"; }
@@ -35,11 +40,11 @@ error()   { echo -e "${RED}[FEHLER]${RESET} $*"; }
 die()     { error "$*"; exit 1; }
 
 ask() {
-  local var="$1" prompt="$2" default="$3" input
+  local var="$1" prompt="$2" default="$3" input=""
   echo ""
   echo -ne "${BOLD}${prompt}${RESET} [${CYAN}${default}${RESET}]: "
-  read -r input
-  eval "${var}=\"${input:-${default}}\""
+  read -r input || true
+  printf -v "${var}" '%s' "${input:-${default}}"
 }
 
 ask_nodefault() {
@@ -47,17 +52,30 @@ ask_nodefault() {
   while [[ -z "$input" ]]; do
     echo ""
     echo -ne "${BOLD}${prompt}${RESET}: "
-    read -r input
+    read -r input || true
     [[ -z "$input" ]] && warn "Eingabe darf nicht leer sein."
   done
-  eval "${var}=\"${input}\""
+  printf -v "${var}" '%s' "${input}"
 }
 
-# -- Header --------------------------------------------------------------------
+# -- Banner --------------------------------------------------------------------
+clear
+printf '%b' "${CYAN}"
+cat <<'LOGO'
+                  __
+ _ __   ___      / _| ___  ___   ___ ___  _ __ ___
+| '_ \ / __|____| |_ / _ \/ _ \ / __/ _ \| '_ ` _ \
+| |_) | (_|_____|  _|  __/  __/| (_| (_) | | | | | |
+| .__/ \___|    |_|  \___|\___(_)___\___/|_| |_| |_|
+|_|
+LOGO
+printf '%b\n' "${RESET}"
+printf '%b\n' "${BOLD} Nginx Proxy Manager Installer - powered by pc-fee.com${RESET}"
+printf '%b\n' " ${CYAN}https://pc-fee.com${RESET} | ${CYAN}https://github.com/nephilim75/scripts${RESET}"
 echo ""
-echo -e "${BOLD}============================================================${RESET}"
-echo -e "${BOLD} Nginx Proxy Manager - Installer (pc-fee.com)${RESET}"
-echo -e "${BOLD}============================================================${RESET}"
+echo "Installiert den Nginx Proxy Manager via Docker Compose im Netzwerk"
+echo "'${PROXY_NETWORK}', ueber das spaeter weitere Dienste angebunden werden."
+echo "------------------------------------------------------------"
 
 # -- Root-Check ----------------------------------------------------------------
 if [[ "${EUID}" -ne 0 ]]; then
@@ -71,7 +89,7 @@ echo -e "------------------------------------------------------------"
 
 # Docker installiert?
 if ! command -v docker &>/dev/null; then
-  die "Docker ist nicht installiert.\n\n  Anleitung auf pc-fee.com:\n  https://pc-fee.com/2026/05/03/docker-compose/\n\n  Danach dieses Script erneut starten."
+  die "Docker ist nicht installiert.\n\n  Anleitung auf pc-fee.com:\n  ${DOCKER_COMPOSE_GUIDE}\n\n  Danach dieses Script erneut starten."
 fi
 success "Docker gefunden: $(docker --version 2>&1)"
 
@@ -87,7 +105,7 @@ if docker compose version &>/dev/null 2>&1; then
 elif command -v docker-compose &>/dev/null; then
   COMPOSE_CMD="docker-compose"
 else
-  die "Docker Compose nicht gefunden.\n\n  Anleitung auf pc-fee.com:\n  https://pc-fee.com/2026/05/03/docker-compose/"
+  die "Docker Compose nicht gefunden.\n\n  Anleitung auf pc-fee.com:\n  ${DOCKER_COMPOSE_GUIDE}"
 fi
 success "Docker Compose gefunden: ${COMPOSE_CMD}"
 
@@ -100,19 +118,15 @@ if docker ps -a --format '{{.Image}}' | grep -q 'nginx-proxy-manager'; then
 fi
 
 # -- shared_proxy-Netzwerk -----------------------------------------------------
-if ! docker network inspect shared_proxy &>/dev/null; then
-  echo ""
-  warn "Das Docker-Netzwerk 'shared_proxy' existiert nicht."
-  echo -ne " ${BOLD}Jetzt erstellen?${RESET} [${CYAN}j${RESET}/n]: "
-  read -r create_net
-  if [[ "${create_net,,}" != "n" ]]; then
-    docker network create shared_proxy
-    success "Netzwerk 'shared_proxy' erstellt."
-  else
-    die "Netzwerk 'shared_proxy' fehlt. Installation abgebrochen."
-  fi
+# Das Netzwerk wird im Compose-File als 'external' eingebunden und muss daher
+# existieren. Es wird ohne Rueckfrage angelegt - das ist Teil der Installation.
+if docker network inspect "${PROXY_NETWORK}" &>/dev/null; then
+  success "Docker-Netzwerk '${PROXY_NETWORK}' gefunden."
 else
-  success "Docker-Netzwerk 'shared_proxy' gefunden."
+  info "Docker-Netzwerk '${PROXY_NETWORK}' existiert nicht - wird angelegt..."
+  docker network create "${PROXY_NETWORK}" >/dev/null \
+    || die "Netzwerk '${PROXY_NETWORK}' konnte nicht erstellt werden."
+  success "Netzwerk '${PROXY_NETWORK}' erstellt."
 fi
 
 # -- Konfiguration -------------------------------------------------------------
@@ -137,10 +151,10 @@ echo -e " Installationspfad: ${CYAN}${INSTALL_DIR}${RESET}"
 echo -e " Port 80 (HTTP):    ${CYAN}80:80${RESET}"
 echo -e " Port 443 (HTTPS):  ${CYAN}443:443${RESET}"
 echo -e " Port 81 (Admin):   ${CYAN}${PORT81}${RESET} (offen - wird spaeter abgehaertet)"
-echo -e " Netzwerk:          ${CYAN}shared_proxy${RESET}"
+echo -e " Netzwerk:          ${CYAN}${PROXY_NETWORK}${RESET}"
 echo ""
 echo -ne "${BOLD}Alles korrekt? Installation starten?${RESET} [${CYAN}j${RESET}/n]: "
-read -r confirm
+read -r confirm || true
 if [[ "${confirm,,}" == "n" ]]; then
   warn "Installation abgebrochen."
   exit 0
@@ -169,10 +183,10 @@ services:
       - ${INSTALL_DIR}/data:/data
       - ${INSTALL_DIR}/letsencrypt:/etc/letsencrypt
     networks:
-      - shared_proxy
+      - ${PROXY_NETWORK}
 
 networks:
-  shared_proxy:
+  ${PROXY_NETWORK}:
     external: true
 EOF
 success "docker-compose.yml geschrieben."
@@ -190,9 +204,17 @@ success "Nginx Proxy Manager wurde installiert."
 echo ""
 echo -e " Adminpanel: ${CYAN}http://${SERVER_IP:-SERVER-IP}:81${RESET}"
 echo ""
-echo -e " Standard-Login (bitte sofort aendern):"
-echo -e "   E-Mail:   ${CYAN}admin@example.com${RESET}"
-echo -e "   Passwort: ${CYAN}changeme${RESET}"
+info "Der erste Start dauert rund 30 Sekunden, bis das Panel antwortet."
+echo ""
+echo -e " Beim ersten Aufruf begruesst dich der Setup-Bildschirm ${BOLD}Welcome!${RESET} und"
+echo -e " du legst deinen Admin-Account direkt selbst an:"
+echo -e "   ${CYAN}Full Name${RESET}     - dein Name"
+echo -e "   ${CYAN}Email address${RESET} - deine Login-Adresse"
+echo -e "   ${CYAN}New Password${RESET}  - ein starkes, eigenes Passwort"
+echo ""
+echo -e " ${YELLOW}Wichtig:${RESET} Dieser Setup-Bildschirm ist nicht passwortgeschuetzt."
+echo -e " Wer ihn zuerst aufruft, bekommt den Admin-Account. Lege ihn deshalb"
+echo -e " ${BOLD}sofort${RESET} nach der Installation an - nicht erst morgen."
 echo ""
 echo -e "${BOLD}============================================================${RESET}"
 echo -e "${BOLD} NAECHSTE SCHRITTE: Security / Hardening${RESET}"
@@ -200,7 +222,7 @@ echo -e "${BOLD}============================================================${RE
 echo ""
 echo -e " Port 81 ist fuer die Ersteinrichtung absichtlich ${YELLOW}offen${RESET}."
 echo -e " Bitte fuehre jetzt die Hardening-Schritte aus (SSL, 2FA, Port 81 lokal binden):"
-echo -e " ${CYAN}https://pc-fee.com/nginx-proxy-manager/#security${RESET}"
+echo -e " ${CYAN}${NPM_GUIDE}${RESET}"
 echo ""
 echo -e "${BOLD}============================================================${RESET}"
 echo ""

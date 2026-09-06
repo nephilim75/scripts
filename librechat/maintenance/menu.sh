@@ -224,6 +224,58 @@ menu_backup() {
     done
 }
 
+# --- Untermenue: Code Interpreter (Variantenauswahl) -------------------------
+# Erste Ebene: welche der beiden Varianten. Da ein Server ueblicherweise nur
+# eine davon betreibt, steht hinter jedem Eintrag der Installationsstatus -
+# sonst wuerde man leicht im falschen Zweig landen.
+menu_codeinterpreter() {
+    while true; do
+        clear
+        heading "== Code Interpreter =="
+        echo "Fuehrt Programmcode aus, den die KI im Chat schreibt - z.B. um"
+        echo "eine Tabelle auszuwerten oder ein Diagramm zu erzeugen."
+        echo ""
+        printf "%b\n" "1) usnavy13     $(ci_status_label "$CI_USNAVY_DIR")"
+        printf "%b\n" "2) LibreChat-AI $(ci_status_label "$CI_LIBREAI_DIR")"
+        echo "0) Zurueck zum Hauptmenue"
+        echo ""
+        printf "%b" "${C_BLUE}Auswahl: ${C_RESET}"
+        read -r wahl
+        case "$wahl" in
+            1) menu_ci_usnavy ;;
+            2) not_yet_built; pause ;;
+            0) return ;;
+            *) warn "Ungueltige Auswahl."; pause ;;
+        esac
+    done
+}
+
+# --- Untermenue: Code Interpreter - Variante usnavy13 ------------------------
+menu_ci_usnavy() {
+    while true; do
+        clear
+        heading "== Code Interpreter: usnavy13 =="
+        printf "%b\n" "Status: $(ci_status_label "$CI_USNAVY_DIR")   Pfad: $CI_USNAVY_DIR"
+        echo ""
+        echo "1) Installieren"
+        echo "2) Anbindung an LibreChat"
+        echo "3) Status anzeigen"
+        echo "4) Starten / Stoppen / Neustarten"
+        echo "5) Logs anzeigen"
+        echo "6) Aktualisieren"
+        printf "%b\n" "${C_RED}7) Entfernen${C_RESET}"
+        echo "0) Zurueck"
+        echo ""
+        printf "%b" "${C_BLUE}Auswahl: ${C_RESET}"
+        read -r wahl
+        case "$wahl" in
+            1|2|3|4|5|6|7) not_yet_built; pause ;;
+            0) return ;;
+            *) warn "Ungueltige Auswahl."; pause ;;
+        esac
+    done
+}
+
 while true; do
     clear
     heading "=================================="
@@ -246,7 +298,7 @@ while true; do
         2) menu_appctl ;;
         3) menu_mail ;;
         4) menu_instance ;;
-        5) not_yet_built; pause ;;
+        5) menu_codeinterpreter ;;
         6) menu_backup ;;
         7) menu_lifecycle ;;
         0) echo ""; info "Bis zum naechsten Mal."; exit 0 ;;

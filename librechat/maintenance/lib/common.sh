@@ -263,3 +263,27 @@ set_welcome_message() {
 
 # --- Initialisierung, die jedes Modul beim Einbinden ausfuehren soll --------
 load_or_ask_librechat_path
+
+# --- Code-Interpreter: Varianten und Statuserkennung -------------------------
+# Zwei Installationsvarianten mit je eigenem Verzeichnis. Die Pfade entsprechen
+# den Vorgaben der beiden Installationsskripte (DEFAULT_INSTALL_DIR dort).
+CI_USNAVY_DIR="/opt/LibreCodeInterpreter"
+CI_LIBREAI_DIR="/opt/avila-code-interpreter"
+
+# Ist die Variante installiert? Erkennungsmerkmal ist die
+# docker-compose.override.yml, die beide Installationsskripte selbst schreiben -
+# ein leer zurueckgebliebener Ordner gilt damit nicht als Installation.
+# Nutzung: ci_installed "$CI_USNAVY_DIR" && ...
+ci_installed() {
+    [ -f "$1/docker-compose.override.yml" ]
+}
+
+# Farbiges Status-Label fuer die Menuezeilen.
+# Nutzung: ci_status_label "$CI_USNAVY_DIR"
+ci_status_label() {
+    if ci_installed "$1"; then
+        printf "%b" "${C_GREEN}[installiert]${C_RESET}"
+    else
+        printf "%b" "${C_YELLOW}[nicht installiert]${C_RESET}"
+    fi
+}

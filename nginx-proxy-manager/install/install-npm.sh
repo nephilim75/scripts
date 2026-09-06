@@ -32,6 +32,21 @@ readonly NPM_GUIDE="https://pc-fee.com/2026/05/03/nginx-proxy-manager/"
 readonly DOCKER_COMPOSE_GUIDE="https://pc-fee.com/2026/05/03/docker-compose/"
 readonly PROXY_NETWORK="shared_proxy"
 
+# -- Eingabequelle -------------------------------------------------------------
+# Wird das Script per 'curl ... | bash' gestartet, liest bash es von stdin.
+# Ein 'read' wuerde dann Zeilen des Scripts selbst verschlucken - Teile des
+# Scripts wuerden nie ausgefuehrt. Deshalb IMMER vom Terminal lesen.
+if [[ -r /dev/tty ]]; then
+  TTY=/dev/tty
+  INTERACTIVE=1
+else
+  # Kein Terminal (z.B. in einer Pipeline). Nicht von stdin lesen - dort liegt
+  # ggf. der Script-Text selbst. Stattdessen Defaults verwenden.
+  TTY=/dev/null
+  INTERACTIVE=0
+fi
+readonly TTY INTERACTIVE
+
 # -- Hilfsfunktionen -----------------------------------------------------------
 info()    { echo -e "${CYAN}[INFO]${RESET} $*"; }
 success() { echo -e "${GREEN}[OK]${RESET} $*"; }
@@ -42,8 +57,12 @@ die()     { error "$*"; exit 1; }
 ask() {
   local var="$1" prompt="$2" default="$3" input=""
   echo ""
-  echo -ne "${BOLD}${prompt}${RESET} [${CYAN}${default}${RESET}]: "
-  read -r input || true
+  if [[ "${INTERACTIVE}" -eq 1 ]]; then
+    echo -ne "${BOLD}${prompt}${RESET} [${CYAN}${default}${RESET}]: "
+    read -r input <"${TTY}" || true
+  else
+    echo -e "${BOLD}${prompt}${RESET}: ${CYAN}${default}${RESET} (Vorgabe, kein Terminal)"
+  fi
   printf -v "${var}" '%s' "${input:-${default}}"
 }
 
@@ -52,7 +71,8 @@ ask_nodefault() {
   while [[ -z "$input" ]]; do
     echo ""
     echo -ne "${BOLD}${prompt}${RESET}: "
-    read -r input || true
+    [[ "${INTERACTIVE}" -eq 1 ]] || die "Keine Eingabe moeglich (kein Terminal)."
+    read -r input <"${TTY}" || true
     [[ -z "$input" ]] && warn "Eingabe darf nicht leer sein."
   done
   printf -v "${var}" '%s' "${input}"
@@ -150,8 +170,11 @@ echo -e " Port 443 (HTTPS):  ${CYAN}443:443${RESET}"
 echo -e " Port 81 (Admin):   ${CYAN}${PORT81}${RESET} (offen - wird spaeter abgehaertet)"
 echo -e " Netzwerk:          ${CYAN}${PROXY_NETWORK}${RESET}"
 echo ""
-echo -ne "${BOLD}Alles korrekt? Installation starten?${RESET} [${CYAN}j${RESET}/n]: "
-read -r confirm || true
+confirm=""
+if [[ "${INTERACTIVE}" -eq 1 ]]; then
+  echo -ne "${BOLD}Alles korrekt? Installation starten?${RESET} [${CYAN}j${RESET}/n]: "
+  read -r confirm <"${TTY}" || true
+fi
 if [[ "${confirm,,}" == "n" ]]; then
   warn "Installation abgebrochen."
   exit 0

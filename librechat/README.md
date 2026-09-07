@@ -22,6 +22,7 @@ The installer sets up everything automatically: directories, `.env`, containers 
 
 | Folder | Description |
 |--------|-------------|
+| [codeInterpreter](codeInterpreter/README.md) | code interpreter installation scripts |
 | [install](install/README.md) | Automated installation script & guide |
 | [maintenance](maintenance/) | administration scripts |
 

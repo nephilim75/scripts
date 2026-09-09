@@ -17,7 +17,16 @@ Written in POSIX `sh`, aimed at people who are new to Linux: every menu explains
 
 ## 🚀 Setup & Usage
 
-### First Time Setup
+### Quick Install
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/maintenance/install/install-admin-lc.sh)
+```
+
+The installer checks prerequisites, installs the tool to `/opt/admin-lc`, tries to detect an existing LibreChat installation (asks for the path if it can't, and stores it in `config.sh`), and offers to start the menu right away. Safe to run again later — it won't fail if run twice, and it won't overwrite your `config.sh`.
+
+<details>
+<summary>Manual install (without the script)</summary>
 
 1. Create admin directory:
 
@@ -41,6 +50,8 @@ sudo find . -name '*.sh' -exec chmod +x {} +
 ```
 
 > `find` instead of a fixed pattern like `modules/*/*.sh`: scripts live at different depths (for example `modules/codeinterpreter/usnavy13/`), and new folders are added over time.
+
+</details>
 
 ### Run Maintenance Tool
 
@@ -166,6 +177,7 @@ Both Code Interpreter variants show whether they are installed, so you always kn
 
 | Module | Purpose |
 |--------|---------|
+| `install/` | Quick-install script for this tool |
 | `lib/` | Shared helpers: colours, prompts, `.env` access, path detection |
 | `modules/useradmin/` | User creation, deletion, management |
 | `modules/appctl/` | Container management for all LibreChat services |
@@ -187,6 +199,7 @@ Useful to know before adding a module:
 - Anything destructive asks first, and says what will happen before it happens.
 - Changes to LibreChat's `.env` need a real stop and start — `docker restart` does not re-read it.
 - Save files with Unix line endings. A trailing `\r` makes the shell look for an interpreter called `/bin/sh<CR>` and report a confusing "not found".
+- Interactive scripts meant to be run via `bash <(curl -fsSL ...)` (process substitution) — never via `curl ... | bash` (a plain pipe). A pipe consumes stdin with the script's own bytes, so any `read` inside would never get the user's input; process substitution leaves stdin attached to the terminal.
 
 ---
 

@@ -1,13 +1,7 @@
 # 🔧 LibreChat Maintenance
 
-<a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge" alt="Visit the pc-fee.com blog for additional resources and tutorials" />
-</a>
-<a href="https://www.librechat.ai/docs" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge" alt="Read the official LibreChat documentation" />
-</a>
-
-<br><br>
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
+[![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
 
 Interactive menu-driven maintenance tool for deployed [LibreChat](https://www.librechat.ai/) instances based on pc-fee.com's [blog posts](https://pc-fee.com/blog). Handles user management, container control, SMTP configuration, instance settings, the Code Interpreter, backups, purging, and reinstallation.
 

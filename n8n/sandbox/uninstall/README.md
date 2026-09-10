@@ -115,6 +115,7 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 ## 🔗 References
 
 - [n8n Sandbox install script](../install/README.md)
+- [n8n Sandbox update script](../update/README.md)
 - [n8n Sandbox Service (GitHub)](https://github.com/n8n-io/n8n-sandbox-service)
 - [Docker Compose Docs](https://docs.docker.com/compose/)
 - [pc-fee.com Blog](https://pc-fee.com/blog)

@@ -209,6 +209,8 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 
 ## 🔗 References
 
+- [n8n Sandbox update script](../update/README.md)
+- [n8n Sandbox uninstall script](../uninstall/README.md)
 - [n8n Sandbox Service (GitHub)](https://github.com/n8n-io/n8n-sandbox-service)
 - [Configuration Reference](https://github.com/n8n-io/n8n-sandbox-service/blob/main/docs/configuration.md)
 - [Linux Quickstart](https://github.com/n8n-io/n8n-sandbox-service/blob/main/docs/quickstart-linux.md)

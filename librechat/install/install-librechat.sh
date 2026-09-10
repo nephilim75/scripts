@@ -381,6 +381,7 @@ cat <<NEXT
 
    Chat (Reiter Details):
      Domain:             ${CHAT_DOMAIN}
+     Scheme:             http
      Forward Hostname:   api
      Forward Port:       3080
 NEXT
@@ -397,6 +398,7 @@ cat <<NEXT
 
    Admin-Panel (Reiter Details):
      Domain:             ${ADMIN_DOMAIN}
+     Scheme:             http
      Forward Hostname:   admin-panel
      Forward Port:       3000
 NEXT

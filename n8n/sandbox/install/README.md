@@ -162,7 +162,38 @@ curl https://n8n-sandbox.yourdomain.tld/healthz
 
 - `SANDBOX_API_KEYS` is an **admin key** with full access to every sandbox and to tenant management (`/admin/tenants`). Once the domain is publicly reachable through NPM, this key (plus mTLS between API and runner) is what protects it — treat `.env` like a root password.
 - Consider adding an NPM **Access List** (IP allowlist) on the Proxy Host if the sandbox doesn't need to be reachable from the whole internet.
-- Whether/how your n8n instance(s) actually call this sandbox (e.g. for the Code node) depends on your n8n version — check your n8n release notes or the [n8n-sandbox-service repo](https://github.com/n8n-io/n8n-sandbox-service) for the current integration story.
+
+---
+
+## 🔌 Connecting n8n to the Sandbox
+
+This sandbox is used by n8n's **AI Assistant** ("n8n Assistant") — **not** by Code nodes. Enable it on the n8n side (n8n 2.x+) with these environment variables:
+
+```bash
+N8N_INSTANCE_AI_SANDBOX_ENABLED=true
+N8N_INSTANCE_AI_SANDBOX_PROVIDER=n8n-sandbox
+N8N_SANDBOX_SERVICE_URL=http://sandbox-api:8080   # if n8n runs in the same shared_proxy network — otherwise use the public NPM domain
+N8N_SANDBOX_SERVICE_API_KEY=<your SANDBOX_API_KEYS value>
+```
+
+n8n's own docs describe this manually self-hosted sandbox setup as best suited to local development/testing, and officially recommend a Daytona-managed sandbox for production. That's not a blocker for running it yourself as described here, but worth knowing.
+
+You can verify the sandbox works completely independently of n8n by calling its REST API directly (from the same host, since `sandbox-api` has no port published to the host):
+
+```bash
+# Create a sandbox
+docker run --rm --network shared_proxy curlimages/curl -s -X POST \
+  http://sandbox-api:8080/sandboxes -H "X-Api-Key: <your SANDBOX_API_KEYS value>"
+
+# Run a real command in it (use the id returned above)
+docker run --rm --network shared_proxy curlimages/curl -s -X POST \
+  http://sandbox-api:8080/sandboxes/<id>/executions \
+  -H "X-Api-Key: <your SANDBOX_API_KEYS value>" \
+  -H "Content-Type: application/json" \
+  -d '{"command": "echo hello", "timeout_ms": 10000}'
+```
+
+This exercises the full path (API → mTLS → Runner → inner Docker-in-Docker → sandbox container) without touching n8n at all — a good smoke test after installing or updating. Full API reference: [docs/API.md](https://github.com/n8n-io/n8n-sandbox-service/blob/main/docs/API.md).
 
 ---
 

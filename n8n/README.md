@@ -1,13 +1,11 @@
 # n8n
 
-Automated scripts for self-hosted [n8n](https://n8n.io) instances, including the main installation, updates, and the isolated sandbox service for code execution.
+Automated scripts for self-hosted [n8n](https://n8n.io) instance (including the `n8nio/runners` image). 
 
 ## 📂 Structure
 
 | Folder | Description |
 |--------|-------------|
-| [install](./install/README.md) | Main n8n installation script |
-| [sandbox](./sandbox/) | Sandbox-related setup for isolated code execution |
-| [update](./update/README.md) | n8n update script |
-
-The current n8n workspace contains the standard stack installer, a separate sandbox setup for code execution, and the update tooling for existing instances.
+| [install](https://github.com/nephilim75/scripts/tree/main/n8n/install/README.md) | n8n installation script |
+| [sandbox](https://github.com/nephilim75/scripts/tree/main/n8n/sandbox/README.md) | n8n Sandbox Service (isolated code execution) scripts |
+| [update](https://github.com/nephilim75/scripts/tree/main/n8n/update/README.md) | n8n update script |

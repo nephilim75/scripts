@@ -44,7 +44,7 @@ RESET='\033[0m'
 
 # ── Konstanten ────────────────────────────────────────────────────────────────
 readonly PROXY_NETWORK="shared_proxy"
-readonly SANDBOX_GUIDE="https://github.com/n8n-io/n8n-sandbox-service"
+readonly INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/install/install-n8n-sandbox.sh"
 
 # ── Optionen ──────────────────────────────────────────────────────────────────
 DRY_RUN=0
@@ -314,8 +314,8 @@ echo -e "  Vergiss nicht, den zugehörigen Proxy Host in deinem Nginx Proxy Mana
 echo -e "  zu entfernen, falls du ihn eingerichtet hattest – sonst zeigt er künftig"
 echo -e "  ins Leere."
 echo ""
-echo -e "  Neuinstallation jederzeit möglich mit ${BOLD}install-n8n-sandbox.sh${RESET}:"
-echo -e "  ${CYAN}${SANDBOX_GUIDE}${RESET}"
+echo -e "  Neuinstallation jederzeit möglich mit:"
+echo -e "  ${CYAN}bash <(curl -fsSL ${INSTALL_SCRIPT_URL})${RESET}"
 echo ""
 echo -e "  Mehr Tipps & Tutorials: ${CYAN}https://pc-fee.com/blog${RESET}"
 echo -e "  GitHub:                 ${CYAN}https://github.com/nephilim75/scripts${RESET}"

@@ -18,14 +18,20 @@
 #    - Nginx Proxy Manager läuft im shared_proxy-Netzwerk
 #
 #  Nutzung als 1-Zeiler:
-#    curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/install/install-n8n-sandbox.sh | sudo bash
+#    bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/install/install-n8n-sandbox.sh)
+#
+#  Das Script erkennt selbst, ob es als root läuft. Falls nicht, wird jeder
+#  privilegierte Befehl automatisch mit sudo ausgeführt – kein "sudo" vor
+#  dem Einzeiler nötig (und wegen sudo's Filedescriptor-Handling bei
+#  Process-Substitution auch nicht empfehlenswert: "sudo bash <(curl ...)"
+#  schlägt auf den meisten Systemen mit "/dev/fd/NN: No such file or
+#  directory" fehl, weil sudo standardmäßig alle Filedescriptoren ab 3
+#  schließt, bevor es den Befehl ausführt).
 #
 #  Mehr Infos: https://pc-fee.com/blog
 #
-#  Autor: Nils Weber (n8n Automation Architect, pc-fee.com)
-#
-#  AI Transparency: Dieses Script wurde mit Unterstuetzung von KI erstellt
-#  (Claude, Anthropic) und vor Veroeffentlichung geprueft. Nutzung auf
+#  AI Transparency: Dieses Script wurde von Claude (Anthropic) im Auftrag
+#  von pc-fee.com erstellt und vor Veroeffentlichung geprueft. Nutzung auf
 #  eigene Gefahr. Backups sind Pflicht.
 # =============================================================================
 
@@ -46,10 +52,11 @@ readonly NPM_GUIDE="https://pc-fee.com/2026/05/03/nginx-proxy-manager/"
 readonly DOCKER_COMPOSE_GUIDE="https://pc-fee.com/2026/05/03/docker-compose/"
 
 # ── Eingabequelle ─────────────────────────────────────────────────────────────
-# Wird das Script per 'curl ... | bash' gestartet, liest bash es von stdin.
-# Ein 'read' ohne </dev/tty würde dann Zeilen des Scripts selbst verschlucken.
+# Wird das Script per 'bash <(curl ...)' oder 'curl ... | bash' gestartet,
+# kann stdin belegt sein (beim Pipe-Aufruf sogar vom Script-Text selbst).
 # Deshalb IMMER vom Terminal lesen, wenn eins vorhanden ist.
-if [[ -r /dev/tty ]]; then
+if { exec 3<>/dev/tty; } 2>/dev/null; then
+  exec 3<&-
   TTY=/dev/tty
   INTERACTIVE=1
 else
@@ -68,7 +75,7 @@ die()     { error "$*"; exit 1; }
 # ask <variable> <prompt> <default>
 # Nutzt einen evtl. bereits per Umgebungsvariable gesetzten Wert als Default,
 # damit das Script auch unbeaufsichtigt (z.B. in Automationen) laufen kann:
-#   SANDBOX_DOMAIN=sandbox.example.com curl ... | sudo bash
+#   SANDBOX_DOMAIN=sandbox.example.com bash <(curl ...)
 ask() {
   local var="$1" prompt="$2" default="$3" input=""
   local preset="${!var:-}"
@@ -155,9 +162,15 @@ echo -e "   • Ob auf diesem Host bereits n8n läuft, ist egal – beides ist o
 echo ""
 echo -e "────────────────────────────────────────────────────────────"
 
-# ── Root-Check ────────────────────────────────────────────────────────────────
+# ── root/sudo ─────────────────────────────────────────────────────────────────
+# Läuft bereits als root: SUDO bleibt leer. Sonst wird jeder privilegierte
+# Befehl im weiteren Verlauf mit ${SUDO} ausgeführt statt das ganze Script
+# unter 'sudo' zu erzwingen – so funktioniert auch 'bash <(curl -fsSL ...)'
+# ohne vorangestelltes sudo (siehe Kommentar am Scriptanfang).
+SUDO=""
 if [[ "${EUID}" -ne 0 ]]; then
-  die "Bitte als root oder mit sudo ausführen."
+  command -v sudo >/dev/null 2>&1 || die "Bitte als root ausführen oder sudo installieren."
+  SUDO="sudo"
 fi
 
 # Unbedingt in ein garantiert existierendes Verzeichnis wechseln, siehe
@@ -177,36 +190,36 @@ fi
 success "Docker gefunden: $(docker --version 2>&1)"
 
 # Docker-Daemon läuft?
-if ! docker info &>/dev/null; then
+if ! ${SUDO} docker info &>/dev/null; then
   die "Docker-Daemon läuft nicht. Bitte starten: sudo systemctl start docker"
 fi
 success "Docker-Daemon läuft."
 
 # Docker Compose vorhanden? (Plugin oder standalone)
-if docker compose version &>/dev/null 2>&1; then
-  COMPOSE_CMD="docker compose"
+if ${SUDO} docker compose version &>/dev/null 2>&1; then
+  COMPOSE_CMD="${SUDO} docker compose"
 elif command -v docker-compose &>/dev/null; then
-  COMPOSE_CMD="docker-compose"
+  COMPOSE_CMD="${SUDO} docker-compose"
 else
   die "Docker Compose nicht gefunden.\n\n       📖 Anleitung auf pc-fee.com:\n       ${DOCKER_COMPOSE_GUIDE}"
 fi
 success "Docker Compose gefunden: $($COMPOSE_CMD version --short 2>/dev/null || $COMPOSE_CMD version)"
 
 # NPM läuft?
-if ! docker ps --format '{{.Image}}' | grep -qi 'nginx-proxy-manager'; then
+if ! ${SUDO} docker ps --format '{{.Image}}' | grep -qi 'nginx-proxy-manager'; then
   die "Nginx Proxy Manager läuft nicht.\n\n       Dieser Stack bindet bewusst keine öffentlichen Ports – der\n       gesamte Traffic muss über einen laufenden NPM geroutet werden.\n\n       📖 Anleitung auf pc-fee.com:\n       ${NPM_GUIDE}\n\n       Bitte zuerst NPM installieren und starten, danach dieses Script erneut ausführen."
 fi
 success "Nginx Proxy Manager läuft."
 
 # shared_proxy-Netzwerk vorhanden?
-if ! docker network inspect "${PROXY_NETWORK}" &>/dev/null; then
+if ! ${SUDO} docker network inspect "${PROXY_NETWORK}" &>/dev/null; then
   echo ""
   warn "Das Docker-Netzwerk '${PROXY_NETWORK}' existiert nicht."
   echo -e "  Soll es jetzt erstellt werden? (Nginx Proxy Manager muss ebenfalls"
   echo -e "  in dieses Netzwerk eingebunden sein, sonst kann er die Sandbox"
   echo -e "  nicht erreichen.)"
   if ask_yesno "Netzwerk '${PROXY_NETWORK}' jetzt erstellen?" "j"; then
-    docker network create "${PROXY_NETWORK}"
+    ${SUDO} docker network create "${PROXY_NETWORK}"
     success "Netzwerk '${PROXY_NETWORK}' erstellt."
     warn "Vergiss nicht, deinen Nginx Proxy Manager ebenfalls in dieses Netzwerk einzubinden!"
   else
@@ -219,7 +232,7 @@ fi
 # Informativ: läuft auf diesem Host bereits n8n? (kein Blocker – die Sandbox
 # ist ein eigenständiger Stack und läuft unabhängig von n8n auf demselben
 # oder einem anderen Host.)
-if docker ps -a --format '{{.Names}} {{.Image}}' | grep -qiE '(^|[^a-z0-9])n8n([^a-z0-9]|$)|n8nio/n8n'; then
+if ${SUDO} docker ps -a --format '{{.Names}} {{.Image}}' | grep -qiE '(^|[^a-z0-9])n8n([^a-z0-9]|$)|n8nio/n8n'; then
   info "n8n wurde auf diesem Host erkannt – kein Problem, die Sandbox läuft unabhängig davon."
 else
   info "Kein n8n auf diesem Host gefunden – auch kein Problem. Die Sandbox kann z.B."
@@ -233,7 +246,7 @@ fi
 EXISTING_INSTALL=false
 EXISTING_REASON=""
 
-if docker ps -a --format '{{.Names}} {{.Image}}' | grep -qiE 'sandbox-api|sandbox-certs|sandbox-runner|n8n-sandbox-service'; then
+if ${SUDO} docker ps -a --format '{{.Names}} {{.Image}}' | grep -qiE 'sandbox-api|sandbox-certs|sandbox-runner|n8n-sandbox-service'; then
   EXISTING_INSTALL=true
   EXISTING_REASON="Container der Sandbox existiert bereits (sandbox-api/-certs/-runner)"
 fi
@@ -267,7 +280,7 @@ if [[ "${EXISTING_INSTALL}" == "true" ]]; then
   echo -e ""
   echo -e "   2) ${BOLD}Komplett neu installieren${RESET} (Secrets/Zertifikate gehen verloren):"
   echo -e "      - cd ${INSTALL_DIR} && ${COMPOSE_CMD} down -v"
-  echo -e "      - rm -rf ${INSTALL_DIR}"
+  echo -e "      - ${SUDO} rm -rf ${INSTALL_DIR}"
   echo -e "      - Script erneut starten"
   echo ""
   die "Installation abgebrochen, um eine laufende Installation nicht zu zerstören."
@@ -310,11 +323,11 @@ echo -e "${BOLD}  Installation${RESET}"
 echo -e "────────────────────────────────────────────────────────────"
 
 info "Erstelle Verzeichnis ${INSTALL_DIR}..."
-mkdir -p "${INSTALL_DIR}"
+${SUDO} mkdir -p "${INSTALL_DIR}"
 success "Verzeichnis erstellt."
 
 info "Schreibe .env..."
-cat > "${INSTALL_DIR}/.env" <<EOF
+${SUDO} tee "${INSTALL_DIR}/.env" >/dev/null <<EOF
 # n8n Sandbox Service – Umgebungsvariablen – generiert von pc-fee.com Install-Script
 # Mehr Infos: https://pc-fee.com/blog
 # Env-Referenz: https://github.com/n8n-io/n8n-sandbox-service/blob/main/docs/configuration.md
@@ -330,11 +343,11 @@ SANDBOX_API_KEYS=${SANDBOX_API_KEYS}
 SANDBOX_API_RUNNER_REGISTRATION_TOKEN=${SANDBOX_API_RUNNER_REGISTRATION_TOKEN}
 SANDBOX_API_RUNNER_API_KEY=${SANDBOX_API_RUNNER_API_KEY}
 EOF
-chmod 600 "${INSTALL_DIR}/.env"
+${SUDO} chmod 600 "${INSTALL_DIR}/.env"
 success ".env geschrieben (Berechtigungen: 600)."
 
 info "Schreibe docker-compose.yml..."
-cat > "${INSTALL_DIR}/docker-compose.yml" <<'EOF'
+${SUDO} tee "${INSTALL_DIR}/docker-compose.yml" >/dev/null <<'EOF'
 # docker-compose.yml – generiert von pc-fee.com Install-Script
 # n8n Sandbox Service hinter Nginx Proxy Manager, keine öffentlichen Ports
 # Referenz: https://github.com/n8n-io/n8n-sandbox-service
@@ -442,7 +455,7 @@ HEALTHY=false
 for _ in $(seq 1 30); do
   API_CID=$($COMPOSE_CMD ps -q sandbox-api 2>/dev/null || true)
   if [[ -n "${API_CID}" ]]; then
-    status=$(docker inspect -f '{{.State.Health.Status}}' "${API_CID}" 2>/dev/null || echo "unknown")
+    status=$(${SUDO} docker inspect -f '{{.State.Health.Status}}' "${API_CID}" 2>/dev/null || echo "unknown")
     if [[ "${status}" == "healthy" ]]; then
       HEALTHY=true
       break
@@ -483,6 +496,10 @@ echo -e "     • HSTS Enabled aktivieren"
 echo ""
 echo -e "  2. Health Check testen (nach DNS + NPM-Einrichtung):"
 echo -e "     ${CYAN}curl https://${SANDBOX_DOMAIN}/healthz${RESET}"
+echo ""
+echo -e "  3. Trage diesen Key dort ein, wo deine n8n-Instanz die Sandbox-Anbindung"
+echo -e "     konfiguriert (Details dazu weiter unten):"
+echo -e "     ${BOLD}SANDBOX-API-KEY:${RESET} ${CYAN}${SANDBOX_API_KEYS}${RESET}"
 echo ""
 echo -e "  ${YELLOW}Sicherheitshinweis:${RESET} SANDBOX_API_KEYS ist ein Admin-Key mit vollem"
 echo -e "  Zugriff auf alle Sandboxes und Tenant-Verwaltung. Sobald die Domain über"

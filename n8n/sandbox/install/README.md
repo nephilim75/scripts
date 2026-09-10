@@ -20,10 +20,12 @@ Works whether n8n itself is already installed on the host or not. Sets up the sa
 ## 🚀 Quick Install
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/install/install-n8n-sandbox.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/install/install-n8n-sandbox.sh)
 ```
 
 The installer checks prerequisites, prompts for the required values, generates secure secrets, and starts the stack automatically.
+
+> **No leading `sudo` needed:** the script detects whether it's already running as root and, if not, automatically prefixes every privileged command with `sudo` internally. Don't add `sudo` yourself in front of this command — `sudo bash <(curl ...)` fails on most systems with `bash: /dev/fd/NN: No such file or directory`, because `sudo` closes inherited file descriptors above stderr by default, and that's exactly where process substitution hands off the downloaded script.
 
 ---
 
@@ -54,7 +56,7 @@ The [official quickstart](https://github.com/n8n-io/n8n-sandbox-service/blob/mai
 
 ## ✅ What it does
 
-1. Verifies you are running as `root` (or via `sudo`)
+1. Detects whether it's already running as `root`; if not, transparently prefixes every privileged command with `sudo` (asks for your password once, same as any other `sudo` command)
 2. Checks Docker + Docker Compose are installed and the Docker daemon is running
 3. Checks Nginx Proxy Manager is running (dies with a guide link if not — this stack has no public ports of its own)
 4. Ensures the external Docker network `shared_proxy` exists (offers to create it)
@@ -85,14 +87,16 @@ Make the script executable and run it:
 
 ```bash
 chmod +x install-n8n-sandbox.sh
-sudo ./install-n8n-sandbox.sh
+./install-n8n-sandbox.sh
 ```
 
-Or download and run directly:
+Or run it straight from GitHub without saving it first:
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/install/install-n8n-sandbox.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/install/install-n8n-sandbox.sh)
 ```
+
+Neither form needs a leading `sudo` — see the note under [Quick Install](#-quick-install).
 
 ---
 
@@ -110,7 +114,7 @@ Every prompt can also be pre-set via environment variable to run unattended, e.g
 
 ```bash
 INSTALL_DIR=/opt/n8n-sandbox SANDBOX_DOMAIN=n8n-sandbox.yourdomain.tld \
-  sudo bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/install/install-n8n-sandbox.sh)
+  bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/install/install-n8n-sandbox.sh)
 ```
 
 ---
@@ -185,10 +189,9 @@ docker compose exec sandbox-api wget -qO- http://localhost:8080/healthz
 
 ## 🤖 AI Transparency
 
-This script and its documentation were created with the assistance of AI.
+This script and its documentation were created by Claude (Anthropic), commissioned by [pc-fee.com](https://pc-fee.com).
 
 **Model:** Claude Sonnet 5 (Anthropic)
-**Agent:** Nils Weber (n8n Automation Architect, [pc-fee.com](https://pc-fee.com))
 
 All technical statements were checked against the [official n8n-sandbox-service documentation](https://github.com/n8n-io/n8n-sandbox-service/tree/main/docs) and the user's own working reference configuration. Review and test before production use.
 

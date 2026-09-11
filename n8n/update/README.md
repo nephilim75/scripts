@@ -12,6 +12,19 @@ Updates an existing installation in place: version check, backup, image pull, co
 
 ---
 
+## Installation
+
+Unlike the installer, this script has to run **from the same folder as your `docker-compose.yml`** — it uses its own location to find the installation, so it can't be piped straight from `curl` into `bash` the way `install-n8n.sh` can.
+
+```bash
+cd /opt/n8n
+curl -fsSLO https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/update/update-n8n.sh
+chmod +x update-n8n.sh
+sudo ./update-n8n.sh
+```
+
+---
+
 ## Why this script?
 
 - checks that `n8n` and `runners` images are version-synced before touching anything
@@ -41,19 +54,6 @@ Updates an existing installation in place: version check, backup, image pull, co
 - `curl`
 - `docker compose` (v2)
 - An existing n8n installation with `docker-compose.yml` (e.g. via `install-n8n.sh`)
-
----
-
-## Installation
-
-Unlike the installer, this script has to run **from the same folder as your `docker-compose.yml`** — it uses its own location to find the installation, so it can't be piped straight from `curl` into `bash` the way `install-n8n.sh` can.
-
-```bash
-cd /opt/n8n
-curl -fsSLO https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/update/update-n8n.sh
-chmod +x update-n8n.sh
-sudo ./update-n8n.sh
-```
 
 ---
 

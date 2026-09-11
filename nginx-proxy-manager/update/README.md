@@ -14,6 +14,34 @@ This script builds on and complements the following blog article:
 
 ---
 
+## Installation
+
+```bash
+# Copy the script onto your server (e.g. into the NPM directory)
+cp update-npm.sh /opt/nginx-proxy-manager/
+
+# Make it executable
+chmod +x /opt/nginx-proxy-manager/update-npm.sh
+```
+
+---
+
+## Usage
+
+Run it manually:
+
+```bash
+/opt/nginx-proxy-manager/npm-update.sh
+```
+
+The script writes all output to the log file. To watch it live:
+
+```bash
+tail -f /var/log/npm-update.log
+```
+
+---
+
 ## Why this script?
 
 The common one-liner approach (`docker compose down && pull && up`) has two weaknesses:
@@ -45,34 +73,6 @@ This script fixes both by comparing the image ID before and after the pull and f
   - `/opt/nginx-proxy-manager/letsencrypt`
 - The service in `docker-compose.yml` is named `app`
 - The image tag is `jc21/nginx-proxy-manager:latest`
-
----
-
-## Installation
-
-```bash
-# Copy the script onto your server (e.g. into the NPM directory)
-cp update-npm.sh /opt/nginx-proxy-manager/
-
-# Make it executable
-chmod +x /opt/nginx-proxy-manager/update-npm.sh
-```
-
----
-
-## Usage
-
-Run it manually:
-
-```bash
-/opt/nginx-proxy-manager/npm-update.sh
-```
-
-The script writes all output to the log file. To watch it live:
-
-```bash
-tail -f /var/log/npm-update.log
-```
 
 ---
 

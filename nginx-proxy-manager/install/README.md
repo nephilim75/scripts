@@ -17,37 +17,6 @@ Hardening / Security steps:
 
 ---
 
-## Why this script?
-
-The guide is straightforward, but on fresh servers you often want a repeatable installer that:
-
-- checks prerequisites (Docker / Docker Compose)
-- creates the required folder structure under `/opt`
-- creates/uses the `shared_proxy` Docker network
-- starts NPM with a known-good `docker-compose.yml`
-
----
-
-## What it does
-
-1. Verifies you are running as `root`
-2. Checks Docker + Docker Compose are installed and the Docker daemon is running
-3. Ensures the external Docker network `shared_proxy` exists (can create it)
-4. Creates the NPM directory structure (data, letsencrypt, backups)
-5. Writes a `docker-compose.yml` (matching the blog guide)
-6. Starts NPM via Docker Compose
-7. Prints a short post-install hardening hint + link
-
----
-
-## Requirements
-
-- Linux server (tested conceptually on Debian/Ubuntu)
-- Docker + Docker Compose installed
-- Open ports 80 and 443 (TCP) at your provider/firewall (see security section in the guide)
-
----
-
 ## Installation
 
 ```bash
@@ -76,6 +45,37 @@ Default credentials (change immediately):
 
 - Email: `admin@example.com`
 - Password: `changeme`
+
+---
+
+## Why this script?
+
+The guide is straightforward, but on fresh servers you often want a repeatable installer that:
+
+- checks prerequisites (Docker / Docker Compose)
+- creates the required folder structure under `/opt`
+- creates/uses the `shared_proxy` Docker network
+- starts NPM with a known-good `docker-compose.yml`
+
+---
+
+## What it does
+
+1. Verifies you are running as `root`
+2. Checks Docker + Docker Compose are installed and the Docker daemon is running
+3. Ensures the external Docker network `shared_proxy` exists (can create it)
+4. Creates the NPM directory structure (data, letsencrypt, backups)
+5. Writes a `docker-compose.yml` (matching the blog guide)
+6. Starts NPM via Docker Compose
+7. Prints a short post-install hardening hint + link
+
+---
+
+## Requirements
+
+- Linux server (tested conceptually on Debian/Ubuntu)
+- Docker + Docker Compose installed
+- Open ports 80 and 443 (TCP) at your provider/firewall (see security section in the guide)
 
 ---
 

@@ -6,6 +6,11 @@
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
+[![Distro](https://img.shields.io/badge/Debian-12%2B-A81D33?style=flat-square&logo=debian&logoColor=white)](#requirements)
+[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
+[![Ports](https://img.shields.io/badge/Host--ports-none%20opened-2E7D32?style=flat-square)](#)
+[![Idempotent](https://img.shields.io/badge/Re--runnable-guarded-2E7D32?style=flat-square)](#what-it-does)
+
 Automated installer for self-hosted [LibreChat](https://www.librechat.ai/) instance (API, Admin Panel, MongoDB, Meilisearch, RAG), running behind [Nginx Proxy Manager](https://nginxproxymanager.com/) via Docker Compose.
 
 This installer builds on and complements the official [LibreChat Docker guide](https://www.librechat.ai/docs/local/docker). Sets up LibreChat from scratch: directories, `.env`, `docker-compose.yml`, containers and admin user.

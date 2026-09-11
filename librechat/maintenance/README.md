@@ -6,6 +6,9 @@
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
+[![Shell](https://img.shields.io/badge/Shell-POSIX%20sh-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
+[![Idempotent](https://img.shields.io/badge/Re--runnable-yes-2E7D32?style=flat-square)](#quick-install)
+
 Interactive menu-driven maintenance tool for deployed [LibreChat](https://www.librechat.ai/) instances based on pc-fee.com's [blog posts](https://pc-fee.com/blog). Handles user management, container control, SMTP configuration, instance settings, the Code Interpreter, backups, purging, and reinstallation.
 
 Written in POSIX `sh`, aimed at people who are new to Linux: every menu explains what it does, asks before anything destructive happens, and says what to do next.

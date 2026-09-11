@@ -7,6 +7,10 @@
 [![Docs](https://img.shields.io/badge/Docs-nginxproxymanager.com-2496ED?style=for-the-badge)](https://nginxproxymanager.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
+[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
+[![Ports](https://img.shields.io/badge/Host--ports-80%2C%20443%2C%2081-E67E22?style=flat-square)](#security--hardening-important)
+[![Idempotent](https://img.shields.io/badge/Re--runnable-guarded-2E7D32?style=flat-square)](#)
+
 A guided Bash installer for a self-hosted [Nginx Proxy Manager](https://nginxproxymanager.com/) (NPM) instance using Docker Compose.
 
 This installer builds on and complements the following pc-fee.com guide:

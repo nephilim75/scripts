@@ -6,6 +6,9 @@
 [![GitHub](https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github)](https://github.com/n8n-io/n8n-sandbox-service)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
 
+[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
+[![Dry-run](https://img.shields.io/badge/Dry--run-supported-2E7D32?style=flat-square)](#quick-uninstall)
+
 Companion script to the [n8n Sandbox install script](../install/README.md) — removes a sandbox installation completely: containers, the mTLS volume, optionally the Docker images, and the install directory (including `.env` with all secrets).
 
 The `shared_proxy` Docker network and any n8n installation on the same host are **never touched** — they're shared with other services.

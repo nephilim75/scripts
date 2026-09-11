@@ -7,6 +7,9 @@
 [![Docs](https://img.shields.io/badge/Docs-nginxproxymanager.com-2496ED?style=for-the-badge)](https://nginxproxymanager.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
+[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
+[![Backup](https://img.shields.io/badge/Backup-before%20every%20run-2E7D32?style=flat-square)](#backups)
+
 A small, robust Bash script that automatically updates [Nginx Proxy Manager](https://nginxproxymanager.com/) (NPM) running via Docker Compose. It creates a backup before every update, keeps only the latest backups, and reliably handles **major version jumps** (e.g. v14 -> v15).
 
 This script builds on and complements the following blog article:

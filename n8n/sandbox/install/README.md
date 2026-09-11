@@ -7,6 +7,10 @@
 [![GitHub](https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github)](https://github.com/n8n-io/n8n-sandbox-service)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
 
+[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
+[![Ports](https://img.shields.io/badge/Host--ports-none%20opened-2E7D32?style=flat-square)](#security-notes)
+[![Idempotent](https://img.shields.io/badge/Re--runnable-guarded-2E7D32?style=flat-square)](#what-it-does)
+
 Automated installer for the self-hosted [n8n Sandbox Service](https://github.com/n8n-io/n8n-sandbox-service) (isolated code execution for n8n), running behind [Nginx Proxy Manager](https://nginxproxymanager.com/) via Docker Compose — **no publicly bound ports**, all traffic routed through NPM.
 
 Works whether n8n itself is already installed on the host or not. Sets up the sandbox from scratch: directories, `.env`, `docker-compose.yml`, and container start.

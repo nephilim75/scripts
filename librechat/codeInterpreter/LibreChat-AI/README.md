@@ -12,6 +12,7 @@
 [![Ports](https://img.shields.io/badge/Host--ports-none-2E7D32?style=flat-square)](#security)
 [![Tested](https://img.shields.io/badge/Tested-Debian%2012%20%7C%2013-A81D33?style=flat-square&logo=debian&logoColor=white)](#prerequisites)
 [![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
+[![Idempotent](https://img.shields.io/badge/Re--runnable-guarded-2E7D32?style=flat-square)](#quick-install)
 
 Installs `LibreChat-AI/code-interpreter` — a fork of `ClickHouse/code-interpreter`,
 maintained by the LibreChat team — in a fully hardened configuration behind an Nginx

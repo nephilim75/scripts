@@ -6,6 +6,10 @@
 [![Docs](https://img.shields.io/badge/Docs-n8n-EA4B71?style=for-the-badge)](https://docs.n8n.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
+[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
+[![Backup](https://img.shields.io/badge/Backup-before%20every%20run-2E7D32?style=flat-square)](#what-it-does)
+[![Rollback](https://img.shields.io/badge/Rollback-automatic-2E7D32?style=flat-square)](#what-it-does)
+
 Automated update script for a self-hosted [n8n](https://n8n.io) instance (including the `n8nio/runners` image), installed via [`install-n8n.sh`](../install/install-n8n.sh).
 
 Updates an existing installation in place: version check, backup, image pull, container restart, health check, and automatic rollback on failure — with no separate configuration step.

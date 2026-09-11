@@ -6,6 +6,11 @@
 [![GitHub](https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github)](https://github.com/n8n-io/n8n-sandbox-service)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
 
+[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
+[![Dry-run](https://img.shields.io/badge/Dry--run-supported-2E7D32?style=flat-square)](#quick-update)
+[![Backup](https://img.shields.io/badge/Backup-before%20every%20run-2E7D32?style=flat-square)](#backup--rollback)
+[![Rollback](https://img.shields.io/badge/Rollback-automatic-2E7D32?style=flat-square)](#backup--rollback)
+
 Companion script to the [n8n Sandbox install script](../install/README.md) — updates an existing installation to a new image version, with automatic backup, health check, and rollback on failure.
 
 Since the install script's `docker-compose.yml` controls all three sandbox images through a single `SANDBOX_IMAGE_TAG` variable in `.env`, updating never touches `docker-compose.yml` itself — only `.env` changes.

@@ -156,13 +156,19 @@ After successful installation:
 curl https://n8n-sandbox.yourdomain.tld/healthz
 ```
 
+4. **Connect n8n to the sandbox:** this happens **in the n8n UI**, not through environment variables or the CLI. When setting up the AI Assistant, n8n shows an **"Add a code sandbox"** dialog — pick **n8n Sandbox**, then enter:
+   - **Service URL:** `https://n8n-sandbox.yourdomain.tld`
+   - **API key:** the key printed at the end of the install script (stored as `SANDBOX_API_KEYS` in `.env`)
+
+   Assistant and Agents then use the sandbox to run code and work with files.
+
 ---
 
 ## 🔐 Security Notes
 
 - `SANDBOX_API_KEYS` is an **admin key** with full access to every sandbox and to tenant management (`/admin/tenants`). Once the domain is publicly reachable through NPM, this key (plus mTLS between API and runner) is what protects it — treat `.env` like a root password.
 - Consider adding an NPM **Access List** (IP allowlist) on the Proxy Host if the sandbox doesn't need to be reachable from the whole internet.
-- Whether/how your n8n instance(s) actually call this sandbox (e.g. for the Code node) depends on your n8n version — check your n8n release notes or the [n8n-sandbox-service repo](https://github.com/n8n-io/n8n-sandbox-service) for the current integration story.
+- The API key is entered in the n8n UI, not in any config file on the n8n side — see [Post-Install Setup](#-post-install-setup) above. Anyone who can reach the domain and holds the key controls every sandbox.
 
 ---
 
@@ -183,6 +189,20 @@ docker compose up -d
 
 # Check the API health endpoint from the host
 docker compose exec sandbox-api wget -qO- http://localhost:8080/healthz
+```
+
+---
+
+## 🛟 Troubleshooting
+
+**The assistant reports `ETARGET` / `No matching version found for @n8n/workflow-sdk@…`**
+
+The sandbox starts but its workspace setup fails, so the assistant can't run code or write files. This is a defect in the official sandbox image — it ships with an npm cache baked in at build time, and setup installs with `--prefer-offline`, so any SDK version published after the image was built is invisible. Reported upstream as [n8n-sandbox-service#178](https://github.com/n8n-io/n8n-sandbox-service/issues/178).
+
+Not caused by your installation, and not avoidable by choosing a different image tag. Diagnose and repair it with the [fix-npm-cache script](../fix-npm-cache/README.md):
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/fix-npm-cache/fix-n8n-sandbox-npm-cache.sh) --check-only
 ```
 
 ---
@@ -210,6 +230,7 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 ## 🔗 References
 
 - [n8n Sandbox update script](../update/README.md)
+- [n8n Sandbox npm cache fix](../fix-npm-cache/README.md)
 - [n8n Sandbox uninstall script](../uninstall/README.md)
 - [n8n Sandbox Service (GitHub)](https://github.com/n8n-io/n8n-sandbox-service)
 - [Configuration Reference](https://github.com/n8n-io/n8n-sandbox-service/blob/main/docs/configuration.md)

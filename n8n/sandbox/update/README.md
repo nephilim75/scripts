@@ -105,6 +105,22 @@ If the Sandbox API doesn't report `healthy` after the update, the script automat
 
 ---
 
+## 🛟 Troubleshooting
+
+**After an update the assistant reports `ETARGET` / `No matching version found for @n8n/workflow-sdk@…`**
+
+Updating pulls the official sandbox image, which ships with an npm cache baked in at build time. Workspace setup installs with `--prefer-offline`, so any SDK version published after that build date can't be resolved and setup fails. Reported upstream as [n8n-sandbox-service#178](https://github.com/n8n-io/n8n-sandbox-service/issues/178).
+
+This is not a fault of the update — a fresh install hits it just the same. Repair it with the [fix-npm-cache script](../fix-npm-cache/README.md):
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/fix-npm-cache/fix-n8n-sandbox-npm-cache.sh)
+```
+
+Note that the fix is local: **every** update pulls the official image again and brings the problem back, so re-run it after each update until n8n ships a fix upstream.
+
+---
+
 ## 🤖 AI Transparency
 
 This script and its documentation were created by Claude (Anthropic), commissioned by [pc-fee.com](https://pc-fee.com).
@@ -129,6 +145,7 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 
 - [n8n Sandbox install script](../install/README.md)
 - [n8n Sandbox uninstall script](../uninstall/README.md)
+- [n8n Sandbox npm cache fix](../fix-npm-cache/README.md)
 - [n8n Sandbox Service (GitHub)](https://github.com/n8n-io/n8n-sandbox-service)
 - [n8n-sandbox-service Release Process](https://github.com/n8n-io/n8n-sandbox-service/blob/main/docs/RELEASE.md)
 - [Docker Compose Docs](https://docs.docker.com/compose/)

@@ -6,7 +6,7 @@ Scripts for the self-hosted [n8n Sandbox Service](https://github.com/n8n-io/n8n-
 
 | Folder | Description |
 |--------|-------------|
+| [fix-npm-cache](https://github.com/nephilim75/scripts/tree/main/n8n/sandbox/fix-npm-cache/README.md) | Fix for the stale npm cache in the official sandbox image (`ETARGET`) |
 | [install](https://github.com/nephilim75/scripts/tree/main/n8n/sandbox/install/README.md) | n8n Sandbox installation script |
 | [update](https://github.com/nephilim75/scripts/tree/main/n8n/sandbox/update/README.md) | n8n Sandbox update script |
 | [uninstall](https://github.com/nephilim75/scripts/tree/main/n8n/sandbox/uninstall/README.md) | n8n Sandbox removal script |
-| [fix-npm-cache](https://github.com/nephilim75/scripts/tree/main/n8n/sandbox/fix-npm-cache/README.md) | Fix for the stale npm cache in the official sandbox image (`ETARGET`) |

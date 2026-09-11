@@ -1,8 +1,11 @@
-# Code Interpreter for LibreChat
+# 🧩 Code Interpreter for LibreChat
+
+[🏠 Overview](../../) → [💬 LibreChat](../) → Code Interpreter
 
 [![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
 [![GitHub](https://img.shields.io/badge/GitHub-LibreChat-181717?style=for-the-badge&logo=github)](https://github.com/danny-avila/LibreChat)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
 Installation scripts for a **self-hosted code interpreter** that LibreChat can use
 instead of the paid service from LibreChat.ai.
@@ -122,7 +125,13 @@ access goes through Docker networks or the Nginx Proxy Manager.
 
 ---
 
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](../../LICENSE) file in the repository root.
+
 <sub>The scripts in this folder were researched, written and iteratively revised with
 the help of AI models. All technical statements were checked against the respective
 project documentation and source code. Please verify for yourself before using them
 in production.</sub>
+
+<sub>[← Back to the overview](../)</sub>

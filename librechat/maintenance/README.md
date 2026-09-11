@@ -1,7 +1,10 @@
 # 🔧 LibreChat Maintenance
 
+[🏠 Overview](../../) → [💬 LibreChat](../) → Maintenance
+
 [![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
 Interactive menu-driven maintenance tool for deployed [LibreChat](https://www.librechat.ai/) instances based on pc-fee.com's [blog posts](https://pc-fee.com/blog). Handles user management, container control, SMTP configuration, instance settings, the Code Interpreter, backups, purging, and reinstallation.
 
@@ -9,7 +12,7 @@ Written in POSIX `sh`, aimed at people who are new to Linux: every menu explains
 
 ---
 
-## 🚀 Setup & Usage
+## Setup & Usage
 
 ### Quick Install
 
@@ -62,7 +65,7 @@ The tool updates itself: **main menu → 8) Admin-Tool aktualisieren**. It backs
 
 ---
 
-## 🗺️ Menu structure
+## Menu structure
 
 ```text
 Main menu
@@ -116,9 +119,9 @@ Both Code Interpreter variants show whether they are installed, so you always kn
 
 ---
 
-## 📋 Features
+## Features
 
-### 👤 User Admin
+### User Admin
 
 - Create new users
 - Delete users
@@ -126,26 +129,26 @@ Both Code Interpreter variants show whether they are installed, so you always kn
 - Ban/unban users
 - Reset user passwords
 
-### 🐳 Container management (Docker)
+### Container management (Docker)
 
 - Status, logs, start, stop, restart for each service
 - Delete a single container including its data volume
 - Restart the whole stack without data loss
 - Update LibreChat itself
 
-### 📧 Mail & SMTP
+### Mail & SMTP
 
 - View current SMTP configuration
 - Configure new SMTP settings
 - Update existing configuration
 - Delete SMTP configuration
 
-### ⚙️ Instance settings
+### Instance settings
 
 - Change the welcome message
 - Turn user registration on or off
 
-### 🧮 Code Interpreter (usnavy13)
+### Code Interpreter (usnavy13)
 
 - Install (fetches the installer from this repo, so it is always current)
 - Connect to LibreChat — enters the API key, offers the required stop/start, then verifies the value arrived
@@ -155,11 +158,11 @@ Both Code Interpreter variants show whether they are installed, so you always kn
 - Update via `pull` + `up -d`
 - Remove — preview first, then separate prompts for images and the LibreChat entry
 
-### 💾 Backup
+### Backup
 
 - Create, list and restore backups
 
-### 🔄 Lifecycle Management
+### Lifecycle Management
 
 - **Dry-run purge** (show what would be deleted)
 - **Full purge** (delete everything)
@@ -167,7 +170,7 @@ Both Code Interpreter variants show whether they are installed, so you always kn
 
 ---
 
-## 📂 Modules
+## Modules
 
 | Module | Purpose |
 |--------|---------|
@@ -184,7 +187,7 @@ Both Code Interpreter variants show whether they are installed, so you always kn
 
 ---
 
-## 🧩 Conventions
+## Conventions
 
 Useful to know before adding a module:
 
@@ -197,7 +200,7 @@ Useful to know before adding a module:
 
 ---
 
-## 🔗 References
+## References
 
 - [Installation Guide](../install/README.md)
 - [Official Docs](https://www.librechat.ai/docs)
@@ -206,4 +209,20 @@ Useful to know before adding a module:
 
 ---
 
+## Disclaimer
+
+This script is provided "as is", without warranty of any kind. Use it at your
+own risk. The author assumes no liability for damages, data loss, or other
+consequences resulting from its use. Test it in a non-production environment
+first.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the
+[LICENSE](../../LICENSE) file in the repository root.
+
 <sub>The scripts in this folder were researched, written and iteratively revised with the help of AI models. All technical statements were checked against the respective project documentation and source code. Please verify for yourself before using them in production. </sub>
+
+<sub>[← Back to the overview](../)</sub>

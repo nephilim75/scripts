@@ -1,8 +1,11 @@
 # 💬 LibreChat
 
+[🏠 Overview](../) → 💬 LibreChat
+
 [![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
 [![GitHub](https://img.shields.io/badge/GitHub-LibreChat-181717?style=for-the-badge&logo=github)](https://github.com/danny-avila/LibreChat)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../LICENSE)
 
 Automated scripts for self-hosted [LibreChat](https://www.librechat.ai) instance with MongoDB, Meilisearch, RAG API, and Admin Panel behind Nginx Proxy Manager.
 
@@ -24,7 +27,7 @@ The installer sets up everything automatically: directories, `.env`, containers 
 |--------|-------------|
 | [codeInterpreter](codeInterpreter/README.md) | code interpreter installation scripts |
 | [install](install/README.md) | Automated installation script & guide |
-| [maintenance](maintenance/) | administration scripts |
+| [maintenance](maintenance/README.md) | administration scripts |
 
 ---
 
@@ -45,3 +48,11 @@ The installer sets up everything automatically: directories, `.env`, containers 
 - [Official Docs](https://www.librechat.ai/docs)
 - [GitHub Repository](https://github.com/danny-avila/LibreChat)
 - [Blog](https://pc-fee.com/blog)
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](../LICENSE) file in the repository root.
+
+<sub>[← Back to the overview](../)</sub>

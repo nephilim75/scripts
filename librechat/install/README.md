@@ -1,12 +1,10 @@
 # 🚀 LibreChat Install Script
 
-<a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge" alt="Visit the pc-fee.com blog for additional resources and tutorials" />
-</a>
-<a href="https://www.librechat.ai/docs" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge" alt="Read the official LibreChat documentation" />
-</a>
-<br><br>
+[🏠 Overview](../../) → [💬 LibreChat](../) → Install
+
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
+[![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
 Automated installer for self-hosted [LibreChat](https://www.librechat.ai/) instance (API, Admin Panel, MongoDB, Meilisearch, RAG), running behind [Nginx Proxy Manager](https://nginxproxymanager.com/) via Docker Compose.
 
@@ -14,7 +12,7 @@ This installer builds on and complements the official [LibreChat Docker guide](h
 
 ---
 
-## 🚀 Quick Install
+## Quick Install
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install/install-librechat.sh)
@@ -22,7 +20,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/libr
 
 ---
 
-## 💡 Why this script?
+## Why this script?
 
 The official docs are comprehensive, but you want a repeatable, automated installer that:
 
@@ -36,7 +34,7 @@ The official docs are comprehensive, but you want a repeatable, automated instal
 
 ---
 
-## ✅ What it does
+## What it does
 
 1. Verifies you have `sudo` or run as `root`
 2. Checks Docker + Docker Compose installed and daemon running
@@ -53,7 +51,7 @@ The official docs are comprehensive, but you want a repeatable, automated instal
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - Linux server (Debian 12+)
 - Bash ≥ 5
@@ -66,7 +64,7 @@ The official docs are comprehensive, but you want a repeatable, automated instal
 
 ---
 
-## 📥 Installation
+## Installation
 
 1. Make the script executable and run it:
 
@@ -83,7 +81,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/libr
 
 ---
 
-## ⚙️ Interactive Setup
+## Interactive Setup
 
 The script will prompt for:
 
@@ -102,7 +100,7 @@ Both domains must be different. Password must be at least 12 characters.
 
 ---
 
-## 🔒 Post-Install Setup
+## Post-Install Setup
 
 After successful installation, the script guides you through:
 
@@ -114,7 +112,7 @@ After successful installation, the script guides you through:
 
 ---
 
-## 🌐 Access After Install
+## Access After Install
 
 - **LibreChat Chat:** `https://<CHAT_DOMAIN>`
 - **Admin Panel:** `https://<ADMIN_DOMAIN>`
@@ -123,7 +121,7 @@ After successful installation, the script guides you through:
 
 ---
 
-## 🛠️ Useful Commands
+## Useful Commands
 
 ```bash
 cd /opt/librechat
@@ -149,28 +147,7 @@ docker compose exec -T mongodb mongodump --archive | gzip > backup.tar.gz
 
 ---
 
-## 🤖 AI Transparency
-
-This script was created with AI assistance.
-
-**Models:** Claude Sonnet 5 (Anthropic), MiniMax3 / MiniMax (MiniMax)  
-**Agent:** Cody (Senior AI Software Engineer, [pc-fee.com](https://pc-fee.com))
-
-All technical statements verified against [official LibreChat docs](https://www.librechat.ai/docs) and [source code](https://github.com/danny-avila/LibreChat). Review and test before production use.
-
----
-
-## ⚖️ License
-
-MIT License – Copyright (c) 2026 [pc-fee.com](https://pc-fee.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software to use, copy, modify, merge, publish, and/or distribute it, subject to the condition that this copyright notice is retained in all copies or substantial portions of the software.
-
-**Disclaimer:** This script is provided without any warranty. Use at your own risk.
-
----
-
-## 🔗 References
+## References
 
 - [Official LibreChat](https://www.librechat.ai/)
 - [LibreChat Docs](https://www.librechat.ai/docs)
@@ -178,3 +155,27 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 - [Docker Compose Docs](https://docs.docker.com/compose/)
 - [Nginx Proxy Manager](https://nginxproxymanager.com/)
 - [pc-fee.com Blog](https://pc-fee.com/blog)
+
+---
+
+## Disclaimer
+
+This script is provided "as is", without warranty of any kind. Use it at your
+own risk. The author assumes no liability for damages, data loss, or other
+consequences resulting from its use. Test it in a non-production environment
+first.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the
+[LICENSE](../../LICENSE) file in the repository root.
+
+<sub>This script was researched, written and iteratively revised with the help
+of AI models (Claude Sonnet 5, Anthropic; MiniMax3, MiniMax) and the agent Cody
+(pc-fee.com). All technical statements were checked against the official
+LibreChat documentation and source code. Please verify for yourself before using
+it in production.</sub>
+
+<sub>[← Back to the overview](../)</sub>

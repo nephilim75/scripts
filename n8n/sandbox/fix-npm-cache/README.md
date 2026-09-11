@@ -1,15 +1,11 @@
 # 🩹 n8n Sandbox npm Cache Fix
 
-<a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge" alt="Visit the pc-fee.com blog for additional resources and tutorials" />
-</a>
-<a href="https://github.com/n8n-io/n8n-sandbox-service/issues/178" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Upstream-Issue%20%23178-D73A49?style=for-the-badge&logo=github" alt="Upstream bug report: n8n-sandbox-service issue #178" />
-</a>
-<a href="https://github.com/n8n-io/n8n-sandbox-service" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github" alt="n8n-sandbox-service on GitHub" />
-</a>
-<br><br>
+[🏠 Overview](../../../) → [🔗 n8n](../../) → [🧪 Sandbox](../) → npm Cache Fix
+
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
+[![Upstream](https://img.shields.io/badge/Upstream-Issue%20%23178-D73A49?style=for-the-badge&logo=github)](https://github.com/n8n-io/n8n-sandbox-service/issues/178)
+[![GitHub](https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github)](https://github.com/n8n-io/n8n-sandbox-service)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
 
 Diagnoses and repairs a defect in the **official n8n sandbox image** that makes sandbox setup fail with `ETARGET`, leaving the n8n AI Assistant unable to run code or write files.
 
@@ -17,7 +13,7 @@ The script **investigates first** and only changes anything once the problem is 
 
 ---
 
-## 📌 Status
+## Status
 
 **Reported upstream — no fix released yet.**
 
@@ -32,7 +28,7 @@ No need to file a duplicate — if you're hitting this, adding a 👍 or your en
 
 ---
 
-## 🚀 Quick Fix
+## Quick Fix
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/fix-npm-cache/fix-n8n-sandbox-npm-cache.sh)
@@ -48,7 +44,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/
 
 ---
 
-## 🐛 The problem
+## The problem
 
 Sandbox setup fails on every start:
 
@@ -66,7 +62,7 @@ Any SDK version published *after* the image was built is therefore invisible. As
 
 ---
 
-## ✅ What it does
+## What it does
 
 1. Verifies Docker, the install directory, and the running `sandbox-runner-1` container
 2. Reaches into the runner's inner Docker daemon (Docker-in-Docker) and determines the sandbox image actually in use — read from `SANDBOX_RUNNER_DOCKER_SANDBOX_IMAGE`, falling back to `SANDBOX_IMAGE_TAG` from `.env`
@@ -77,7 +73,7 @@ Any SDK version published *after* the image was built is therefore invisible. As
 
 ---
 
-## 🔍 How the detection works
+## How the detection works
 
 | Query | Meaning |
 |-------|---------|
@@ -90,7 +86,7 @@ Deliberately **not** used as a signal: the concrete version number from the erro
 
 ---
 
-## 📥 Usage
+## Usage
 
 ```bash
 # investigate only, never modify
@@ -116,7 +112,7 @@ Deliberately **not** used as a signal: the concrete version number from the erro
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - An existing n8n Sandbox installation (see [install](../install/README.md))
 - The sandbox stack running — specifically `sandbox-runner-1`, since the fix is built inside its inner Docker daemon
@@ -124,7 +120,7 @@ Deliberately **not** used as a signal: the concrete version number from the erro
 
 ---
 
-## ⚠️ Limitations
+## Limitations
 
 - **The fix is local and temporary.** It replaces a local image tag. After the next `docker compose pull` of the sandbox stack — including via the [update script](../update/README.md) — the official image is back and the error returns. Re-run this script afterwards.
 - **Already running sandbox containers keep the old image** until they're recreated. Restart the runner to force it: `docker compose restart sandbox-runner-1`
@@ -134,27 +130,7 @@ Deliberately **not** used as a signal: the concrete version number from the erro
 
 ---
 
-## 🤖 AI Transparency
-
-This script and its documentation were created by Claude (Anthropic), commissioned by [pc-fee.com](https://pc-fee.com).
-
-**Model:** Claude Opus 5 (Anthropic)
-
-The root cause was diagnosed on a live installation: npm debug logs from inside a failing sandbox container, reproduced and confirmed by re-running the identical install command before and after clearing the cache. Review and test (ideally with `--check-only` first) before running against a production installation.
-
----
-
-## ⚖️ License
-
-MIT License – Copyright (c) 2026 [pc-fee.com](https://pc-fee.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software to use, copy, modify, merge, publish, and/or distribute it, subject to the condition that this copyright notice is retained in all copies or substantial portions of the software.
-
-**Disclaimer:** This script is provided without any warranty. Use at your own risk. pc-fee.com accepts no liability for any damages arising from the use of this script. Backups before planned changes are mandatory.
-
----
-
-## 🔗 References
+## References
 
 - [n8n Sandbox install script](../install/README.md)
 - [n8n Sandbox update script](../update/README.md)
@@ -162,3 +138,28 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 - [Upstream bug report (n8n-sandbox-service#178)](https://github.com/n8n-io/n8n-sandbox-service/issues/178)
 - [n8n Sandbox Service (GitHub)](https://github.com/n8n-io/n8n-sandbox-service)
 - [pc-fee.com Blog](https://pc-fee.com/blog)
+
+---
+
+## Disclaimer
+
+This script is provided "as is", without warranty of any kind. Use it at your
+own risk. The author assumes no liability for damages, data loss, or other
+consequences resulting from its use. Test it in a non-production environment
+first.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the
+[LICENSE](../../../LICENSE) file in the repository root.
+
+<sub>This script and its documentation were created with the help of AI models
+(Claude Opus 5, Anthropic), commissioned by pc-fee.com. The root cause was
+diagnosed on a live installation — npm debug logs from a failing sandbox
+container, reproduced and confirmed by re-running the identical install command
+before and after clearing the cache. Please verify for yourself — ideally with
+`--check-only` first — before running against a production installation.</sub>
+
+<sub>[← Back to the overview](../)</sub>

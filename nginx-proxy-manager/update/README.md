@@ -1,4 +1,11 @@
-# Nginx Proxy Manager - Auto Update with Backup
+# 🌐 Nginx Proxy Manager Update Script
+
+[🏠 Overview](../../) → [🌐 Nginx Proxy Manager](../) → Update
+
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
+[![Guide](https://img.shields.io/badge/Guide-Nginx%20Proxy%20Manager-FE5200?style=for-the-badge)](https://pc-fee.com/nginx-proxy-manager/)
+[![Docs](https://img.shields.io/badge/Docs-nginxproxymanager.com-2496ED?style=for-the-badge)](https://nginxproxymanager.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
 A small, robust Bash script that automatically updates [Nginx Proxy Manager](https://nginxproxymanager.com/) (NPM) running via Docker Compose. It creates a backup before every update, keeps only the latest backups, and reliably handles **major version jumps** (e.g. v14 -> v15).
 
@@ -126,21 +133,21 @@ To keep a different number of backups, adjust the `tail -n +6` value (keep N = v
 
 ## Disclaimer
 
-All instructions are provided with great care, but you use them at your own risk. **pc-fee.com** accepts no liability for any damage. Backups before planned changes are mandatory.
-
----
-
-## AI Transparency
-
-This script and its documentation were created with the assistance of AI. The work was carried out by **Nils Weber**, an AI assistant (n8n Automation Architect) at pc-fee.com, in collaboration with a human reviewer. All output was reviewed before publication. Use at your own discretion and always test in a non-production environment first.
+This script is provided "as is", without warranty of any kind. Use it at your
+own risk. The author assumes no liability for damages, data loss, or other
+consequences resulting from its use. Test it in a non-production environment
+first.
 
 ---
 
 ## License
 
-MIT License - (c) pc-fee.com
+This project is licensed under the MIT License — see the
+[LICENSE](../../LICENSE) file in the repository root.
 
-## Author
+<sub>This script and its documentation were created with the help of AI models,
+carried out by Nils Weber (AI assistant, n8n Automation Architect at pc-fee.com)
+in collaboration with a human reviewer, and reviewed before publication. Please
+verify for yourself before using it in production.</sub>
 
-Nils Weber - n8n Automation Architect at [pc-fee.com](https://pc-fee.com)
-
+<sub>[← Back to the overview](../)</sub>

@@ -1,12 +1,10 @@
 # 🚀 n8n Install Script
 
-<a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge" alt="Visit the pc-fee.com blog for additional resources and tutorials" />
-</a>
-<a href="https://docs.n8n.io" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Docs-n8n-EA4B71?style=for-the-badge" alt="Read the official n8n documentation" />
-</a>
-<br><br>
+[🏠 Overview](../../) → [🔗 n8n](../) → Install
+
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
+[![Docs](https://img.shields.io/badge/Docs-n8n-EA4B71?style=for-the-badge)](https://docs.n8n.io)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
 Automated install script for a self-hosted [n8n](https://n8n.io) instance (including the `n8nio/runners` task-runner image), running behind [Nginx Proxy Manager](https://nginxproxymanager.com) via Docker Compose (SQLite, external runner, `shared_proxy` network).
 
@@ -14,7 +12,7 @@ Sets up n8n from scratch: directories, `.env`, `docker-compose.yml`, and contain
 
 ---
 
-## 💡 Why this script?
+## Why this script?
 
 - checks all prerequisites first (Docker, Docker Compose, Nginx Proxy Manager, `shared_proxy` network)
 - refuses to install over an existing installation — protects you from an `N8N_ENCRYPTION_KEY` mismatch that would break your existing credentials
@@ -24,7 +22,7 @@ Sets up n8n from scratch: directories, `.env`, `docker-compose.yml`, and contain
 
 ---
 
-## ✅ What it does
+## What it does
 
 1. Checks prerequisites (Docker installed & running, Docker Compose available, Nginx Proxy Manager container running)
 2. Ensures the `shared_proxy` Docker network exists (offers to create it if missing)
@@ -39,7 +37,7 @@ Sets up n8n from scratch: directories, `.env`, `docker-compose.yml`, and contain
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - Bash ≥ 5
 - `curl`
@@ -50,7 +48,7 @@ Sets up n8n from scratch: directories, `.env`, `docker-compose.yml`, and contain
 
 ---
 
-## 📥 Installation
+## Installation
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/install/install-n8n.sh)
@@ -66,7 +64,7 @@ chmod +x install-n8n.sh
 
 ---
 
-## ⚙️ Interactive Setup
+## Interactive Setup
 
 The script will prompt for:
 
@@ -82,13 +80,13 @@ The runner auth token is always generated automatically — you won't be asked f
 
 ---
 
-## 🔁 Updating an Existing Installation
+## Updating an Existing Installation
 
 This script will **not** install over an existing n8n setup — it detects one and aborts to avoid an encryption-key mismatch. To update an installation this script created, use the companion **[n8n Update Script](../update/README.md)** instead: it handles version checks, backups, image pulls, health checks and rollback for you.
 
 ---
 
-## 🔒 Post-Install Setup
+## Post-Install Setup
 
 After installation, set up a Proxy Host in Nginx Proxy Manager:
 
@@ -104,14 +102,14 @@ After installation, set up a Proxy Host in Nginx Proxy Manager:
 
 ---
 
-## 🌐 Access After Install
+## Access After Install
 
 - **n8n:** `https://<YOUR_DOMAIN>`
 - **Login:** create your admin account on first visit (no CLI step — n8n handles this in the browser)
 
 ---
 
-## 🛠️ Useful Commands
+## Useful Commands
 
 ```bash
 cd /opt/n8n
@@ -129,23 +127,7 @@ docker compose logs -f
 
 ---
 
-## 🤖 AI Transparency
-
-Erstellt von Claude (Anthropic) im Auftrag von pc-fee.com.
-
----
-
-## ⚖️ License
-
-MIT License – Copyright (c) 2026 [pc-fee.com](https://pc-fee.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software to use, copy, modify, merge, publish, and/or distribute it, subject to the condition that this copyright notice is retained in all copies or substantial portions of the software.
-
-**Disclaimer:** This script is provided without any warranty. Use at your own risk. pc-fee.com accepts no liability for any damages arising from the use of this script.
-
----
-
-## 🔗 References
+## References
 
 - [n8n](https://n8n.io)
 - [n8n Docs](https://docs.n8n.io)
@@ -153,3 +135,25 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 - [Nginx Proxy Manager](https://nginxproxymanager.com)
 - [n8n Update Script](../update/README.md)
 - [pc-fee.com Blog](https://pc-fee.com/blog)
+
+---
+
+## Disclaimer
+
+This script is provided "as is", without warranty of any kind. Use it at your
+own risk. The author assumes no liability for damages, data loss, or other
+consequences resulting from its use. Test it in a non-production environment
+first.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the
+[LICENSE](../../LICENSE) file in the repository root.
+
+<sub>This script was created with the help of AI models (Claude, Anthropic),
+commissioned by pc-fee.com. Please verify for yourself before using it in
+production.</sub>
+
+<sub>[← Back to the overview](../)</sub>

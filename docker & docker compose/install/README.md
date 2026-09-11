@@ -1,8 +1,11 @@
-# Docker & Docker Compose Installer
+# 🚀 Docker & Docker Compose Installer
+
+[🏠 Overview](../../) → [🐳 Docker & Docker Compose](../) → Install
 
 [![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 [![Docs](https://img.shields.io/badge/Docs-Docker%20Engine-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docs.docker.com/engine/install/debian/)
 [![GitHub](https://img.shields.io/badge/GitHub-scripts-181717?style=for-the-badge&logo=github)](https://github.com/nephilim75/scripts/tree/main/docker%20%26%20docker%20compose/install)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
 [![Distro](https://img.shields.io/badge/Debian-10%20%7C%2011%20%7C%2012%20%7C%2013-A81D33?style=flat-square&logo=debian&logoColor=white)](#prerequisites)
 [![Ports](https://img.shields.io/badge/Host--ports-none%20opened-2E7D32?style=flat-square)](#security)
@@ -188,6 +191,20 @@ sudo gpasswd -d <username> docker
   to whatever you run in Docker afterwards
 
 ---
+
+## Disclaimer
+
+This script is provided "as is", without warranty of any kind. Use it at your
+own risk. The author assumes no liability for damages, data loss, or other
+consequences resulting from its use. Test it in a non-production environment
+first.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the
+[LICENSE](../../LICENSE) file in the repository root.
 
 <sub>This script was researched, written and iteratively revised with the help of AI
 models (Claude Sonnet 5, Anthropic). All technical statements were checked against

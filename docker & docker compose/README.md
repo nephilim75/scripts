@@ -1,8 +1,11 @@
 # 🐳 Docker & Docker Compose
 
+[🏠 Overview](../) → 🐳 Docker & Docker Compose
+
 [![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 [![Docs](https://img.shields.io/badge/Docs-Docker%20Engine-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://docs.docker.com/engine/install/debian/)
 [![GitHub](https://img.shields.io/badge/GitHub-scripts-181717?style=for-the-badge&logo=github)](https://github.com/nephilim75/scripts/tree/main/docker%20%26%20docker%20compose)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../LICENSE)
 
 Automated installation script for **Docker Engine** and the **Docker Compose plugin**
 on Debian, straight from Docker's own `apt` repository — the foundation every other
@@ -48,3 +51,11 @@ about to do, and waits for confirmation before changing anything. Details:
 - [Installation Guide](install/README.md)
 - [Official Docs](https://docs.docker.com/engine/install/debian/)
 - [Blog](https://pc-fee.com/blog)
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the [LICENSE](../LICENSE) file in the repository root.
+
+<sub>[← Back to the overview](../)</sub>

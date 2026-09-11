@@ -1,12 +1,10 @@
 # 🔄 n8n Sandbox Update Script
 
-<a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge" alt="Visit the pc-fee.com blog for additional resources and tutorials" />
-</a>
-<a href="https://github.com/n8n-io/n8n-sandbox-service" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github" alt="n8n-sandbox-service on GitHub" />
-</a>
-<br><br>
+[🏠 Overview](../../../) → [🔗 n8n](../../) → [🧪 Sandbox](../) → Update
+
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
+[![GitHub](https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github)](https://github.com/n8n-io/n8n-sandbox-service)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
 
 Companion script to the [n8n Sandbox install script](../install/README.md) — updates an existing installation to a new image version, with automatic backup, health check, and rollback on failure.
 
@@ -14,7 +12,7 @@ Since the install script's `docker-compose.yml` controls all three sandbox image
 
 ---
 
-## 🚀 Quick Update
+## Quick Update
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/update/update-n8n-sandbox.sh)
@@ -30,7 +28,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/
 
 ---
 
-## ✅ What it does
+## What it does
 
 1. Detects whether it's already running as `root`; if not, transparently prefixes every privileged command with `sudo`
 2. Checks Docker + Docker Compose are available and finds the installation (default `/opt/n8n-sandbox`)
@@ -44,7 +42,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - An existing installation from [install-n8n-sandbox.sh](../install/README.md)
 - Docker + Docker Compose still installed
@@ -52,7 +50,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/
 
 ---
 
-## 📥 Usage
+## Usage
 
 Make the script executable and run it:
 
@@ -87,13 +85,13 @@ INSTALL_DIR=/opt/n8n-sandbox TARGET_VERSION=1.4.0 ASSUME_YES=1 \
 
 ---
 
-## 🔒 Versions and pinning
+## Versions and pinning
 
 The install script defaults `SANDBOX_IMAGE_TAG` to `latest`. This update script always moves you to a concrete, pinned version number (e.g. `1.4.0`) instead of a moving tag — that's what makes a reliable rollback possible in the first place. If your installation is currently on `latest`/`stable`, the first run of this script pins it to a specific version; every run after that is a normal version-to-version update.
 
 ---
 
-## 🛟 Backup & rollback
+## Backup & rollback
 
 Before touching anything, a timestamped backup is created containing:
 
@@ -105,7 +103,7 @@ If the Sandbox API doesn't report `healthy` after the update, the script automat
 
 ---
 
-## 🛟 Troubleshooting
+## Troubleshooting
 
 **After an update the assistant reports `ETARGET` / `No matching version found for @n8n/workflow-sdk@…`**
 
@@ -121,27 +119,7 @@ Note that the fix is local: **every** update pulls the official image again and 
 
 ---
 
-## 🤖 AI Transparency
-
-This script and its documentation were created by Claude (Anthropic), commissioned by [pc-fee.com](https://pc-fee.com).
-
-**Model:** Claude Sonnet 5 (Anthropic)
-
-Review and test (ideally with `--dry-run` first) before running against a production installation.
-
----
-
-## ⚖️ License
-
-MIT License – Copyright (c) 2026 [pc-fee.com](https://pc-fee.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software to use, copy, modify, merge, publish, and/or distribute it, subject to the condition that this copyright notice is retained in all copies or substantial portions of the software.
-
-**Disclaimer:** This script is provided without any warranty. Use at your own risk. pc-fee.com accepts no liability for any damages arising from the use of this script. Backups before planned changes are mandatory.
-
----
-
-## 🔗 References
+## References
 
 - [n8n Sandbox install script](../install/README.md)
 - [n8n Sandbox uninstall script](../uninstall/README.md)
@@ -150,3 +128,26 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 - [n8n-sandbox-service Release Process](https://github.com/n8n-io/n8n-sandbox-service/blob/main/docs/RELEASE.md)
 - [Docker Compose Docs](https://docs.docker.com/compose/)
 - [pc-fee.com Blog](https://pc-fee.com/blog)
+
+---
+
+## Disclaimer
+
+This script is provided "as is", without warranty of any kind. Use it at your
+own risk. The author assumes no liability for damages, data loss, or other
+consequences resulting from its use. Test it in a non-production environment
+first.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the
+[LICENSE](../../../LICENSE) file in the repository root.
+
+<sub>This script and its documentation were created with the help of AI models
+(Claude Sonnet 5, Anthropic), commissioned by pc-fee.com. Please verify for
+yourself — ideally with `--dry-run` first — before running against a production
+installation.</sub>
+
+<sub>[← Back to the overview](../)</sub>

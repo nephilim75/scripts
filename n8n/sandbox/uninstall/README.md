@@ -1,12 +1,10 @@
 # 🧹 n8n Sandbox Uninstall Script
 
-<a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge" alt="Visit the pc-fee.com blog for additional resources and tutorials" />
-</a>
-<a href="https://github.com/n8n-io/n8n-sandbox-service" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github" alt="n8n-sandbox-service on GitHub" />
-</a>
-<br><br>
+[🏠 Overview](../../../) → [🔗 n8n](../../) → [🧪 Sandbox](../) → Uninstall
+
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
+[![GitHub](https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github)](https://github.com/n8n-io/n8n-sandbox-service)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
 
 Companion script to the [n8n Sandbox install script](../install/README.md) — removes a sandbox installation completely: containers, the mTLS volume, optionally the Docker images, and the install directory (including `.env` with all secrets).
 
@@ -14,7 +12,7 @@ The `shared_proxy` Docker network and any n8n installation on the same host are 
 
 ---
 
-## 🚀 Quick Uninstall
+## Quick Uninstall
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/uninstall/uninstall-n8n-sandbox.sh)
@@ -30,7 +28,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/
 
 ---
 
-## ✅ What it does
+## What it does
 
 1. Detects whether it's already running as `root`; if not, transparently prefixes every privileged command with `sudo`
 2. Checks Docker + Docker Compose are available
@@ -44,14 +42,14 @@ bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - The same host (or install path) where `install-n8n-sandbox.sh` was run
 - Docker + Docker Compose still installed (used to tear the stack down cleanly)
 
 ---
 
-## 📥 Usage
+## Usage
 
 Make the script executable and run it:
 
@@ -83,7 +81,7 @@ INSTALL_DIR=/opt/n8n-sandbox ASSUME_YES=1 \
 
 ---
 
-## 🔍 What's left alone, on purpose
+## What's left alone, on purpose
 
 - **`shared_proxy` Docker network** — shared with Nginx Proxy Manager and possibly other services; never removed by this script
 - **Nginx Proxy Manager itself** — untouched; you still need to delete the Proxy Host you created for the sandbox domain manually
@@ -92,30 +90,33 @@ INSTALL_DIR=/opt/n8n-sandbox ASSUME_YES=1 \
 
 ---
 
-## 🤖 AI Transparency
-
-This script and its documentation were created by Claude (Anthropic), commissioned by [pc-fee.com](https://pc-fee.com).
-
-**Model:** Claude Sonnet 5 (Anthropic)
-
-Review and test (ideally with `--dry-run` first) before running against a production installation.
-
----
-
-## ⚖️ License
-
-MIT License – Copyright (c) 2026 [pc-fee.com](https://pc-fee.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software to use, copy, modify, merge, publish, and/or distribute it, subject to the condition that this copyright notice is retained in all copies or substantial portions of the software.
-
-**Disclaimer:** This script is provided without any warranty. Use at your own risk. pc-fee.com accepts no liability for any damages arising from the use of this script. Backups before planned changes are mandatory.
-
----
-
-## 🔗 References
+## References
 
 - [n8n Sandbox install script](../install/README.md)
 - [n8n Sandbox update script](../update/README.md)
 - [n8n Sandbox Service (GitHub)](https://github.com/n8n-io/n8n-sandbox-service)
 - [Docker Compose Docs](https://docs.docker.com/compose/)
 - [pc-fee.com Blog](https://pc-fee.com/blog)
+
+---
+
+## Disclaimer
+
+This script is provided "as is", without warranty of any kind. Use it at your
+own risk. The author assumes no liability for damages, data loss, or other
+consequences resulting from its use. Test it in a non-production environment
+first.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the
+[LICENSE](../../../LICENSE) file in the repository root.
+
+<sub>This script and its documentation were created with the help of AI models
+(Claude Sonnet 5, Anthropic), commissioned by pc-fee.com. Please verify for
+yourself — ideally with `--dry-run` first — before running against a production
+installation.</sub>
+
+<sub>[← Back to the overview](../)</sub>

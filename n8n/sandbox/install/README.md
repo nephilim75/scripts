@@ -1,15 +1,11 @@
 # 🧪 n8n Sandbox Install Script
 
-<a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge" alt="Visit the pc-fee.com blog for additional resources and tutorials" />
-</a>
-<a href="https://github.com/n8n-io/n8n-sandbox-service/blob/main/docs/README.md" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Docs-n8n--Sandbox-00B8D9?style=for-the-badge" alt="Read the official n8n Sandbox Service documentation" />
-</a>
-<a href="https://github.com/n8n-io/n8n-sandbox-service" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github" alt="n8n-sandbox-service on GitHub" />
-</a>
-<br><br>
+[🏠 Overview](../../../) → [🔗 n8n](../../) → [🧪 Sandbox](../) → Install
+
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
+[![Docs](https://img.shields.io/badge/Docs-n8n--Sandbox-00B8D9?style=for-the-badge)](https://github.com/n8n-io/n8n-sandbox-service/blob/main/docs/README.md)
+[![GitHub](https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github)](https://github.com/n8n-io/n8n-sandbox-service)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
 
 Automated installer for the self-hosted [n8n Sandbox Service](https://github.com/n8n-io/n8n-sandbox-service) (isolated code execution for n8n), running behind [Nginx Proxy Manager](https://nginxproxymanager.com/) via Docker Compose — **no publicly bound ports**, all traffic routed through NPM.
 
@@ -17,7 +13,7 @@ Works whether n8n itself is already installed on the host or not. Sets up the sa
 
 ---
 
-## 🚀 Quick Install
+## Quick Install
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/install/install-n8n-sandbox.sh)
@@ -29,7 +25,7 @@ The installer checks prerequisites, prompts for the required values, generates s
 
 ---
 
-## ✨ What You Get
+## What You Get
 
 - ✅ n8n Sandbox Service (API + Runner) via Docker Compose
 - ✅ Behind Nginx Proxy Manager (no exposed ports)
@@ -41,7 +37,7 @@ The installer checks prerequisites, prompts for the required values, generates s
 
 ---
 
-## 💡 Why this script?
+## Why this script?
 
 The [official quickstart](https://github.com/n8n-io/n8n-sandbox-service/blob/main/docs/quickstart-linux.md) is straightforward, but on fresh servers you want a repeatable installer that:
 
@@ -54,7 +50,7 @@ The [official quickstart](https://github.com/n8n-io/n8n-sandbox-service/blob/mai
 
 ---
 
-## ✅ What it does
+## What it does
 
 1. Detects whether it's already running as `root`; if not, transparently prefixes every privileged command with `sudo` (asks for your password once, same as any other `sudo` command)
 2. Checks Docker + Docker Compose are installed and the Docker daemon is running
@@ -70,7 +66,7 @@ The [official quickstart](https://github.com/n8n-io/n8n-sandbox-service/blob/mai
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - Linux server with Docker + Docker Compose (v2) installed
 - Bash ≥ 5
@@ -81,7 +77,7 @@ The [official quickstart](https://github.com/n8n-io/n8n-sandbox-service/blob/mai
 
 ---
 
-## 📥 Installation
+## Installation
 
 Make the script executable and run it:
 
@@ -96,11 +92,11 @@ Or run it straight from GitHub without saving it first:
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/install/install-n8n-sandbox.sh)
 ```
 
-Neither form needs a leading `sudo` — see the note under [Quick Install](#-quick-install).
+Neither form needs a leading `sudo` — see the note under [Quick Install](#quick-install).
 
 ---
 
-## ⚙️ Interactive Setup
+## Interactive Setup
 
 The script will prompt for:
 
@@ -119,7 +115,7 @@ INSTALL_DIR=/opt/n8n-sandbox SANDBOX_DOMAIN=n8n-sandbox.yourdomain.tld \
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
                  shared_proxy (external Docker network)
@@ -138,7 +134,7 @@ Only a single runner (`sandbox-runner-1`, `privileged: true` for Docker-in-Docke
 
 ---
 
-## 🔒 Post-Install Setup
+## Post-Install Setup
 
 After successful installation:
 
@@ -165,15 +161,15 @@ curl https://n8n-sandbox.yourdomain.tld/healthz
 
 ---
 
-## 🔐 Security Notes
+## Security Notes
 
 - `SANDBOX_API_KEYS` is an **admin key** with full access to every sandbox and to tenant management (`/admin/tenants`). Once the domain is publicly reachable through NPM, this key (plus mTLS between API and runner) is what protects it — treat `.env` like a root password.
 - Consider adding an NPM **Access List** (IP allowlist) on the Proxy Host if the sandbox doesn't need to be reachable from the whole internet.
-- The API key is entered in the n8n UI, not in any config file on the n8n side — see [Post-Install Setup](#-post-install-setup) above. Anyone who can reach the domain and holds the key controls every sandbox.
+- The API key is entered in the n8n UI, not in any config file on the n8n side — see [Post-Install Setup](#post-install-setup) above. Anyone who can reach the domain and holds the key controls every sandbox.
 
 ---
 
-## 🛠️ Useful Commands
+## Useful Commands
 
 ```bash
 cd /opt/n8n-sandbox
@@ -194,7 +190,7 @@ docker compose exec sandbox-api wget -qO- http://localhost:8080/healthz
 
 ---
 
-## 🛟 Troubleshooting
+## Troubleshooting
 
 **The assistant reports `ETARGET` / `No matching version found for @n8n/workflow-sdk@…`**
 
@@ -208,27 +204,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/
 
 ---
 
-## 🤖 AI Transparency
-
-This script and its documentation were created by Claude (Anthropic), commissioned by [pc-fee.com](https://pc-fee.com).
-
-**Model:** Claude Sonnet 5 (Anthropic)
-
-All technical statements were checked against the [official n8n-sandbox-service documentation](https://github.com/n8n-io/n8n-sandbox-service/tree/main/docs) and the user's own working reference configuration. Review and test before production use.
-
----
-
-## ⚖️ License
-
-MIT License – Copyright (c) 2026 [pc-fee.com](https://pc-fee.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software to use, copy, modify, merge, publish, and/or distribute it, subject to the condition that this copyright notice is retained in all copies or substantial portions of the software.
-
-**Disclaimer:** This script is provided without any warranty. Use at your own risk. pc-fee.com accepts no liability for any damages arising from the use of this script. Backups before planned changes are mandatory.
-
----
-
-## 🔗 References
+## References
 
 - [n8n Sandbox update script](../update/README.md)
 - [n8n Sandbox npm cache fix](../fix-npm-cache/README.md)
@@ -239,3 +215,27 @@ Permission is hereby granted, free of charge, to any person obtaining a copy of 
 - [Nginx Proxy Manager](https://nginxproxymanager.com/)
 - [Docker Compose Docs](https://docs.docker.com/compose/)
 - [pc-fee.com Blog](https://pc-fee.com/blog)
+
+---
+
+## Disclaimer
+
+This script is provided "as is", without warranty of any kind. Use it at your
+own risk. The author assumes no liability for damages, data loss, or other
+consequences resulting from its use. Test it in a non-production environment
+first.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the
+[LICENSE](../../../LICENSE) file in the repository root.
+
+<sub>This script and its documentation were created with the help of AI models
+(Claude Sonnet 5, Anthropic), commissioned by pc-fee.com. All technical statements
+were checked against the official n8n-sandbox-service documentation and the user's
+own working configuration. Please verify for yourself before using it in
+production.</sub>
+
+<sub>[← Back to the overview](../)</sub>

@@ -1,8 +1,11 @@
-# Code Interpreter – LibreChat-AI option
+# 🚀 Code Interpreter – LibreChat-AI option
+
+[🏠 Overview](../../../) → [💬 LibreChat](../../) → [🧩 Code Interpreter](../) → LibreChat-AI
 
 [![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
 [![GitHub](https://img.shields.io/badge/GitHub-code--interpreter-181717?style=for-the-badge&logo=github)](https://github.com/LibreChat-AI/code-interpreter)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
 
 [![Isolation](https://img.shields.io/badge/Isolation-MicroVM%20%2B%20NsJail-2E7D32?style=flat-square)](https://github.com/LibreChat-AI/code-interpreter#security-disclaimer)
 [![Auth](https://img.shields.io/badge/Auth-JWT%20EdDSA-2E7D32?style=flat-square)](#securing-jobs-with-jwt)
@@ -255,6 +258,20 @@ rm /swapfile-avila-code-interpreter
 - The `.env` is `chmod 600` and contains secrets — do not put it in a Git repo
 
 ---
+
+## Disclaimer
+
+This script is provided "as is", without warranty of any kind. Use it at your
+own risk. The author assumes no liability for damages, data loss, or other
+consequences resulting from its use. Test it in a non-production environment
+first.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the
+[LICENSE](../../../LICENSE) file in the repository root.
 
 <sub>This script was researched, written and iteratively revised with the help of AI
 models. All technical statements were checked against the official project

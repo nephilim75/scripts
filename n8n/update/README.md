@@ -1,12 +1,10 @@
 # 🔄 n8n Update Script
 
-<a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge" alt="Visit the pc-fee.com blog for additional resources and tutorials" />
-</a>
-<a href="https://docs.n8n.io" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Docs-n8n-EA4B71?style=for-the-badge" alt="Read the official n8n documentation" />
-</a>
-<br><br>
+[🏠 Overview](../../) → [🔗 n8n](../) → Update
+
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
+[![Docs](https://img.shields.io/badge/Docs-n8n-EA4B71?style=for-the-badge)](https://docs.n8n.io)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
 Automated update script for a self-hosted [n8n](https://n8n.io) instance (including the `n8nio/runners` image), installed via [`install-n8n.sh`](../install/install-n8n.sh).
 
@@ -14,7 +12,7 @@ Updates an existing installation in place: version check, backup, image pull, co
 
 ---
 
-## 💡 Why this script?
+## Why this script?
 
 - checks that `n8n` and `runners` images are version-synced before touching anything
 - creates a full backup (data + `docker-compose.yml` + `.env`) before updating, with automatic rotation
@@ -24,7 +22,7 @@ Updates an existing installation in place: version check, backup, image pull, co
 
 ---
 
-## ✅ What it does
+## What it does
 
 1. Determines its own folder and reads `docker-compose.yml` from there (`COMPOSE_DIR`, current image versions, health-check URL)
 2. Fetches the latest `n8n`/`runners` versions from Docker Hub – aborts if they're out of sync
@@ -37,7 +35,7 @@ Updates an existing installation in place: version check, backup, image pull, co
 
 ---
 
-## 📋 Requirements
+## Requirements
 
 - Bash ≥ 5
 - `curl`
@@ -46,7 +44,7 @@ Updates an existing installation in place: version check, backup, image pull, co
 
 ---
 
-## 📥 Installation
+## Installation
 
 Unlike the installer, this script has to run **from the same folder as your `docker-compose.yml`** — it uses its own location to find the installation, so it can't be piped straight from `curl` into `bash` the way `install-n8n.sh` can.
 
@@ -59,7 +57,7 @@ sudo ./update-n8n.sh
 
 ---
 
-## ⚙️ Configuration (optional)
+## Configuration (optional)
 
 No configuration file is required — every value is auto-detected or defaulted:
 
@@ -77,7 +75,7 @@ To override any of these, copy `.env.example` to `.env` in the same folder and a
 
 ---
 
-## 🛠️ Useful Commands
+## Useful Commands
 
 ```bash
 cd /opt/n8n
@@ -96,25 +94,31 @@ docker compose up -d
 
 ---
 
-## 🤖 AI Transparency
-
-Erstellt von Claude (Anthropic) im Auftrag von pc-fee.com.
-
----
-
-## ⚖️ License
-
-MIT License – Copyright (c) 2026 [pc-fee.com](https://pc-fee.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software to use, copy, modify, merge, publish, and/or distribute it, subject to the condition that this copyright notice is retained in all copies or substantial portions of the software.
-
-**Disclaimer:** This script is provided without any warranty. Use at your own risk. pc-fee.com accepts no liability for any damages arising from the use of this script.
-
----
-
-## 🔗 References
+## References
 
 - [n8n](https://n8n.io)
 - [n8n Docs](https://docs.n8n.io)
 - [Docker Compose Docs](https://docs.docker.com/compose/)
 - [pc-fee.com Blog](https://pc-fee.com/blog)
+
+---
+
+## Disclaimer
+
+This script is provided "as is", without warranty of any kind. Use it at your
+own risk. The author assumes no liability for damages, data loss, or other
+consequences resulting from its use. Test it in a non-production environment
+first.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the
+[LICENSE](../../LICENSE) file in the repository root.
+
+<sub>This script was created with the help of AI models (Claude, Anthropic),
+commissioned by pc-fee.com. Please verify for yourself before using it in
+production.</sub>
+
+<sub>[← Back to the overview](../)</sub>

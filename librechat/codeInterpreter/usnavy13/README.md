@@ -1,8 +1,11 @@
-# Code Interpreter – usnavy13 option
+# 🚀 Code Interpreter – usnavy13 option
+
+[🏠 Overview](../../../) → [💬 LibreChat](../../) → [🧩 Code Interpreter](../) → usnavy13
 
 [![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
 [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
 [![GitHub](https://img.shields.io/badge/GitHub-LibreCodeInterpreter-181717?style=for-the-badge&logo=github)](https://github.com/usnavy13/LibreCodeInterpreter)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
 
 [![Sandbox](https://img.shields.io/badge/Sandbox-NsJail-2E7D32?style=flat-square)](#security)
 [![Auth](https://img.shields.io/badge/Auth-API--key-2E7D32?style=flat-square)](#the-two-keys--dont-mix-them-up)
@@ -292,6 +295,20 @@ a long time to find.
 > [project documentation](https://github.com/usnavy13/LibreCodeInterpreter/blob/main/docs/SECURITY.md).
 
 ---
+
+## Disclaimer
+
+This script is provided "as is", without warranty of any kind. Use it at your
+own risk. The author assumes no liability for damages, data loss, or other
+consequences resulting from its use. Test it in a non-production environment
+first.
+
+---
+
+## License
+
+This project is licensed under the MIT License — see the
+[LICENSE](../../../LICENSE) file in the repository root.
 
 <sub>This script was researched, written and iteratively revised with the help of AI
 models. All technical statements were checked against the project documentation and

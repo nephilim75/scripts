@@ -8,9 +8,7 @@
 # Lizenz:       MIT License
 #
 # KI-Transparenz:
-#   Dieses Skript wurde mit Unterstützung von KI erstellt.
-#   Modelle: Claude Opus 4.6 / Claude Sonnet 4.6 (Anthropic)
-#   Agent:   Nils Weber (n8n Automation Architect, pc-fee.com)
+#   Erstellt von Claude (Anthropic) im Auftrag von pc-fee.com.
 #
 # Haftungsausschluss:
 #   Dieses Skript wird ohne jegliche Gewährleistung bereitgestellt.
@@ -26,14 +24,24 @@
 
 set -euo pipefail
 
-# --- Konfiguration aus .env laden --------------------------------------------
-ENV_FILE="$(dirname "$0")/.env"
-if [[ ! -f "${ENV_FILE}" ]]; then
-    echo "Fehler: .env nicht gefunden unter ${ENV_FILE}"
-    echo "Bitte .env.example kopieren und anpassen: cp .env.example .env"
-    exit 1
+# --- Speicherort dieses Skripts -----------------------------------------------
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# --- Optionale .env laden (nur zum Überschreiben von Defaults) ---------------
+ENV_FILE="${SCRIPT_DIR}/.env"
+if [[ -f "${ENV_FILE}" ]]; then
+    source "${ENV_FILE}"
 fi
-source "${ENV_FILE}"
+
+# --- Defaults setzen (greifen, wenn nicht per .env überschrieben) -----------
+: "${COMPOSE_DIR:=${SCRIPT_DIR}}"
+: "${DATA_DIR:=${COMPOSE_DIR}/n8n_data}"
+: "${BACKUP_DIR:=${COMPOSE_DIR}/backups}"
+: "${MAX_BACKUPS:=5}"
+: "${N8N_IMAGE:=n8nio/n8n}"
+: "${RUNNERS_IMAGE:=n8nio/runners}"
+: "${HEALTH_CHECK_RETRIES:=12}"
+: "${HEALTH_CHECK_INTERVAL:=5}"
 
 # --- Farben ------------------------------------------------------------------
 RED='\033[0;31m'
@@ -47,6 +55,25 @@ NC='\033[0m'
 # --- Abgeleitete Variablen ---------------------------------------------------
 COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 VERSION_FILE="${COMPOSE_DIR}/current_version"
+
+if [[ ! -f "${COMPOSE_FILE}" ]]; then
+    echo "Fehler: docker-compose.yml nicht gefunden unter ${COMPOSE_FILE}"
+    echo "Dieses Skript erwartet, im selben Ordner wie deine n8n-Installation zu liegen"
+    echo "(dort, wo auch docker-compose.yml liegt) - z.B. /opt/n8n/update-n8n.sh."
+    echo "Falls dein Setup abweicht: COMPOSE_DIR in einer optionalen .env neben diesem Skript setzen."
+    exit 1
+fi
+
+# HEALTH_CHECK_URL: aus WEBHOOK_URL in docker-compose.yml ableiten, falls nicht per .env gesetzt
+if [[ -z "${HEALTH_CHECK_URL:-}" ]]; then
+    HEALTH_CHECK_URL="$(grep -oE 'WEBHOOK_URL=[^[:space:]"]*' "${COMPOSE_FILE}" | head -1 | cut -d= -f2-)"
+fi
+
+if [[ -z "${HEALTH_CHECK_URL:-}" ]]; then
+    echo "Fehler: HEALTH_CHECK_URL konnte nicht aus docker-compose.yml ermittelt werden."
+    echo "Bitte HEALTH_CHECK_URL in einer .env neben diesem Skript setzen."
+    exit 1
+fi
 
 # Globale Variablen
 BACKUP_PATH=""
@@ -82,6 +109,22 @@ print_error() {
 
 print_info() {
     echo -e "  $1"
+}
+
+print_config() {
+    print_step "Konfiguration"
+    print_info "COMPOSE_DIR:           ${COMPOSE_DIR}"
+    print_info "DATA_DIR:              ${DATA_DIR}"
+    print_info "BACKUP_DIR:            ${BACKUP_DIR}"
+    print_info "MAX_BACKUPS:           ${MAX_BACKUPS}"
+    print_info "N8N_IMAGE:             ${N8N_IMAGE}"
+    print_info "RUNNERS_IMAGE:         ${RUNNERS_IMAGE}"
+    print_info "HEALTH_CHECK_URL:      ${HEALTH_CHECK_URL}"
+    print_info "HEALTH_CHECK_RETRIES:  ${HEALTH_CHECK_RETRIES}"
+    print_info "HEALTH_CHECK_INTERVAL: ${HEALTH_CHECK_INTERVAL}s"
+    if [[ -f "${ENV_FILE}" ]]; then
+        print_info "Overrides aus:         ${ENV_FILE}"
+    fi
 }
 
 # --- Docker Hub: neueste Version ermitteln -----------------------------------
@@ -138,7 +181,7 @@ check_versions() {
 
 # --- Aktuelle Version aus docker-compose.yml lesen ---------------------------
 get_current_version() {
-    grep "n8nio/n8n:" "${COMPOSE_FILE}" | grep -o '[0-9]*\.[0-9]*\.[0-9]*' | head -1
+    grep "${N8N_IMAGE}:" "${COMPOSE_FILE}" | grep -o '[0-9]*\.[0-9]*\.[0-9]*' | head -1
 }
 
 # --- Versionseingabe ---------------------------------------------------------
@@ -356,6 +399,7 @@ print_summary() {
 # --- Hauptprogramm -----------------------------------------------------------
 main() {
     print_header
+    print_config
     check_versions
     ask_version
     confirm_update

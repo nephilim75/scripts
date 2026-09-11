@@ -1,72 +1,155 @@
-# n8n Install Script
+# 🚀 n8n Install Script
 
-Automated install script for self-hosted [n8n](https://n8n.io) instance (including the `n8nio/runners` image), running behind [Nginx Proxy Manager](https://nginxproxymanager.com) via Docker Compose.
+<a href="https://pc-fee.com/blog/" target="_blank" rel="noopener noreferrer">
+  <img src="https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge" alt="Visit the pc-fee.com blog for additional resources and tutorials" />
+</a>
+<a href="https://docs.n8n.io" target="_blank" rel="noopener noreferrer">
+  <img src="https://img.shields.io/badge/Docs-n8n-EA4B71?style=for-the-badge" alt="Read the official n8n documentation" />
+</a>
+<br><br>
+
+Automated install script for a self-hosted [n8n](https://n8n.io) instance (including the `n8nio/runners` task-runner image), running behind [Nginx Proxy Manager](https://nginxproxymanager.com) via Docker Compose (SQLite, external runner, `shared_proxy` network).
 
 Sets up n8n from scratch: directories, `.env`, `docker-compose.yml`, and container start.
 
 ---
 
-## Requirements
+## 💡 Why this script?
+
+- checks all prerequisites first (Docker, Docker Compose, Nginx Proxy Manager, `shared_proxy` network)
+- refuses to install over an existing installation — protects you from an `N8N_ENCRYPTION_KEY` mismatch that would break your existing credentials
+- picks up the latest version where `n8n` and `runners` images are in sync automatically, with a safe fallback
+- generates a secure runner auth token for you — no manual secret handling
+- prints the exact Nginx Proxy Manager settings you need afterwards
+
+---
+
+## ✅ What it does
+
+1. Checks prerequisites (Docker installed & running, Docker Compose available, Nginx Proxy Manager container running)
+2. Ensures the `shared_proxy` Docker network exists (offers to create it if missing)
+3. Detects an existing n8n installation and aborts instead of overwriting it
+4. Determines the latest synced `n8n`/`runners` version from Docker Hub as a default
+5. Prompts for domain, install path, n8n version, timezone, and an optional custom encryption key
+6. Generates a secure runner auth token automatically
+7. Creates `n8n_data/` and `backups/` with correct permissions (UID 1000)
+8. Writes `.env` (mode 600) and `docker-compose.yml`
+9. Pulls images and starts the stack (`n8n` + `task-runners`)
+10. Prints the Nginx Proxy Manager settings and remaining setup steps
+
+---
+
+## 📋 Requirements
 
 - Bash ≥ 5
 - `curl`
 - `docker compose` (v2)
-- Docker network `shared_proxy` (created by Nginx Proxy Manager)
-- Nginx Proxy Manager running in `shared_proxy` network
+- Docker network `shared_proxy` (created by [Nginx Proxy Manager](https://nginxproxymanager.com), or by this script on request)
+- Nginx Proxy Manager running in the `shared_proxy` network
+- A domain pointing at your server
 
 ---
 
-## Setup
-
-1. Make the script executable and run it:
+## 📥 Installation
 
 ```bash
-chmod +x install-n8n.sh
-sudo ./install-n8n.sh
+bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/install/install-n8n.sh)
 ```
 
-The script will interactively ask for:
+Or download and run it locally:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/install/install-n8n.sh
+chmod +x install-n8n.sh
+./install-n8n.sh
+```
+
+---
+
+## ⚙️ Interactive Setup
+
+The script will prompt for:
 
 | Input | Default | Description |
 |---|---|---|
 | Domain | *(required)* | Your n8n domain (e.g. `n8n.yourdomain.com`) |
 | Install path | `/opt/n8n` | Directory for all n8n files |
-| n8n version | `2.22.2` | Version to install |
+| n8n version | latest synced version on Docker Hub (fallback: `2.30.3`) | Version to install |
 | Timezone | `Europe/Berlin` | Container timezone |
 | Encryption Key | *(auto-generated)* | Protects stored credentials |
 
-2. After installation, set up a Proxy Host in Nginx Proxy Manager:
-
-- **Domain:** your n8n domain
-- **Forward Hostname:** `n8n`
-- **Forward Port:** `5678`
-- **Websockets Support:** ✔ enabled
-- **SSL:** Let's Encrypt + Force SSL
+The runner auth token is always generated automatically — you won't be asked for it.
 
 ---
 
-## What It Does
+## 🔁 Updating an Existing Installation
 
-1. Checks prerequisites (Docker, Docker Compose, Nginx Proxy Manager, `shared_proxy` network)
-2. Prompts for configuration interactively
-3. Creates directories (`n8n_data/`, `backups/`) with correct permissions (UID 1000)
-4. Writes `.env` (permissions: 600) and `docker-compose.yml`
-5. Pulls images and starts containers (`n8n` + `n8n-task-runners`)
+This script will **not** install over an existing n8n setup — it detects one and aborts to avoid an encryption-key mismatch. To update an installation this script created, use the companion **[n8n Update Script](../update/README.md)** instead: it handles version checks, backups, image pulls, health checks and rollback for you.
 
 ---
 
-## AI Transparency
+## 🔒 Post-Install Setup
 
-This script was created with AI assistance.  
-**Models:** Claude Opus 4.6 / Claude Sonnet 4.6 (Anthropic)  
-**Agent:** Nils Weber (n8n Automation Architect, pc-fee.com)
+After installation, set up a Proxy Host in Nginx Proxy Manager:
+
+1. **Details tab:**
+   - **Domain:** your n8n domain
+   - **Scheme:** `http`
+   - **Forward Hostname:** `n8n`
+   - **Forward Port:** `5678`
+   - Enable **Block Common Exploits** and **Websockets**
+2. **SSL tab:**
+   - Request a new certificate with **Let's Encrypt**
+   - Enable **Force SSL**, **HTTP/2 Support**, and **HSTS**
 
 ---
 
-## License
+## 🌐 Access After Install
 
-MIT License – Copyright (c) 2026 pc-fee.com
+- **n8n:** `https://<YOUR_DOMAIN>`
+- **Login:** create your admin account on first visit (no CLI step — n8n handles this in the browser)
+
+---
+
+## 🛠️ Useful Commands
+
+```bash
+cd /opt/n8n
+
+# View service status
+docker compose ps
+
+# View live logs
+docker compose logs -f
+
+# Update to a new version
+# → use the n8n Update Script instead of doing this by hand:
+# https://github.com/nephilim75/scripts/tree/main/n8n/update
+```
+
+---
+
+## 🤖 AI Transparency
+
+Erstellt von Claude (Anthropic) im Auftrag von pc-fee.com.
+
+---
+
+## ⚖️ License
+
+MIT License – Copyright (c) 2026 [pc-fee.com](https://pc-fee.com)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software to use, copy, modify, merge, publish, and/or distribute it, subject to the condition that this copyright notice is retained in all copies or substantial portions of the software.
 
 **Disclaimer:** This script is provided without any warranty. Use at your own risk. pc-fee.com accepts no liability for any damages arising from the use of this script.
+
+---
+
+## 🔗 References
+
+- [n8n](https://n8n.io)
+- [n8n Docs](https://docs.n8n.io)
+- [Docker Compose Docs](https://docs.docker.com/compose/)
+- [Nginx Proxy Manager](https://nginxproxymanager.com)
+- [n8n Update Script](../update/README.md)
+- [pc-fee.com Blog](https://pc-fee.com/blog)

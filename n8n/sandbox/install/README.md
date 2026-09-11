@@ -145,6 +145,7 @@ After successful installation:
 1. **DNS:** point your sandbox domain (A-record) at your server's IP
 2. **Nginx Proxy Manager:** create a new Proxy Host:
    - **Domain:** your sandbox domain (e.g. `n8n-sandbox.yourdomain.tld`)
+   - **Scheme:** `http`
    - **Forward Hostname:** `sandbox-api`
    - **Forward Port:** `8080`
    - **Websockets Support:** ✔ enabled

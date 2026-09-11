@@ -13,21 +13,6 @@ The script **investigates first** and only changes anything once the problem is 
 
 ---
 
-## Status
-
-**Reported upstream — no fix released yet.**
-
-| | |
-|---|---|
-| Bug report | [n8n-sandbox-service#178](https://github.com/n8n-io/n8n-sandbox-service/issues/178) |
-| Filed by | [nephilim75](https://github.com/nephilim75), 2026-09-10 |
-| Status as of 2026-09-10 | open, unlabelled, no maintainer response yet |
-| Affected | sandbox service `1.3.4` (`latest` resolves to the same digest) |
-
-No need to file a duplicate — if you're hitting this, adding a 👍 or your environment details to the existing issue is more useful. Once n8n ships a fix, this script becomes unnecessary and `--check-only` will report that there's nothing to do.
-
----
-
 ## Quick Fix
 
 ```bash
@@ -41,6 +26,21 @@ bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/
 ```
 
 > **No leading `sudo` needed:** like the other scripts in this folder, it detects whether it's already running as root and prefixes privileged commands with `sudo` internally.
+
+---
+
+## Status
+
+**Reported upstream — no fix released yet.**
+
+| | |
+|---|---|
+| Bug report | [n8n-sandbox-service#178](https://github.com/n8n-io/n8n-sandbox-service/issues/178) |
+| Filed by | [nephilim75](https://github.com/nephilim75), 2026-09-10 |
+| Status as of 2026-09-10 | open, unlabelled, no maintainer response yet |
+| Affected | sandbox service `1.3.4` (`latest` resolves to the same digest) |
+
+No need to file a duplicate — if you're hitting this, adding a 👍 or your environment details to the existing issue is more useful. Once n8n ships a fix, this script becomes unnecessary and `--check-only` will report that there's nothing to do.
 
 ---
 

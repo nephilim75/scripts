@@ -17,34 +17,16 @@ Hardening / Security steps:
 
 ---
 
-## Installation
+## Quick Install
 
 ```bash
-# Copy the script onto your server
-cp install-npm.sh /root/
-
-# Make it executable
-chmod +x /root/install-npm.sh
+bash -c "$(curl -fsSL "https://raw.githubusercontent.com/nephilim75/scripts/main/nginx-proxy-manager/install/install-npm.sh")"
 ```
 
----
-
-## Usage
-
-```bash
-/root/install-npm.sh
-```
-
-After installation, access the admin UI at:
-
-```
-http://SERVER-IP:81
-```
-
-Default credentials (change immediately):
-
-- Email: `admin@example.com`
-- Password: `changeme`
+One command, in a root shell or with `sudo` — the script refuses to run without
+root. It checks Docker and the `shared_proxy` network, writes a known-good
+`docker-compose.yml` under `/opt/nginx-proxy-manager`, and starts NPM. Step-by-step
+variant: see [Installation](#installation) below.
 
 ---
 
@@ -76,6 +58,37 @@ The guide is straightforward, but on fresh servers you often want a repeatable i
 - Linux server (tested conceptually on Debian/Ubuntu)
 - Docker + Docker Compose installed
 - Open ports 80 and 443 (TCP) at your provider/firewall (see security section in the guide)
+
+---
+
+## Installation
+
+```bash
+# Copy the script onto your server
+cp install-npm.sh /root/
+
+# Make it executable
+chmod +x /root/install-npm.sh
+```
+
+---
+
+## Usage
+
+```bash
+/root/install-npm.sh
+```
+
+After installation, access the admin UI at:
+
+```
+http://SERVER-IP:81
+```
+
+Default credentials (change immediately):
+
+- Email: `admin@example.com`
+- Password: `changeme`
 
 ---
 

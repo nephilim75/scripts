@@ -14,31 +14,15 @@ This script builds on and complements the following blog article:
 
 ---
 
-## Installation
+## Quick Update
 
 ```bash
-# Copy the script onto your server (e.g. into the NPM directory)
-cp update-npm.sh /opt/nginx-proxy-manager/
-
-# Make it executable
-chmod +x /opt/nginx-proxy-manager/update-npm.sh
+cd /opt/nginx-proxy-manager && curl -fsSLO https://raw.githubusercontent.com/nephilim75/scripts/main/nginx-proxy-manager/update/update-npm.sh && chmod +x update-npm.sh && sudo ./update-npm.sh
 ```
 
----
-
-## Usage
-
-Run it manually:
-
-```bash
-/opt/nginx-proxy-manager/npm-update.sh
-```
-
-The script writes all output to the log file. To watch it live:
-
-```bash
-tail -f /var/log/npm-update.log
-```
+Creates a backup of `data/` and `letsencrypt/` first, then pulls the latest image
+and recreates the container only if a new one is actually present. For scheduled
+runs, keep the script in that folder and use the cron entry below.
 
 ---
 
@@ -73,6 +57,34 @@ This script fixes both by comparing the image ID before and after the pull and f
   - `/opt/nginx-proxy-manager/letsencrypt`
 - The service in `docker-compose.yml` is named `app`
 - The image tag is `jc21/nginx-proxy-manager:latest`
+
+---
+
+## Installation
+
+```bash
+# Copy the script onto your server (e.g. into the NPM directory)
+cp update-npm.sh /opt/nginx-proxy-manager/
+
+# Make it executable
+chmod +x /opt/nginx-proxy-manager/update-npm.sh
+```
+
+---
+
+## Usage
+
+Run it manually:
+
+```bash
+/opt/nginx-proxy-manager/npm-update.sh
+```
+
+The script writes all output to the log file. To watch it live:
+
+```bash
+tail -f /var/log/npm-update.log
+```
 
 ---
 

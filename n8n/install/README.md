@@ -12,19 +12,15 @@ Sets up n8n from scratch: directories, `.env`, `docker-compose.yml`, and contain
 
 ---
 
-## Installation
+## Quick Install
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/install/install-n8n.sh)
 ```
 
-Or download and run it locally:
-
-```bash
-curl -fsSLO https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/install/install-n8n.sh
-chmod +x install-n8n.sh
-./install-n8n.sh
-```
+Checks all prerequisites first, refuses to install over an existing setup, and
+prompts for domain, install path, version and timezone. Step-by-step variant:
+see [Installation](#installation) below.
 
 ---
 
@@ -61,6 +57,18 @@ chmod +x install-n8n.sh
 - Docker network `shared_proxy` (created by [Nginx Proxy Manager](https://nginxproxymanager.com), or by this script on request)
 - Nginx Proxy Manager running in the `shared_proxy` network
 - A domain pointing at your server
+
+---
+
+## Installation
+
+Alternatively, download the script and run it locally:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/install/install-n8n.sh
+chmod +x install-n8n.sh
+./install-n8n.sh
+```
 
 ---
 

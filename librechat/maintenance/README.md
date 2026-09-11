@@ -12,15 +12,17 @@ Written in POSIX `sh`, aimed at people who are new to Linux: every menu explains
 
 ---
 
-## Setup & Usage
-
-### Quick Install
+## Quick Install
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/maintenance/install/install-admin-lc.sh)
 ```
 
 The installer checks prerequisites, installs the tool to `/opt/admin-lc`, tries to detect an existing LibreChat installation (asks for the path if it can't, and stores it in `config.sh`), and offers to start the menu right away. Safe to run again later — it won't fail if run twice, and it won't overwrite your `config.sh`.
+
+---
+
+## Setup & Usage
 
 <details>
 <summary>Manual install (without the script)</summary>

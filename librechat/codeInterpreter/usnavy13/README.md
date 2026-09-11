@@ -24,7 +24,7 @@ option: prebuilt images, a few minutes of installation time, no compiling.
 
 ---
 
-## Installation
+## Quick Install
 
 One command, in a root shell or with `sudo`:
 

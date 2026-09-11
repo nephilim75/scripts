@@ -26,8 +26,8 @@ Sets up n8n from scratch: directories, `.env`, `docker-compose.yml`, and contain
 | Folder | Description |
 |--------|-------------|
 | [install](install/README.md) | n8n installation script |
-| [update](update/README.md) | n8n update script |
 | [sandbox](sandbox/README.md) | n8n Sandbox Service (isolated code execution) scripts |
+| [update](update/README.md) | n8n update script |
 
 ---
 

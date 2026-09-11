@@ -11,7 +11,7 @@ A collection of scripts for various use cases. Each subfolder contains its own R
 
 | Folder | Description |
 |--------|-------------|
-| [🐳 docker & docker compose](docker & docker compose/README.md) | Docker and Docker Compose scripts |
+| [🐳 docker & docker compose](docker%20&%20docker%20compose/README.md) | Docker and Docker Compose scripts |
 | [💬 librechat](librechat/README.md) | LibreChat scripts |
 | [🔗 n8n](n8n/README.md) | n8n scripts |
 | [🌐 nginx-proxy-manager](nginx-proxy-manager/README.md) | npm scripts |

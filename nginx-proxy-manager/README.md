@@ -14,10 +14,10 @@ Scripts for a self-hosted [Nginx Proxy Manager](https://nginxproxymanager.com/) 
 ## 🚀 Quick Install
 
 ```bash
-cp install-npm.sh /root/ && chmod +x /root/install-npm.sh && /root/install-npm.sh
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/nginx-proxy-manager/install/install-npm.sh)"
 ```
 
-Sets up NPM with a known-good `docker-compose.yml` and the `shared_proxy` Docker network. Details: [install/README.md](install/README.md).
+One command, from any directory: the installer checks Docker, creates the `shared_proxy` network, writes a known-good `docker-compose.yml` under `/opt/nginx-proxy-manager` and starts NPM. Details: [install/README.md](install/README.md).
 
 ---
 
@@ -26,13 +26,16 @@ Sets up NPM with a known-good `docker-compose.yml` and the `shared_proxy` Docker
 | Folder | Description |
 |--------|-------------|
 | [install](install/README.md) | NPM installation script |
-| [update](update/README.md) | NPM auto-update script with backup |
+| [uninstall](uninstall/README.md) | NPM removal script with inventory and dry-run |
+| [update](update/README.md) | NPM update script with backup and major-version handling |
 
 ---
 
 ## 🔗 References
 
 - [Installation Guide](install/README.md)
+- [Update Script](update/README.md)
+- [Uninstall Script](uninstall/README.md)
 - [pc-fee.com Guide](https://pc-fee.com/nginx-proxy-manager/)
 - [Official Docs](https://nginxproxymanager.com/)
 - [Blog](https://pc-fee.com/blog)

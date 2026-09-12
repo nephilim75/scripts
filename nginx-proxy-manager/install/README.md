@@ -24,7 +24,7 @@ Hardening / Security steps:
 ## Quick Install
 
 ```bash
-bash -c "$(curl -fsSL "https://raw.githubusercontent.com/nephilim75/scripts/main/nginx-proxy-manager/install/install-npm.sh")"
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/nginx-proxy-manager/install/install-npm.sh)"
 ```
 
 One command, in a root shell or with `sudo` — the script refuses to run without
@@ -68,20 +68,16 @@ The guide is straightforward, but on fresh servers you often want a repeatable i
 ## Installation
 
 ```bash
-# Copy the script onto your server
-cp install-npm.sh /root/
-
-# Make it executable
-chmod +x /root/install-npm.sh
+curl -fsSLO https://raw.githubusercontent.com/nephilim75/scripts/main/nginx-proxy-manager/install/install-npm.sh
+chmod +x install-npm.sh
+sudo ./install-npm.sh
 ```
+
+It does not matter where the file lives — the script works with absolute paths only and asks for the install path (default `/opt/nginx-proxy-manager`).
 
 ---
 
 ## Usage
-
-```bash
-/root/install-npm.sh
-```
 
 After installation, access the admin UI at:
 
@@ -89,10 +85,9 @@ After installation, access the admin UI at:
 http://SERVER-IP:81
 ```
 
-Default credentials (change immediately):
+The first start takes about 30 seconds. You are then greeted by NPM's **Welcome!** setup screen and create the admin account yourself (full name, email, password).
 
-- Email: `admin@example.com`
-- Password: `changeme`
+That screen is not password-protected: whoever reaches it first becomes the admin. Create the account **immediately** after installing, not tomorrow.
 
 ---
 
@@ -122,6 +117,12 @@ and restart:
 cd /opt/nginx-proxy-manager
 docker compose up -d
 ```
+
+---
+
+## Uninstalling
+
+To remove the instance again — containers, `data/`, `letsencrypt/`, optionally backups and images — use the [uninstall script](../uninstall/README.md). Updates are handled by the [update script](../update/README.md).
 
 ---
 

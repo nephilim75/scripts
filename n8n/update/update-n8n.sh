@@ -24,19 +24,18 @@
 
 set -euo pipefail
 
-# --- Speicherort dieses Skripts -----------------------------------------------
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# --- Referenz-URL dieses Skripts (fuer Fehlermeldungen/Copy-Paste) -----------
+UPDATE_SCRIPT_URL="https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/update/update-n8n.sh"
 
-# --- Optionale .env laden (nur zum Überschreiben von Defaults) ---------------
-ENV_FILE="${SCRIPT_DIR}/.env"
-if [[ -f "${ENV_FILE}" ]]; then
-    source "${ENV_FILE}"
-fi
-
-# --- Defaults setzen (greifen, wenn nicht per .env überschrieben) -----------
-: "${COMPOSE_DIR:=${SCRIPT_DIR}}"
-: "${DATA_DIR:=${COMPOSE_DIR}/n8n_data}"
-: "${BACKUP_DIR:=${COMPOSE_DIR}/backups}"
+# --- Defaults setzen (greifen, wenn nicht per Umgebungsvariable ueberschrieben) --
+# Hinweis: COMPOSE_DIR wird bewusst NICHT mehr aus dem Speicherort dieses
+# Skripts abgeleitet. Vorher hat sich das Skript per "dirname $0" selbst
+# gesucht und ist deshalb davon ausgegangen, im selben Ordner wie die
+# docker-compose.yml zu liegen - das hat verhindert, es per
+# "bash <(curl -fsSL ...)" von ueberall aus zu starten (siehe README).
+# Stattdessen wird der Pfad interaktiv abgefragt (Default /opt/n8n) bzw. kann
+# vorab per COMPOSE_DIR gesetzt werden, z.B. fuer unbeaufsichtigten Betrieb:
+#   COMPOSE_DIR=/opt/n8n bash <(curl -fsSL <UPDATE_SCRIPT_URL>)
 : "${MAX_BACKUPS:=5}"
 : "${N8N_IMAGE:=n8nio/n8n}"
 : "${RUNNERS_IMAGE:=n8nio/runners}"
@@ -52,30 +51,13 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-# --- Abgeleitete Variablen ---------------------------------------------------
-COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
-VERSION_FILE="${COMPOSE_DIR}/current_version"
-
-if [[ ! -f "${COMPOSE_FILE}" ]]; then
-    echo "Fehler: docker-compose.yml nicht gefunden unter ${COMPOSE_FILE}"
-    echo "Dieses Skript erwartet, im selben Ordner wie deine n8n-Installation zu liegen"
-    echo "(dort, wo auch docker-compose.yml liegt) - z.B. /opt/n8n/update-n8n.sh."
-    echo "Falls dein Setup abweicht: COMPOSE_DIR in einer optionalen .env neben diesem Skript setzen."
-    exit 1
-fi
-
-# HEALTH_CHECK_URL: aus WEBHOOK_URL in docker-compose.yml ableiten, falls nicht per .env gesetzt
-if [[ -z "${HEALTH_CHECK_URL:-}" ]]; then
-    HEALTH_CHECK_URL="$(grep -oE 'WEBHOOK_URL=[^[:space:]"]*' "${COMPOSE_FILE}" | head -1 | cut -d= -f2-)"
-fi
-
-if [[ -z "${HEALTH_CHECK_URL:-}" ]]; then
-    echo "Fehler: HEALTH_CHECK_URL konnte nicht aus docker-compose.yml ermittelt werden."
-    echo "Bitte HEALTH_CHECK_URL in einer .env neben diesem Skript setzen."
-    exit 1
-fi
-
-# Globale Variablen
+# Globale Variablen (COMPOSE_FILE/VERSION_FILE/DATA_DIR/BACKUP_DIR werden in
+# resolve_compose_dir() befuellt, sobald der Installationsordner feststeht)
+COMPOSE_DIR="${COMPOSE_DIR:-}"
+COMPOSE_FILE=""
+VERSION_FILE=""
+DATA_DIR="${DATA_DIR:-}"
+BACKUP_DIR="${BACKUP_DIR:-}"
 BACKUP_PATH=""
 CURRENT_VERSION=""
 TARGET_VERSION=""
@@ -122,8 +104,41 @@ print_config() {
     print_info "HEALTH_CHECK_URL:      ${HEALTH_CHECK_URL}"
     print_info "HEALTH_CHECK_RETRIES:  ${HEALTH_CHECK_RETRIES}"
     print_info "HEALTH_CHECK_INTERVAL: ${HEALTH_CHECK_INTERVAL}s"
-    if [[ -f "${ENV_FILE}" ]]; then
-        print_info "Overrides aus:         ${ENV_FILE}"
+}
+
+# --- Installationsordner ermitteln --------------------------------------------
+resolve_compose_dir() {
+    if [[ -z "${COMPOSE_DIR}" ]]; then
+        echo ""
+        echo -ne "  ${BOLD}Installationsordner deiner n8n-Installation${NC} (mit docker-compose.yml) [${CYAN}/opt/n8n${NC}]: "
+        read -r compose_dir_input
+        COMPOSE_DIR="${compose_dir_input:-/opt/n8n}"
+    fi
+
+    : "${DATA_DIR:=${COMPOSE_DIR}/n8n_data}"
+    : "${BACKUP_DIR:=${COMPOSE_DIR}/backups}"
+
+    COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
+    VERSION_FILE="${COMPOSE_DIR}/current_version"
+
+    if [[ ! -f "${COMPOSE_FILE}" ]]; then
+        print_error "docker-compose.yml nicht gefunden unter ${COMPOSE_FILE}"
+        print_info "Ist '${COMPOSE_DIR}' wirklich der Ordner deiner n8n-Installation?"
+        print_info "Der Pfad laesst sich auch vorab per COMPOSE_DIR setzen, z.B.:"
+        print_info "  COMPOSE_DIR=/pfad/zu/n8n bash <(curl -fsSL ${UPDATE_SCRIPT_URL})"
+        exit 1
+    fi
+
+    # HEALTH_CHECK_URL: aus WEBHOOK_URL in docker-compose.yml ableiten, falls nicht per Env-Variable gesetzt
+    if [[ -z "${HEALTH_CHECK_URL:-}" ]]; then
+        HEALTH_CHECK_URL="$(grep -oE 'WEBHOOK_URL=[^[:space:]"]*' "${COMPOSE_FILE}" | head -1 | cut -d= -f2-)"
+    fi
+
+    if [[ -z "${HEALTH_CHECK_URL:-}" ]]; then
+        print_error "HEALTH_CHECK_URL konnte nicht aus docker-compose.yml ermittelt werden."
+        print_info "Bitte HEALTH_CHECK_URL als Umgebungsvariable setzen, z.B.:"
+        print_info "  HEALTH_CHECK_URL=https://n8n.example.com/ COMPOSE_DIR=${COMPOSE_DIR} bash <(curl -fsSL ${UPDATE_SCRIPT_URL})"
+        exit 1
     fi
 }
 
@@ -399,6 +414,7 @@ print_summary() {
 # --- Hauptprogramm -----------------------------------------------------------
 main() {
     print_header
+    resolve_compose_dir
     print_config
     check_versions
     ask_version

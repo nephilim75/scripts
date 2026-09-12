@@ -19,14 +19,13 @@ Updates an existing installation in place: version check, backup, image pull, co
 ## Quick Update
 
 ```bash
-cd /opt/n8n && curl -fsSLO https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/update/update-n8n.sh && chmod +x update-n8n.sh && sudo ./update-n8n.sh
+bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/update/update-n8n.sh)
 ```
 
-Unlike the installer, this script has to run **from the same folder as your
-`docker-compose.yml`** — it uses its own location to find the installation, so it
-can't be piped straight from `curl` into `bash` the way `install-n8n.sh` can. That
-is why the one-liner changes into the install directory first; adjust the path if
-yours differs from `/opt/n8n`.
+Just like the installer, this can be run from anywhere — it no longer needs to
+sit next to your `docker-compose.yml`. Asks for your installation folder
+(default `/opt/n8n`), then for the target version, and walks through backup,
+update, health check and automatic rollback on failure.
 
 ---
 
@@ -37,12 +36,13 @@ yours differs from `/opt/n8n`.
 - lets you pick any target version, including an older one, to downgrade
 - runs a post-update health check and rolls back automatically on failure
 - detects its configuration from your existing `docker-compose.yml` — nothing to set up first
+- runs from anywhere via `bash <(curl ...)`, just like the installer — no need to download it into the install folder first
 
 ---
 
 ## What it does
 
-1. Determines its own folder and reads `docker-compose.yml` from there (`COMPOSE_DIR`, current image versions, health-check URL)
+1. Asks for your installation folder (`COMPOSE_DIR`, default `/opt/n8n`) and reads `docker-compose.yml` from there (current image versions, health-check URL)
 2. Fetches the latest `n8n`/`runners` versions from Docker Hub – aborts if they're out of sync
 3. Prompts for the target version (default: latest available)
 4. Confirms the target version exists on Docker Hub for both images
@@ -67,21 +67,22 @@ yours differs from `/opt/n8n`.
 The same thing step by step, if you prefer to look at the script before running it:
 
 ```bash
-cd /opt/n8n
 curl -fsSLO https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/update/update-n8n.sh
 chmod +x update-n8n.sh
-sudo ./update-n8n.sh
+./update-n8n.sh
 ```
+
+Can be run from any directory — it will ask for the path to your installation.
 
 ---
 
 ## Configuration (optional)
 
-No configuration file is required — every value is auto-detected or defaulted:
+No configuration file is required — every value is either asked for interactively, auto-detected, or defaulted:
 
 | Value | Default | Description |
 |---|---|---|
-| `COMPOSE_DIR` | folder containing the script | Path to docker-compose directory |
+| `COMPOSE_DIR` | asked interactively, default `/opt/n8n` | Path to your n8n installation (docker-compose directory) |
 | `BACKUP_DIR` | `${COMPOSE_DIR}/backups` | Backup target directory |
 | `DATA_DIR` | `${COMPOSE_DIR}/n8n_data` | n8n data directory |
 | `MAX_BACKUPS` | `5` | Maximum number of backups to keep |
@@ -89,7 +90,11 @@ No configuration file is required — every value is auto-detected or defaulted:
 | `HEALTH_CHECK_URL` | read from `WEBHOOK_URL` in `docker-compose.yml` | URL for the post-update health check |
 | `HEALTH_CHECK_RETRIES` / `HEALTH_CHECK_INTERVAL` | `12` / `5` | Health check attempts / seconds between them |
 
-To override any of these, copy `.env.example` to `.env` in the same folder and adjust.
+To override any of these — e.g. for unattended/cron runs — export it as an environment variable before running the script:
+
+```bash
+COMPOSE_DIR=/opt/n8n MAX_BACKUPS=10 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/update/update-n8n.sh)
+```
 
 ---
 

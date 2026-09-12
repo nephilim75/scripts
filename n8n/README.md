@@ -27,6 +27,7 @@ Sets up n8n from scratch: directories, `.env`, `docker-compose.yml`, and contain
 |--------|-------------|
 | [install](install/README.md) | n8n installation script |
 | [sandbox](sandbox/README.md) | n8n Sandbox Service (isolated code execution) scripts |
+| [uninstall](uninstall/README.md) | n8n removal script |
 | [update](update/README.md) | n8n update script |
 
 ---
@@ -36,6 +37,7 @@ Sets up n8n from scratch: directories, `.env`, `docker-compose.yml`, and contain
 - ✅ Self-hosted n8n + task-runners via Docker Compose (SQLite, `shared_proxy` network)
 - ✅ Behind Nginx Proxy Manager (no exposed ports)
 - ✅ A companion update script with backup, health check, and automatic rollback
+- ✅ A companion uninstall script for a clean, complete removal
 - ✅ An optional isolated code-execution sandbox for the AI Assistant
 
 ---

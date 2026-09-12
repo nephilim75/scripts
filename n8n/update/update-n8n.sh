@@ -66,9 +66,17 @@ LATEST_VERSION=""
 # --- Hilfsfunktionen ---------------------------------------------------------
 print_header() {
     echo ""
-    echo -e "${BOLD}${BLUE}=============================================${NC}"
-    echo -e "${BOLD}${BLUE}  n8n Update Script | pc-fee.com${NC}"
-    echo -e "${BOLD}${BLUE}=============================================${NC}"
+    echo -e "${CYAN}"
+    cat <<'EOF'
+               __                        
+ _ __  __ ___ / _|___ ___   __ ___ _ __  
+| '_ \/ _|___|  _/ -_) -_)_/ _/ _ \ '  \ 
+| .__/\__|   |_| \___\___(_)__\___/_|_|_|
+|_|                                      
+EOF
+    echo -e "${NC}"
+    echo -e "${BOLD}  n8n Update Script – powered by pc-fee.com${NC}"
+    echo -e "  ${CYAN}https://pc-fee.com${NC} | ${CYAN}https://github.com/nephilim75/scripts${NC}"
     echo ""
 }
 

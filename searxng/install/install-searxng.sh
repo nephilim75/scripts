@@ -34,6 +34,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
+BLUE='\033[0;34m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
@@ -42,6 +43,7 @@ readonly SEARXNG_GUIDE="https://pc-fee.com/searxng/"
 readonly NPM_GUIDE="https://pc-fee.com/nginx-proxy-manager/"
 readonly PROXY_NETWORK="shared_proxy"
 readonly SEARXNG_IMAGE_REPO="searxng/searxng"
+readonly UPDATE_SCRIPT_URL="https://raw.githubusercontent.com/nephilim75/scripts/main/searxng/update/update-searxng.sh"
 
 # -- Eingabequelle -------------------------------------------------------------
 # Wird das Script per 'curl ... | bash' gestartet, liest bash es von stdin.
@@ -320,41 +322,89 @@ success "Container gestartet."
 
 # -- Abschluss -----------------------------------------------------------------
 echo ""
-echo -e "────────────────────────────────────────────────────────────"
-echo -e "${GREEN}${BOLD}  ✓ Installation abgeschlossen!${RESET}"
-echo -e "────────────────────────────────────────────────────────────"
+${COMPOSE_CMD} -f "${INSTALL_DIR}/docker-compose.yml" ps
 echo ""
-echo -e "  ${BOLD}Naechste Schritte:${RESET}"
-echo -e ""
-echo -e "  1. Richte in deinem ${BOLD}Nginx Proxy Manager${RESET} einen neuen Proxy"
-echo -e "     Host ein (${CYAN}Hosts -> Proxy Hosts -> Add Proxy Host${RESET}):"
-echo -e "     ${BOLD}Reiter Details${RESET}:"
-echo -e "     • Domain Names:        ${CYAN}${SEARXNG_DOMAIN}${RESET}"
-echo -e "     • Scheme:              ${CYAN}http${RESET}"
-echo -e "     • Forward Hostname/IP: ${CYAN}searxng${RESET}"
-echo -e "     • Forward Port:        ${CYAN}8080${RESET}"
-echo -e "     • Cache Assets aktivieren"
-echo -e "     • Block Common Exploits aktivieren"
-echo -e "     ${BOLD}Reiter SSL${RESET}:"
-echo -e "     • SSL Certificate: Request a new SSL Certificate with Let's Encrypt"
-echo -e "     • Force SSL, HTTP/2 Support und HSTS aktivieren"
-echo -e "     Danach ${BOLD}Save${RESET} - erst ab hier ist die Domain von aussen erreichbar."
-echo -e ""
-echo -e "  2. Oeffne SearXNG im Browser:"
-echo -e "     ${CYAN}https://${SEARXNG_DOMAIN}${RESET}"
-echo -e ""
+printf '%b\n' "${GREEN}${BOLD}#############################################${RESET}"
+printf '%b\n' "${GREEN}${BOLD}#                                           #${RESET}"
+printf '%b\n' "${GREEN}${BOLD}#         Installation erfolgreich          #${RESET}"
+printf '%b\n' "${GREEN}${BOLD}#                                           #${RESET}"
+printf '%b\n' "${GREEN}${BOLD}#############################################${RESET}"
+
+printf '%b\n' "\n${BLUE}${BOLD}Naechste Schritte${RESET}"
+printf '%b\n' "${BLUE}------------------------------------------------------------${RESET}"
+
+CHECK="${GREEN}✓${RESET}"
+cat <<NEXT
+
+1) Proxy Host im Nginx Proxy Manager anlegen
+   (Hosts -> Proxy Hosts -> Add Proxy Host):
+
+   Reiter Details:
+     Domain Names:          ${SEARXNG_DOMAIN}
+     Scheme:                http
+     Forward Hostname:      searxng
+     Forward Port:          8080
+NEXT
+printf '     Cache Assets:          %b\n' "${CHECK}"
+printf '     Block Common Exploits: %b\n' "${CHECK}"
+cat <<NEXT
+
+   Reiter SSL:
+     SSL Certificate:       Request a new SSL Certificate (Let's Encrypt)
+NEXT
+printf '     Force SSL:             %b\n' "${CHECK}"
+printf '     HTTP/2 Support:        %b\n' "${CHECK}"
+printf '     HSTS Enabled:          %b\n' "${CHECK}"
+cat <<NEXT
+
+   Erst nach dem Speichern des Proxy Hosts ist die Suche von aussen
+   erreichbar - der Container selbst oeffnet keinen Port auf dem Host.
+
+2) Aufrufen:
+   Weboberflaeche:  https://${SEARXNG_DOMAIN}
+NEXT
 if [[ "${ENABLE_JSON}" -eq 0 ]]; then
-  echo -e "  3. JSON-API fuer Automatisierungen (z.B. n8n), intern ohne Proxy:"
-  echo -e "     ${CYAN}http://searxng:8080/search?q=<suchbegriff>&format=json${RESET}"
-  echo -e ""
+cat <<NEXT
+   JSON-API (n8n):  http://searxng:8080/search?q=<begriff>&format=json
+                    intern im Netzwerk ${PROXY_NETWORK}, ohne Reverse Proxy
+NEXT
 fi
-echo -e "  ${YELLOW}Wichtig:${RESET} Kein eingebauter Rate-Limiter/Bot-Schutz aktiv - bewusste"
-echo -e "  Entscheidung, damit n8n & Co. nie ausgebremst werden (siehe Kopf des"
-echo -e "  Scripts). Absichern ueber eine ${BOLD}Nginx Proxy Manager Access List${RESET}:"
-echo -e "  ${CYAN}Access Lists -> Add Access List${RESET}, dann am Proxy Host unter"
-echo -e "  ${CYAN}Details${RESET} auswaehlen. Interne Aufrufer im ${PROXY_NETWORK}-Netzwerk"
-echo -e "  (z.B. ueber ${CYAN}http://searxng:8080${RESET}) sind davon nicht betroffen."
-echo -e ""
-echo -e "  Mehr Tipps & Tutorials: ${CYAN}${SEARXNG_GUIDE}${RESET}"
-echo -e "  GitHub:                 ${CYAN}https://github.com/nephilim75/scripts${RESET}"
-echo ""
+
+printf '%b\n' "\n${YELLOW}${BOLD}Wichtig: kein Rate-Limiter aktiv${RESET}"
+printf '%b\n' "${YELLOW}------------------------------------------------------------${RESET}"
+cat <<LIMITER
+
+Der eingebaute Rate-Limiter/Bot-Schutz ist bewusst deaktiviert, damit
+Automatisierungen (z.B. n8n-Agenten) nie ausgebremst oder blockiert werden.
+Damit hat die Instanz aber auch keinen eigenen Schutz gegen Missbrauch.
+
+Zugriff von aussen einschraenken (empfohlen):
+
+   1) NPM -> Access Lists -> Add Access List
+   2) Basic-Auth-Nutzer und/oder erlaubte IP-Bereiche eintragen
+   3) Am Proxy Host ${SEARXNG_DOMAIN} unter Details auswaehlen
+
+Interne Aufrufer im Netzwerk ${PROXY_NETWORK} (http://searxng:8080) sind
+davon nicht betroffen - eine Access List greift nur am Proxy Host.
+LIMITER
+
+printf '%b\n' "\n${BLUE}${BOLD}Wichtige Befehle${RESET}"
+printf '%b\n' "${BLUE}------------------------------------------------------------${RESET}"
+cat <<CMDS
+
+  Logs:      ${COMPOSE_CMD} -f ${INSTALL_DIR}/docker-compose.yml logs -f
+  Status:    ${COMPOSE_CMD} -f ${INSTALL_DIR}/docker-compose.yml ps
+  Neustart:  ${COMPOSE_CMD} -f ${INSTALL_DIR}/docker-compose.yml restart
+  Update:    sudo bash -c "\$(curl -fsSL ${UPDATE_SCRIPT_URL})"
+
+Konfiguration:
+  ${INSTALL_DIR}/config/settings.yml   (enthaelt den secret_key)
+  ${INSTALL_DIR}/docker-compose.yml
+
+Anleitung:
+  ${SEARXNG_GUIDE}
+
+GitHub-Referenz:
+  https://github.com/nephilim75/scripts/tree/main/searxng/install
+
+CMDS

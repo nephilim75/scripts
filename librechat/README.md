@@ -7,7 +7,7 @@
 [![GitHub](https://img.shields.io/badge/GitHub-LibreChat-181717?style=for-the-badge&logo=github)](https://github.com/danny-avila/LibreChat)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../LICENSE)
 
-Automated scripts for self-hosted [LibreChat](https://www.librechat.ai) instance with MongoDB, Meilisearch, RAG API, and Admin Panel behind Nginx Proxy Manager.
+Scripts for the complete life cycle of a self-hosted [LibreChat](https://www.librechat.ai) instance with MongoDB, Meilisearch, RAG API and Admin Panel behind Nginx Proxy Manager — **install**, **update** and **uninstall**, plus optional code interpreters and an administration tool.
 
 ---
 
@@ -17,7 +17,7 @@ Automated scripts for self-hosted [LibreChat](https://www.librechat.ai) instance
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install/install-librechat.sh)
 ```
 
-The installer sets up everything automatically: directories, `.env`, containers and admin user.
+The installer sets up everything automatically: directories, `.env`, containers and admin user. Updating and removing it again are one-liners too — see [update](update/README.md) and [uninstall](uninstall/README.md).
 
 ---
 
@@ -28,6 +28,8 @@ The installer sets up everything automatically: directories, `.env`, containers 
 | [codeInterpreter](codeInterpreter/README.md) | code interpreter installation scripts |
 | [install](install/README.md) | Automated installation script & guide |
 | [maintenance](maintenance/README.md) | administration scripts |
+| [uninstall](uninstall/README.md) | Removes a LibreChat installation completely, with a dry-run mode |
+| [update](update/README.md) | Updates an existing installation, with backup and confirmation |
 
 ---
 
@@ -39,12 +41,14 @@ The installer sets up everything automatically: directories, `.env`, containers 
 - ✅ Automated admin user creation
 - ✅ Secure random `.env` generation
 - ✅ Production-ready setup
+- ✅ An update path with change detection, config and database backup, and confirmation before anything restarts
+- ✅ A removal path that shows a full inventory first and never touches a directory outside the installation
 
 ---
 
 ## 🔗 References
 
-- [Installation Guide](install/README.md)
+- [Install script](install/README.md) · [Update script](update/README.md) · [Uninstall script](uninstall/README.md)
 - [Official Docs](https://www.librechat.ai/docs)
 - [GitHub Repository](https://github.com/danny-avila/LibreChat)
 - [Blog](https://pc-fee.com/blog)

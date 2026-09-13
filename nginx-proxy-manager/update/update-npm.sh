@@ -4,11 +4,14 @@
 # https://pc-fee.com | https://github.com/nephilim75/scripts
 #
 # Aktualisiert eine mit install-npm.sh installierte NPM-Instanz:
-#   1. Backup von data/ (inkl. SQLite-DB) und letsencrypt/
-#   2. Behaelt nur die N neuesten Backups (Default: 5)
-#   3. Zieht das aktuelle Image und erkennt auch Major-Spruenge (z.B. v14->v15)
-#   4. Erstellt den Container nur bei tatsaechlich neuem Image neu
-#   5. Raeumt alte (dangling) Images auf
+#   1. Bestandsaufnahme: Installation, Container, aktuelles Image, Datenmengen
+#   2. Prueft auf ein neues Image (Download, laufender Container bleibt unberuehrt)
+#   3. Zeigt Zusammenfassung JETZT -> NACHHER und fragt nach Bestaetigung
+#   4. Erst danach: Backup von data/ (inkl. SQLite-DB) und letsencrypt/
+#   5. Erstellt den Container neu (erzwingt auch Major-Spruenge, z.B. v14->v15)
+#   6. Behaelt nur die N neuesten Backups (Default: 5), raeumt dangling Images auf
+#
+# Ohne Bestaetigung wird nichts veraendert. Fuer Cron: --yes bzw. ASSUME_YES=1.
 #
 # Nutzung als 1-Zeiler (von ueberall, kein vorheriger Download noetig):
 #   sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/nginx-proxy-manager/update/update-npm.sh)"
@@ -17,11 +20,13 @@
 #   --dir <pfad>   Installationspfad fest vorgeben (ueberspringt die Erkennung)
 #   --keep <n>     Anzahl aufzubewahrender Backups (Default: 5)
 #   --dry-run      Zeigt nur, was passieren wuerde - aendert nichts
+#   --yes          Ueberspringt die Bestaetigung (wie ASSUME_YES=1, fuer Cron)
 #   --help         Diese Hilfe anzeigen
 #
 # Umgebungsvariablen (fuer unbeaufsichtigten Betrieb, z.B. Cron):
 #   INSTALL_DIR    wie --dir
 #   KEEP_BACKUPS   wie --keep
+#   ASSUME_YES=1   wie --yes
 #   LOG_FILE       Logdatei (Default: /var/log/npm-update.log)
 #
 # Der Installationspfad wird automatisch ermittelt (Container-Label ->
@@ -67,9 +72,13 @@ Optionen:
   --dir <pfad>   Installationspfad fest vorgeben (ueberspringt die Erkennung)
   --keep <n>     Anzahl aufzubewahrender Backups (Default: 5)
   --dry-run      Zeigt nur, was passieren wuerde - aendert nichts
+  --yes          Ueberspringt die Bestaetigung (wie ASSUME_YES=1, fuer Cron)
   --help         Diese Hilfe anzeigen
 
-Umgebungsvariablen: INSTALL_DIR, KEEP_BACKUPS, LOG_FILE
+Das Script zeigt erst eine Zusammenfassung (JETZT -> NACHHER) und fragt nach,
+bevor Backup und Container-Neuerstellung starten.
+
+Umgebungsvariablen: INSTALL_DIR, KEEP_BACKUPS, ASSUME_YES, LOG_FILE
 
 Beispiele:
   sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/nginx-proxy-manager/update/update-npm.sh)"
@@ -85,6 +94,7 @@ while [[ $# -gt 0 ]]; do
     --keep)    KEEP="${2:-}"; shift 2 || true ;;
     --keep=*)  KEEP="${1#*=}"; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --yes|-y)  ASSUME_YES=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *)         echo "Unbekannte Option: $1 (siehe --help)" >&2; exit 1 ;;
   esac
@@ -118,6 +128,26 @@ success() { echo -e "${GREEN}[OK]${RESET}    $*"; }
 warn()    { echo -e "${YELLOW}[WARN]${RESET}  $*"; }
 error()   { echo -e "${RED}[FEHLER]${RESET} $*"; }
 die()     { error "$*"; exit 1; }
+
+# ask_yesno <prompt> <default: j|n> -> Rueckgabewert via $? (0 = ja)
+ask_yesno() {
+  local prompt="$1" default="${2:-n}" input="" hint="j/N"
+  [[ "${default,,}" == "j" ]] && hint="J/n"
+  if [[ "${ASSUME_YES:-0}" == "1" ]]; then
+    info "ASSUME_YES gesetzt - uebersprungene Abfrage: ${prompt}"
+    return 0
+  fi
+  if [[ "${INTERACTIVE}" -eq 0 ]]; then
+    warn "Kein Terminal fuer die Rueckfrage verfuegbar: ${prompt}"
+    warn "Ohne Bestaetigung wird nichts veraendert (fuer Cron: --yes bzw. ASSUME_YES=1)."
+    return 1
+  fi
+  echo ""
+  echo -ne "${BOLD}${prompt}${RESET} [${CYAN}${hint}${RESET}]: "
+  read -r input <"${TTY}" || true
+  input="${input:-${default}}"
+  [[ "${input,,}" == "j" || "${input,,}" == "y" ]]
+}
 
 # run <befehl...> - im Dry-Run nur anzeigen, sonst ausfuehren.
 run() {
@@ -284,66 +314,157 @@ echo -e " Image:         ${CYAN}${IMAGE}${RESET}"
 echo -e " Backups:       ${CYAN}${BACKUP_DIR}${RESET} (die letzten ${KEEP})"
 echo ""
 
-# -- 1) Backup -----------------------------------------------------------------
-TS=$(date +%F_%H-%M-%S)
-BACKUP_FILE="${BACKUP_DIR}/npm_${TS}.tar.gz"
+# -- Bestandsaufnahme ----------------------------------------------------------
+echo "------------------------------------------------------------"
+echo -e "${BOLD} Bestandsaufnahme${RESET}"
+echo "------------------------------------------------------------"
+
+CONTAINERS=$(${COMPOSE_CMD} -f "${COMPOSE_FILE}" ps -a --format '{{.Name}} ({{.State}})' 2>/dev/null || true)
+if [[ -n "${CONTAINERS}" ]]; then
+  info "Container:"
+  while IFS= read -r c; do [[ -n "$c" ]] && echo -e "   - ${CYAN}${c}${RESET}"; done <<<"${CONTAINERS}"
+else
+  warn "Kein Container zu dieser Compose-Datei gefunden (gestoppt oder entfernt?)."
+fi
+
+OLD_ID=$(docker image inspect "${IMAGE}" -f '{{.Id}}' 2>/dev/null || true)
+OLD_CREATED=$(docker image inspect "${IMAGE}" -f '{{.Created}}' 2>/dev/null | cut -c1-10 || true)
+if [[ -n "${OLD_ID}" ]]; then
+  info "Aktuelles Image: ${OLD_ID:0:19} (Stand ${OLD_CREATED:-unbekannt})"
+else
+  warn "Image ${IMAGE} ist lokal noch nicht vorhanden - es wird erstmalig geladen."
+fi
 
 declare -a BACKUP_ITEMS=()
 for item in data letsencrypt; do
   [[ -e "${INSTALL_DIR}/${item}" ]] && BACKUP_ITEMS+=("${item}")
 done
-
-if [[ "${#BACKUP_ITEMS[@]}" -eq 0 ]]; then
-  warn "Weder data/ noch letsencrypt/ in ${INSTALL_DIR} gefunden - es wird kein Backup erstellt."
+if [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]]; then
+  info "Zu sichernde Daten:"
+  for item in "${BACKUP_ITEMS[@]}"; do
+    echo -e "   - ${CYAN}${item}/${RESET} ($(du -sh "${INSTALL_DIR}/${item}" 2>/dev/null | cut -f1))"
+  done
 else
-  info "Erstelle Backup von: ${BACKUP_ITEMS[*]}"
-  run mkdir -p "${BACKUP_DIR}"
-  # -C: relative Pfade im Archiv, unabhaengig vom Arbeitsverzeichnis.
-  run tar czf "${BACKUP_FILE}" -C "${INSTALL_DIR}" "${BACKUP_ITEMS[@]}"
-  if [[ "${DRY_RUN}" -eq 0 ]]; then
-    success "Backup erstellt: $(basename "${BACKUP_FILE}") ($(du -h "${BACKUP_FILE}" | cut -f1))"
-  fi
-
-  # -- 2) Rotation -------------------------------------------------------------
-  mapfile -t OLD_BACKUPS < <(ls -1t "${BACKUP_DIR}"/npm_*.tar.gz 2>/dev/null | tail -n "+$((KEEP + 1))" || true)
-  if [[ "${#OLD_BACKUPS[@]}" -gt 0 ]]; then
-    info "Entferne ${#OLD_BACKUPS[@]} alte(s) Backup(s) (behalte die letzten ${KEEP})."
-    for old in "${OLD_BACKUPS[@]}"; do run rm -f "${old}"; done
-  fi
+  warn "Weder data/ noch letsencrypt/ gefunden - es kann kein Backup erstellt werden."
 fi
 
-# -- 3) Image-ID vor dem Pull merken -------------------------------------------
-OLD_ID=$(docker image inspect "${IMAGE}" -f '{{.Id}}' 2>/dev/null || true)
+BACKUP_COUNT=0
+if [[ -d "${BACKUP_DIR}" ]]; then
+  BACKUP_COUNT=$(find "${BACKUP_DIR}" -maxdepth 1 -name 'npm_*.tar.gz' -type f 2>/dev/null | wc -l | tr -d ' ')
+fi
+info "Vorhandene Backups: ${BACKUP_COUNT} in ${BACKUP_DIR} (es werden ${KEEP} behalten)"
 
-# -- 4) Neues Image ziehen -----------------------------------------------------
+# -- Auf neues Image pruefen ---------------------------------------------------
+# Der Pull laedt hoechstens Layer herunter - der laufende Container wird dabei
+# nicht angefasst. Alles, was den Dienst tatsaechlich veraendert, passiert erst
+# nach der Bestaetigung weiter unten.
 echo ""
-info "Pruefe auf ein neues Image..."
+info "Pruefe auf ein neues Image (${IMAGE})..."
+info "Es wird nur geladen - der laufende Container bleibt dabei unberuehrt."
 run ${COMPOSE_CMD} -f "${COMPOSE_FILE}" pull
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo ""
+  echo "------------------------------------------------------------"
   echo -e "${YELLOW}${BOLD} DRY-RUN beendet - es wurde nichts veraendert.${RESET}"
-  echo -e " Ohne ${BOLD}--dry-run${RESET} wuerde jetzt bei neuem Image ein"
-  echo -e " '${COMPOSE_CMD} -f ${COMPOSE_FILE} up -d --force-recreate' folgen."
+  echo "------------------------------------------------------------"
+  echo -e " Ob ein neues Image vorliegt, laesst sich ohne Download nicht"
+  echo -e " feststellen - der Pull wurde uebersprungen. Bei neuem Image wuerde"
+  echo -e " nach einer Rueckfrage folgen:"
+  echo -e "   1. Backup nach ${CYAN}${BACKUP_DIR}/npm_<zeitstempel>.tar.gz${RESET}"
+  echo -e "   2. ${CYAN}${COMPOSE_CMD} -f ${COMPOSE_FILE} up -d --force-recreate${RESET}"
+  echo -e "   3. Backups ueber ${KEEP} hinaus entfernen, dangling Images aufraeumen"
   echo ""
   exit 0
 fi
 
 NEW_ID=$(docker image inspect "${IMAGE}" -f '{{.Id}}' 2>/dev/null || true)
+NEW_CREATED=$(docker image inspect "${IMAGE}" -f '{{.Created}}' 2>/dev/null | cut -c1-10 || true)
 [[ -n "${NEW_ID}" ]] || die "Image ${IMAGE} ist nach dem Pull nicht lokal vorhanden."
 
-# -- 5) Nur bei neuem Image sauber neu erstellen (erzwingt z.B. v14->v15) -------
-if [[ "${OLD_ID}" != "${NEW_ID}" ]]; then
-  info "Neues Image gefunden - Container wird neu erstellt."
-  ${COMPOSE_CMD} -f "${COMPOSE_FILE}" up -d --force-recreate
-  success "UPDATED: ${OLD_ID:0:19} -> ${NEW_ID:0:19}"
-
-  info "Raeume alte (dangling) Images auf..."
-  docker image prune -f >/dev/null
-  success "Aufgeraeumt."
-else
-  success "NOCHANGE: bereits aktuell (${NEW_ID:0:19})"
+# -- Kein neues Image: hier ist Schluss, ohne irgendetwas anzufassen ------------
+if [[ "${OLD_ID}" == "${NEW_ID}" ]]; then
+  echo ""
+  echo "------------------------------------------------------------"
+  success "NOCHANGE: bereits aktuell (${NEW_ID:0:19}, Stand ${NEW_CREATED:-unbekannt})"
+  echo "------------------------------------------------------------"
+  echo -e " Kein Backup, kein Neustart, keine Aenderung am Container."
+  echo ""
+  exit 0
 fi
+
+# -- Zusammenfassung -----------------------------------------------------------
+TS=$(date +%F_%H-%M-%S)
+BACKUP_FILE="${BACKUP_DIR}/npm_${TS}.tar.gz"
+
+mapfile -t DROP_BACKUPS < <(ls -1t "${BACKUP_DIR}"/npm_*.tar.gz 2>/dev/null | tail -n "+${KEEP}" || true)
+
+echo ""
+echo "------------------------------------------------------------"
+echo -e "${BOLD} Zusammenfassung${RESET}"
+echo "------------------------------------------------------------"
+echo -e " Installation:  ${CYAN}${INSTALL_DIR}${RESET}"
+echo -e " Image:         ${CYAN}${IMAGE}${RESET}"
+echo ""
+echo -e " ${BOLD}JETZT${RESET}      ${OLD_ID:0:19}  (Stand ${OLD_CREATED:-unbekannt})"
+echo -e " ${BOLD}NACHHER${RESET}    ${GREEN}${NEW_ID:0:19}${RESET}  (Stand ${NEW_CREATED:-unbekannt})  ${GREEN}<- neu${RESET}"
+echo ""
+echo -e " ${BOLD}Es wird:${RESET}"
+if [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]]; then
+  echo -e "   1. ${BACKUP_ITEMS[*]} gesichert nach ${CYAN}$(basename "${BACKUP_FILE}")${RESET}"
+else
+  echo -e "   1. ${YELLOW}kein Backup erstellt${RESET} (weder data/ noch letsencrypt/ vorhanden)"
+fi
+echo -e "   2. der Container neu erstellt - kurze Downtime, meist 10-30 Sekunden"
+if [[ "${#DROP_BACKUPS[@]}" -gt 0 ]]; then
+  echo -e "   3. ${#DROP_BACKUPS[@]} alte(s) Backup(s) entfernt, aeltestes: ${CYAN}$(basename "${DROP_BACKUPS[-1]}")${RESET}"
+else
+  echo -e "   3. kein altes Backup entfernt (${BACKUP_COUNT} von ${KEEP} belegt)"
+fi
+echo -e "   4. dangling Images auf diesem Host aufgeraeumt"
+echo ""
+echo -e " ${BOLD}Unveraendert bleibt:${RESET}"
+echo -e "   - ${CYAN}$(basename "${COMPOSE_FILE}")${RESET} inkl. Portfreigaben und Hardening"
+echo -e "   - deine Proxy Hosts, Zertifikate und Zugangsdaten in data/ und letsencrypt/"
+echo -e "   - das Docker-Netzwerk und alle anderen Stacks darauf"
+echo ""
+
+# -- Bestaetigung --------------------------------------------------------------
+echo "------------------------------------------------------------"
+if ! ask_yesno "${BOLD}Update jetzt durchfuehren?${RESET}" "n"; then
+  warn "Abgebrochen. Es wurde nichts veraendert."
+  echo -e " Das geladene Image bleibt lokal liegen und wird beim naechsten Lauf verwendet."
+  exit 0
+fi
+
+# -- Durchfuehrung -------------------------------------------------------------
+echo ""
+echo "------------------------------------------------------------"
+echo -e "${BOLD} Durchfuehrung${RESET}"
+echo "------------------------------------------------------------"
+
+if [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]]; then
+  info "Erstelle Backup von: ${BACKUP_ITEMS[*]}"
+  mkdir -p "${BACKUP_DIR}"
+  # -C: relative Pfade im Archiv, unabhaengig vom Arbeitsverzeichnis.
+  tar czf "${BACKUP_FILE}" -C "${INSTALL_DIR}" "${BACKUP_ITEMS[@]}"
+  success "Backup erstellt: $(basename "${BACKUP_FILE}") ($(du -h "${BACKUP_FILE}" | cut -f1))"
+fi
+
+info "Erstelle Container neu..."
+${COMPOSE_CMD} -f "${COMPOSE_FILE}" up -d --force-recreate
+success "UPDATED: ${OLD_ID:0:19} -> ${NEW_ID:0:19}"
+
+# Rotation erst jetzt - das frische Backup zaehlt mit.
+mapfile -t OLD_BACKUPS < <(ls -1t "${BACKUP_DIR}"/npm_*.tar.gz 2>/dev/null | tail -n "+$((KEEP + 1))" || true)
+if [[ "${#OLD_BACKUPS[@]}" -gt 0 ]]; then
+  info "Entferne ${#OLD_BACKUPS[@]} alte(s) Backup(s) (behalte die letzten ${KEEP})."
+  for old in "${OLD_BACKUPS[@]}"; do rm -f "${old}"; done
+fi
+
+info "Raeume alte (dangling) Images auf..."
+docker image prune -f >/dev/null
+success "Aufgeraeumt."
 
 # -- Abschluss -----------------------------------------------------------------
 echo ""

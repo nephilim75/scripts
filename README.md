@@ -15,6 +15,7 @@ A collection of scripts for various use cases. Each subfolder contains its own R
 | [💬 librechat](librechat/README.md) | LibreChat scripts |
 | [🔗 n8n](n8n/README.md) | n8n scripts |
 | [🌐 nginx-proxy-manager](nginx-proxy-manager/README.md) | npm scripts |
+| [🔍 searxng](searxng/README.md) | SearXNG scripts |
 
 ---
 

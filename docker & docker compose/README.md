@@ -7,9 +7,10 @@
 [![GitHub](https://img.shields.io/badge/GitHub-scripts-181717?style=for-the-badge&logo=github)](https://github.com/nephilim75/scripts/tree/main/docker%20%26%20docker%20compose)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../LICENSE)
 
-Automated installation script for **Docker Engine** and the **Docker Compose plugin**
-on Debian, straight from Docker's own `apt` repository — the foundation every other
-stack in this repo (LibreChat, Nginx Proxy Manager, ...) runs on top of.
+Automated scripts to **install**, **update** and **remove** **Docker Engine** and the
+**Docker Compose plugin** on Debian, straight from Docker's own `apt` repository — the
+foundation every other stack in this repo (LibreChat, Nginx Proxy Manager, ...) runs on
+top of.
 
 ---
 
@@ -30,6 +31,8 @@ about to do, and waits for confirmation before changing anything. Details:
 | Folder | Description |
 |--------|-------------|
 | [install](install/README.md) | Automated installation script & guide |
+| [uninstall](uninstall/README.md) | Removal script — packages, repository, key, `shared_proxy` network; data kept by default |
+| [update](update/README.md) | Update script — upgrades the Docker packages and repairs key/repository |
 
 ---
 
@@ -43,12 +46,18 @@ about to do, and waits for confirmation before changing anything. Details:
 - ✅ Optional `docker` group setup for a non-root user
 - ✅ Verification at the end: versions + a `hello-world` test container, wrapped up
   in a colored summary
+- ✅ Matching update script: repairs key and repository entry (e.g. after a Debian
+  release upgrade) and upgrades only the Docker packages
+- ✅ Matching uninstall script: removes packages, repository, key and the shared
+  `shared_proxy` network — images and volumes are kept unless you ask otherwise
 
 ---
 
 ## 🔗 References
 
 - [Installation Guide](install/README.md)
+- [Update Guide](update/README.md)
+- [Uninstall Guide](uninstall/README.md)
 - [Official Docs](https://docs.docker.com/engine/install/debian/)
 - [Blog](https://pc-fee.com/blog)
 

@@ -109,6 +109,8 @@ If a user was added to the `docker` group, that only takes effect after they log
 out and back in (or run `newgrp docker`) — not immediately in the same shell. Until
 then, `docker` commands for that user still need `sudo`.
 
+Keeping it up to date later on: [update/README.md](../update/README.md).
+
 Quick check that everything works:
 
 ```bash
@@ -157,6 +159,9 @@ docker system prune -a            # clean up unused images/containers (careful!)
 ---
 
 ## Uninstalling
+
+The scripted way, including the shared `shared_proxy` network:
+[uninstall/README.md](../uninstall/README.md). By hand:
 
 ```bash
 sudo apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin

@@ -236,10 +236,6 @@ first.
 This project is licensed under the MIT License — see the
 [LICENSE](../../../LICENSE) file in the repository root.
 
-<sub>This script and its documentation were created with the help of AI models
-(Claude Sonnet 5, Anthropic), commissioned by pc-fee.com. All technical statements
-were checked against the official n8n-sandbox-service documentation and the user's
-own working configuration. Please verify for yourself before using it in
-production.</sub>
+<sub>This script was researched, written and iteratively revised at pc-fee.com with the help of AI models, and reviewed by a human before publication. All technical statements were checked against the official project documentation and source code. Please verify for yourself before using it in production.</sub>
 
 <sub>[← Back to the overview](../)</sub>

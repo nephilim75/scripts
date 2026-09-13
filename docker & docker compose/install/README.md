@@ -206,9 +206,6 @@ first.
 This project is licensed under the MIT License — see the
 [LICENSE](../../LICENSE) file in the repository root.
 
-<sub>This script was researched, written and iteratively revised with the help of AI
-models (Claude Sonnet 5, Anthropic). All technical statements were checked against
-the official Docker documentation. Please verify for yourself before using it in
-production.</sub>
+<sub>This script was researched, written and iteratively revised at pc-fee.com with the help of AI models, and reviewed by a human before publication. All technical statements were checked against the official project documentation and source code. Please verify for yourself before using it in production.</sub>
 
 <sub>[← Back to the overview](../)</sub>

@@ -129,9 +129,6 @@ access goes through Docker networks or the Nginx Proxy Manager.
 
 This project is licensed under the MIT License — see the [LICENSE](../../LICENSE) file in the repository root.
 
-<sub>The scripts in this folder were researched, written and iteratively revised with
-the help of AI models. All technical statements were checked against the respective
-project documentation and source code. Please verify for yourself before using them
-in production.</sub>
+<sub>The scripts in this folder were researched, written and iteratively revised at pc-fee.com with the help of AI models, and reviewed by a human before publication. All technical statements were checked against the official project documentation and source code. Please verify for yourself before using them in production.</sub>
 
 <sub>[← Back to the overview](../)</sub>

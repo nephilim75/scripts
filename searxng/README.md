@@ -7,7 +7,7 @@
 [![GitHub](https://img.shields.io/badge/GitHub-SearXNG-181717?style=for-the-badge&logo=github)](https://github.com/searxng/searxng)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../LICENSE)
 
-Scripts for the complete life cycle of a self-hosted [SearXNG](https://docs.searxng.org/) metasearch instance — **install**, **update** and **uninstall**. Runs via **Docker Compose** in the shared `shared_proxy` network behind [Nginx Proxy Manager](https://nginxproxymanager.com), with **no publicly bound ports**, and exposes the JSON API so tools like n8n's HTTP Request node can query it directly.
+Scripts for the complete life cycle of a self-hosted [SearXNG](https://docs.searxng.org/) metasearch instance — **install**, **update** and **uninstall**. Runs via **Docker Compose** in the shared `shared_proxy` network behind [Nginx Proxy Manager](https://nginxproxymanager.com), with **no publicly bound ports**. A self-hosted SearXNG is the web search source n8n can be pointed at, so the **AI Assistant and agents there can search the web** — optional, and equally usable from any HTTP client.
 
 ---
 
@@ -36,7 +36,7 @@ Sets up SearXNG from scratch: checks the prerequisites (Docker, Compose, the `sh
 - ✅ Self-hosted SearXNG via Docker Compose in the `shared_proxy` network
 - ✅ No host ports opened — all traffic goes through Nginx Proxy Manager
 - ✅ A generated `secret_key`, so no secret has to be handled by hand
-- ✅ The JSON output format enabled by default, so automations (e.g. an n8n HTTP Request node) can query `/search?format=json` directly
+- ✅ The JSON output format enabled by default — that is what lets n8n use this instance as its web search (the *Add web search* dialog takes the instance URL, no API key) and what makes `/search?format=json` usable from an HTTP Request node
 - ✅ SearXNG's built-in rate-limiter/bot-detection is **deliberately disabled** — see [install/README.md](install/README.md#security) for why, and for the recommended alternative (an NPM Access List)
 - ✅ An update path with version check, backup of the config and confirmation before anything changes
 - ✅ A removal path that shows a full inventory first and asks before deleting anything

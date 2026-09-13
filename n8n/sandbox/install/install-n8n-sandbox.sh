@@ -128,6 +128,15 @@ ask_yesno() {
   [[ "${input,,}" == "j" || "${input,,}" == "y" ]]
 }
 
+detect_public_ipv4() {
+  # Öffentliche IPv4 des Hosts – für den A-Record-Hinweis am Ende.
+  # Zwei Quellen, damit der Ausfall eines Dienstes den Hinweis nicht kippt.
+  local ip
+  ip="$(curl -fsS4 --max-time 5 https://api.ipify.org 2>/dev/null || true)"
+  [[ -z "${ip}" ]] && ip="$(curl -fsS4 --max-time 5 https://ifconfig.me 2>/dev/null || true)"
+  printf '%s' "${ip}"
+}
+
 generate_token() {
   # Erzeugt einen sicheren 48-Zeichen alphanumerischen Token (bewusst ohne
   # Sonderzeichen, damit er in .env / YAML nie Quoting-Probleme verursacht).
@@ -480,7 +489,24 @@ echo -e "───────────────────────�
 echo ""
 echo -e "  ${BOLD}Nächste Schritte:${RESET}"
 echo ""
-echo -e "  1. Richte in deinem ${BOLD}Nginx Proxy Manager${RESET} einen neuen"
+HOST_IPV4="$(detect_public_ipv4)"
+if [[ -n "${HOST_IPV4}" ]]; then
+  echo -e "  1. Setze beim ${BOLD}Domain-Provider${RESET} einen A-Record (Alias)"
+  echo -e "     auf diesen Host:"
+  echo -e "     ${CYAN}${HOST_IPV4}${RESET}   A   (TTL 300)   ${CYAN}${SANDBOX_DOMAIN}${RESET}"
+else
+  echo -e "  1. Setze beim ${BOLD}Domain-Provider${RESET} einen A-Record (Alias)"
+  echo -e "     auf diesen Host:"
+  echo -e "     ${CYAN}<Server-IP>${RESET}   A   (TTL 300)   ${CYAN}${SANDBOX_DOMAIN}${RESET}"
+  echo -e "     ${YELLOW}Server-IP nicht automatisch ermittelbar${RESET} – manuell prüfen,"
+  echo -e "     z.B. mit: ${CYAN}curl -4 ifconfig.me${RESET}"
+fi
+echo -e ""
+echo -e "     Das muss ${BOLD}vor${RESET} dem nächsten Schritt passieren: Let's Encrypt"
+echo -e "     prüft die Domain über genau diesen Eintrag – fehlt er, schlägt"
+echo -e "     die Zertifikatsausstellung im Nginx Proxy Manager fehl."
+echo -e ""
+echo -e "  2. Richte in deinem ${BOLD}Nginx Proxy Manager${RESET} einen neuen"
 echo -e "     Proxy Host ein:"
 echo -e "     ${BOLD}Reiter Details${RESET}:"
 echo -e "     • Domain:           ${CYAN}${SANDBOX_DOMAIN}${RESET}"
@@ -495,10 +521,10 @@ echo -e "     • Force SSL aktivieren"
 echo -e "     • HTTP/2 Support aktivieren"
 echo -e "     • HSTS Enabled aktivieren"
 echo ""
-echo -e "  2. Health Check testen (nach DNS + NPM-Einrichtung):"
+echo -e "  3. Health Check testen (nach DNS + NPM-Einrichtung):"
 echo -e "     ${CYAN}curl https://${SANDBOX_DOMAIN}/healthz${RESET}"
 echo ""
-echo -e "  3. Sandbox in n8n eintragen – im Dialog ${BOLD}\"Add a code sandbox\"${RESET}"
+echo -e "  4. Sandbox in n8n eintragen – im Dialog ${BOLD}\"Add a code sandbox\"${RESET}"
 echo -e "     die Option ${BOLD}n8n Sandbox${RESET} wählen und dort eingeben:"
 echo -e "     ${BOLD}Service URL:${RESET} ${CYAN}https://${SANDBOX_DOMAIN}${RESET}"
 echo -e "     ${BOLD}API key:${RESET}     ${CYAN}${SANDBOX_API_KEYS}${RESET}"

@@ -52,6 +52,15 @@ ask_nodefault() {
   eval "${var}=\"${input}\""
 }
 
+detect_public_ipv4() {
+  # Öffentliche IPv4 des Hosts – für den A-Record-Hinweis am Ende.
+  # Zwei Quellen, damit der Ausfall eines Dienstes den Hinweis nicht kippt.
+  local ip
+  ip="$(curl -fsS4 --max-time 5 https://api.ipify.org 2>/dev/null || true)"
+  [[ -z "${ip}" ]] && ip="$(curl -fsS4 --max-time 5 https://ifconfig.me 2>/dev/null || true)"
+  printf '%s' "${ip}"
+}
+
 generate_token() {
   # Erzeugt einen sicheren 48-Zeichen-Token
   tr -dc 'A-Za-z0-9' </dev/urandom | head -c 48 || true
@@ -354,7 +363,24 @@ echo -e "───────────────────────�
 echo ""
 echo -e "  ${BOLD}Nächste Schritte:${RESET}"
 echo -e ""
-echo -e "  1. Richte in deinem ${BOLD}Nginx Proxy Manager${RESET} einen neuen"
+HOST_IPV4="$(detect_public_ipv4)"
+if [[ -n "${HOST_IPV4}" ]]; then
+  echo -e "  1. Setze beim ${BOLD}Domain-Provider${RESET} einen A-Record (Alias)"
+  echo -e "     auf diesen Host:"
+  echo -e "     ${CYAN}${HOST_IPV4}${RESET}   A   (TTL 300)   ${CYAN}${N8N_DOMAIN}${RESET}"
+else
+  echo -e "  1. Setze beim ${BOLD}Domain-Provider${RESET} einen A-Record (Alias)"
+  echo -e "     auf diesen Host:"
+  echo -e "     ${CYAN}<Server-IP>${RESET}   A   (TTL 300)   ${CYAN}${N8N_DOMAIN}${RESET}"
+  echo -e "     ${YELLOW}Server-IP nicht automatisch ermittelbar${RESET} – manuell prüfen,"
+  echo -e "     z.B. mit: ${CYAN}curl -4 ifconfig.me${RESET}"
+fi
+echo -e ""
+echo -e "     Das muss ${BOLD}vor${RESET} dem nächsten Schritt passieren: Let's Encrypt"
+echo -e "     prüft die Domain über genau diesen Eintrag – fehlt er, schlägt"
+echo -e "     die Zertifikatsausstellung im Nginx Proxy Manager fehl."
+echo -e ""
+echo -e "  2. Richte in deinem ${BOLD}Nginx Proxy Manager${RESET} einen neuen"
 echo -e "     Proxy Host ein:"
 echo -e "     ${BOLD}Reiter Details${RESET}:"
 echo -e "     • Domain:  ${CYAN}${N8N_DOMAIN}${RESET}"
@@ -369,10 +395,10 @@ echo -e "     • Force SSL aktivieren"
 echo -e "     • HTTP/2 Support aktivieren"
 echo -e "     • HSTS Enabled aktivieren"
 echo -e ""
-echo -e "  2. Öffne n8n im Browser:"
+echo -e "  3. Öffne n8n im Browser:"
 echo -e "     ${CYAN}https://${N8N_DOMAIN}${RESET}"
 echo -e ""
-echo -e "  3. Lege deinen Admin-Account an."
+echo -e "  4. Lege deinen Admin-Account an."
 echo -e ""
 echo -e "  ${YELLOW}Wichtig:${RESET} Bewahre deine .env sicher auf:"
 echo -e "  ${CYAN}${INSTALL_DIR}/.env${RESET}"

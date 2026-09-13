@@ -119,6 +119,15 @@ generate_secret() {
   fi
 }
 
+detect_public_ipv4() {
+  # Oeffentliche IPv4 des Hosts - fuer den A-Record-Hinweis am Ende.
+  # Zwei Quellen, damit ein Ausfall eines Dienstes den Hinweis nicht kippt.
+  local ip
+  ip="$(curl -fsS4 --max-time 5 https://api.ipify.org 2>/dev/null || true)"
+  [[ -z "${ip}" ]] && ip="$(curl -fsS4 --max-time 5 https://ifconfig.me 2>/dev/null || true)"
+  printf '%s' "${ip}"
+}
+
 # -- Banner --------------------------------------------------------------------
 clear
 printf '%b' "${CYAN}"
@@ -211,8 +220,11 @@ ask SEARXNG_TAG "SearXNG-Image-Tag" "latest"
 ask TIMEZONE "Zeitzone" "Europe/Berlin"
 
 echo ""
-info "Die JSON-API (/search?format=json) wird fuer Automatisierungen wie n8n"
-info "benoetigt und ist standardmaessig nicht freigegeben."
+info "Optional: Die JSON-API (/search?format=json) wird nur fuer den"
+info "programmatischen Zugriff gebraucht - z.B. wenn du in n8n mit"
+info "AI-Assistant/Agenten arbeitest und diese im Web suchen sollen,"
+info "oder fuer eigene Abfragen per HTTP Request Node. Fuer die reine"
+info "Weboberflaeche im Browser wird sie nicht benoetigt."
 # Unter 'set -e' darf der Rueckgabewert von ask_yesno nicht ungeprueft in $?
 # landen - ein 'nein' (Exit-Code 1) wuerde das Script sonst sofort beenden.
 # Deshalb ueber if/else abfragen statt '$?' auszulesen.
@@ -234,7 +246,7 @@ echo -e " Installationspfad:  ${CYAN}${INSTALL_DIR}${RESET}"
 echo -e " Image-Tag:          ${CYAN}${SEARXNG_TAG}${RESET}"
 echo -e " Zeitzone:           ${CYAN}${TIMEZONE}${RESET}"
 if [[ "${ENABLE_JSON}" -eq 0 ]]; then
-  echo -e " JSON-API:           ${CYAN}aktiviert${RESET} (fuer n8n & Co.)"
+  echo -e " JSON-API:           ${CYAN}aktiviert${RESET} (fuer programmatischen Zugriff)"
 else
   echo -e " JSON-API:           ${YELLOW}deaktiviert${RESET} (nur HTML-Oberflaeche)"
 fi
@@ -330,13 +342,40 @@ printf '%b\n' "${GREEN}${BOLD}#         Installation erfolgreich          #${RES
 printf '%b\n' "${GREEN}${BOLD}#                                           #${RESET}"
 printf '%b\n' "${GREEN}${BOLD}#############################################${RESET}"
 
+HOST_IPV4="$(detect_public_ipv4)"
+
 printf '%b\n' "\n${BLUE}${BOLD}Naechste Schritte${RESET}"
 printf '%b\n' "${BLUE}------------------------------------------------------------${RESET}"
 
 CHECK="${GREEN}✓${RESET}"
+if [[ -n "${HOST_IPV4}" ]]; then
+cat <<DNS
+
+1) Beim Domain-Provider einen A-Record (Alias) auf diesen Host setzen:
+
+   ${HOST_IPV4}   A   (TTL 300)   ${SEARXNG_DOMAIN}
+
+   Das muss VOR Schritt 2 passieren: Let's Encrypt prueft die Domain
+   ueber genau diesen Eintrag - ohne ihn schlaegt die Zertifikats-
+   ausstellung im Nginx Proxy Manager fehl.
+DNS
+else
+  warn "Oeffentliche IPv4 konnte nicht automatisch ermittelt werden."
+cat <<DNS
+
+1) Beim Domain-Provider einen A-Record (Alias) auf diesen Host setzen:
+
+   <Server-IP>   A   (TTL 300)   ${SEARXNG_DOMAIN}
+
+   Server-IP manuell ermitteln (z.B. 'curl -4 ifconfig.me'). Das muss VOR
+   Schritt 2 passieren: Let's Encrypt prueft die Domain ueber genau diesen
+   Eintrag - ohne ihn schlaegt die Zertifikatsausstellung fehl.
+DNS
+fi
+
 cat <<NEXT
 
-1) Proxy Host im Nginx Proxy Manager anlegen
+2) Proxy Host im Nginx Proxy Manager anlegen
    (Hosts -> Proxy Hosts -> Add Proxy Host):
 
    Reiter Details:
@@ -360,13 +399,58 @@ cat <<NEXT
    Erst nach dem Speichern des Proxy Hosts ist die Suche von aussen
    erreichbar - der Container selbst oeffnet keinen Port auf dem Host.
 
-2) Aufrufen:
+3) Aufrufen:
    Weboberflaeche:  https://${SEARXNG_DOMAIN}
 NEXT
 if [[ "${ENABLE_JSON}" -eq 0 ]]; then
 cat <<NEXT
-   JSON-API (n8n):  http://searxng:8080/search?q=<begriff>&format=json
-                    intern im Netzwerk ${PROXY_NETWORK}, ohne Reverse Proxy
+
+4) Optional: SearXNG als Websuche fuer n8n AI-Assistant und Agenten
+
+   Diese SearXNG-Instanz ist die Websuche, die der AI-Assistant und
+   die Agenten in n8n nutzen koennen, um im Web zu recherchieren.
+   Nur relevant, wenn du in n8n damit arbeitest - und auch dann
+   optional. Fuer den normalen n8n-Betrieb (Workflows, Nodes,
+   Webhooks) wird SearXNG nicht gebraucht.
+
+   Beim Einrichten des AI-Assistenten erscheint der Dialog
+   "Add web search" - dort "SearXNG" auswaehlen und diese Instanz
+   als Instance URL eintragen:
+
+     n8n laeuft auf DIESEM Server (Netzwerk ${PROXY_NETWORK}):
+       Instance URL:  http://searxng:8080
+
+     n8n laeuft woanders (anderer Server, anderes Netz, Cloud):
+       Instance URL:  https://${SEARXNG_DOMAIN}
+
+   Ein API-Key wird nicht gebraucht - die Instanz gehoert dir.
+
+   Achtung: Der Dialog hat kein Feld fuer Zugangsdaten. Sicherst du
+   die Domain unten per Access List mit Basic-Auth ab, kommt der
+   AI-Assistent von aussen nicht mehr durch. Dann entweder die
+   interne Instance URL nutzen oder in der Access List mit einer
+   IP-Allowlist statt Basic-Auth arbeiten.
+
+5) Optional: JSON-API direkt abfragen (z.B. n8n HTTP Request Node):
+
+     intern:  http://searxng:8080/search?q=<begriff>&format=json
+     extern:  https://${SEARXNG_DOMAIN}/search?q=<begriff>&format=json
+
+   Methode GET, Query-Parameter 'q' = Suchbegriff, 'format' = json.
+NEXT
+else
+cat <<NEXT
+
+4) JSON-Format ist deaktiviert
+   Die Suche im Browser funktioniert damit ganz normal. Gebraucht
+   wird das JSON-Format nur fuer den programmatischen Zugriff -
+   etwa als Websuche fuer n8ns AI-Assistant/Agenten oder fuer
+   eigene Abfragen per HTTP Request Node.
+
+   Jederzeit nachruestbar: in ${INSTALL_DIR}/config/settings.yml
+   unter 'search: formats:' die Zeile '- json' ergaenzen und
+   neu starten:
+     ${COMPOSE_CMD} -f ${INSTALL_DIR}/docker-compose.yml up -d
 NEXT
 fi
 

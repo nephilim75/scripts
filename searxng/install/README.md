@@ -16,7 +16,7 @@ A guided Bash installer for a self-hosted [SearXNG](https://docs.searxng.org/) m
 This installer builds on and complements the following pc-fee.com guide:
 **[SearXNG (pc-fee.com)](https://pc-fee.com/searxng/)**
 
-> **A deliberate choice: no rate-limiter.** SearXNG ships a built-in rate-limiter/bot-detection that needs a cache backend (Valkey/Redis) to work. This installer turns it **off**, so automations such as an n8n agent calling the JSON API can never be throttled or blocked by SearXNG itself. The trade-off is that the instance then has **no built-in protection** against abuse from the public internet — see [Security](#security) for the recommended mitigation (an NPM Access List) and [Known pitfalls](#known-pitfalls) for the reasoning.
+> **A deliberate choice: no rate-limiter.** SearXNG ships a built-in rate-limiter/bot-detection that needs a cache backend (Valkey/Redis) to work. This installer turns it **off**, so n8n agents and the AI Assistant searching through this instance can never be throttled or blocked by SearXNG itself. The trade-off is that the instance then has **no built-in protection** against abuse from the public internet — see [Security](#security) for the recommended mitigation (an NPM Access List) and [Known pitfalls](#known-pitfalls) for the reasoning.
 
 ---
 
@@ -85,8 +85,16 @@ After installation, create the Proxy Host in Nginx Proxy Manager (Forward
 Hostname `searxng`, Forward Port `8080`) as printed at the end of the run,
 request a Let's Encrypt certificate, then open your domain in the browser.
 
-For programmatic access (e.g. an n8n HTTP Request node), and if you enabled
-the JSON format during install:
+If you enabled the JSON format during install, this instance can serve as
+the web search source for n8n's AI Assistant and agents: in the *Add web
+search* dialog pick **SearXNG** and enter the instance URL — `https://<your-domain>`,
+or `http://searxng:8080` when n8n runs on this same host in the `shared_proxy`
+network. No API key is involved. Note that the dialog has no field for
+credentials, so an Access List using Basic Auth (see [Security](#security)) locks
+the assistant out from outside; use the internal URL or an IP allowlist instead.
+
+The same JSON endpoint is available to any HTTP client, e.g. an n8n HTTP
+Request node:
 
 ```
 GET https://<your-domain>/search?q=<query>&format=json

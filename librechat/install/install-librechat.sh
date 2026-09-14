@@ -41,7 +41,9 @@ fi
 # -----------------------------------------------------------------------------
 # Banner
 # -----------------------------------------------------------------------------
-clear
+# 'clear' scheitert ohne brauchbares TERM - mit 'set -e' wuerde das Script dann
+# ohne erkennbaren Grund abbrechen, deshalb der Fallback.
+clear 2>/dev/null || true
 printf '%b' "${CYAN}"
 cat <<'LOGO'
                   __
@@ -68,8 +70,20 @@ echo "------------------------------------------------------------"
 if command -v git >/dev/null 2>&1; then
   success "git gefunden: $(git --version)"
 else
-  warn "git ist nicht installiert, wird nachinstalliert."
-  command -v apt-get >/dev/null 2>&1 || die "apt-get nicht gefunden (nur Debian 12/13 unterstuetzt)."
+  warn "git ist nicht installiert."
+  echo ""
+  echo "  LibreChat wird aus dem offiziellen Git-Repository geklont - ohne git"
+  echo "  kann dieses Skript nicht fortfahren."
+  echo ""
+  echo "  Installiert wuerde es mit:"
+  echo "    ${SUDO:+${SUDO} }apt-get install -y git"
+  echo ""
+  echo "  Das veraendert die Paketauswahl dieses Systems. Ohne ausdrueckliche"
+  echo "  Zustimmung wird nichts installiert und die Installation bricht ab."
+  echo ""
+  read -rp "git jetzt installieren? [j/N]: " INSTALL_GIT
+  [[ "${INSTALL_GIT,,}" == "j" ]] || die "Abgebrochen - es wurde nichts installiert. Bitte git selbst bereitstellen und das Skript erneut starten."
+  command -v apt-get >/dev/null 2>&1 || die "apt-get nicht gefunden (nur Debian 12/13 unterstuetzt). Bitte git ueber die Paketverwaltung dieses Systems installieren."
   ${SUDO} apt-get install -y git || die "git-Installation fehlgeschlagen."
   command -v git >/dev/null 2>&1 || die "git konnte nicht installiert werden."
   success "git wurde installiert: $(git --version)"
@@ -138,6 +152,18 @@ is_domain() { [[ "$1" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0
 is_email()  { [[ "$1" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; }
 canon_dir() { local d="${1:-}"; d="${d/#\~/$HOME}"; printf '%s' "${d%/}"; }
 rand_hex()  { local n="${1:-64}"; openssl rand -hex "$(( (n + 1) / 2 ))" | cut -c1-"${n}"; }
+# Zeigt ein Geheimnis wiedererkennbar an, ohne es preiszugeben: alles bis auf die
+# letzten drei Zeichen wird durch Sterne ersetzt. Sehr kurze Werte werden
+# vollstaendig maskiert - drei von sechs Zeichen waeren keine Maskierung mehr.
+mask_secret() {
+  local s="${1:-}" n=${#1}
+  if (( n <= 6 )); then
+    printf '%*s' "${n}" '' | tr ' ' '*'
+  else
+    printf '%*s' "$(( n - 3 ))" '' | tr ' ' '*'
+    printf '%s' "${s: -3}"
+  fi
+}
 detect_public_ipv4() {
   local ip
   ip="$(curl -fsS4 --max-time 5 https://api.ipify.org 2>/dev/null || true)"
@@ -412,6 +438,8 @@ printf '     HTTP/2 Support:     %b\n' "${CHECK}"
 printf '     HSTS Enabled:       %b\n' "${CHECK}"
 printf '     HSTS Subdomains:    %b  (falls Subdomains genutzt werden)\n' "${CHECK}"
 
+ADMIN_PASS_MASKED="$(mask_secret "${ADMIN_PASS}")"
+
 cat <<NEXT
 
 3) Login:
@@ -419,7 +447,7 @@ cat <<NEXT
    Admin-Panel: https://${ADMIN_DOMAIN}
    Admin-Username: ${ADMIN_USERNAME}
    Admin-Mail: ${ADMIN_EMAIL}
-   Admin-Passwort: (wie oben vergeben)
+   Admin-Passwort: ${ADMIN_PASS_MASKED}  (maskiert, letzte 3 Zeichen im Klartext)
 
 Wichtige Befehle:
   Logs:    cd ${INSTALL_DIR} && ${COMPOSE_CMD} logs -f

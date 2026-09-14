@@ -163,6 +163,12 @@ curl https://n8n-sandbox.yourdomain.tld/healthz
 
    Assistant and Agents then use the sandbox to run code and work with files.
 
+   **Skipping NPM/DNS entirely:** if n8n itself also runs on the same Docker host in the `shared_proxy` network (e.g. set up with the [n8n installer](../../install) from this repo), you can point n8n straight at the container instead of the public domain — the same way NPM reaches it internally:
+   - **Service URL:** `http://sandbox-api:8080`
+   - **API key:** same as above
+
+   Note it's `http`, not `https` — there's no TLS on that internal port — and the host is the service name, not the domain. This only works if n8n and the sandbox share the `shared_proxy` network on the same host; steps 1–3 (DNS, NPM Proxy Host, health check via the domain) can be skipped in that case.
+
 ---
 
 ## Security Notes

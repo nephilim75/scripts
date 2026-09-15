@@ -24,7 +24,7 @@ Companion to the [install script](../install/README.md) — updates a [LibreChat
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/update/update-librechat.sh)"
 ```
 
-Locates your installation, checks the LibreChat repository and every image in the Compose config for something new, and prints a **NOW → AFTER** summary. If nothing changed it exits with `NOCHANGE` without writing a single byte. Add `-- --dry-run` to walk through the whole run without changing anything (see [Options](#options)).
+Clears the screen, locates your installation and prints a summary of what it found and what it plans to do. Then it checks the repository and every image for something new and shows the **current state next to the future state**, with a version per component. If nothing changed it exits with `NOCHANGE` without writing a single byte. Add `-- --dry-run` to walk through the whole run without changing anything (see [Options](#options)).
 
 ---
 
@@ -42,19 +42,36 @@ The manual route is three commands (`git pull`, `docker compose pull`, `docker c
 
 ## What it does
 
-1. Checks prerequisites (root, Docker running, Docker Compose, `tar`, optionally `git`)
+1. Clears the screen and checks prerequisites (root, Docker running, Docker Compose, `tar`, optionally `git`)
 2. Determines the install path: Compose project label → `/app/.env` and `/app/uploads` bind-mount source → `/opt/librechat`, and asks if several installations exist
-3. Takes inventory: containers and their state, image IDs from `docker compose config --images`, the repository's branch and commit, which config files exist, how many backups there already are
-4. Warns and skips the repository part if tracked files were modified locally, naming the files
+3. **Summary:** install path, Compose files, container count and how many run, repository branch and commit, config files found, existing backups, log file — followed by the five steps it plans to take, and the promise that nothing changes before the confirmation
+4. Warns and skips the repository step if tracked files were modified locally, naming the files
 5. Checks for updates without touching the stack: `git fetch` (`--depth=1` on a shallow clone, so it stays shallow) and `docker compose pull`
-6. Exits with `NOCHANGE` if neither repository nor images moved
-7. Prints a **NOW → AFTER** summary — commit, per-image IDs, what will be backed up, what will be deleted — and asks for confirmation (default: no)
-8. Creates the backup archive: config files plus `mongodump --archive --gzip` of the `LibreChat` database, plus a `manifest.txt`
-9. Runs `git merge --ff-only`, then validates the Compose configuration, then `docker compose up -d`
-10. Keeps the newest `--keep` backups (default 5), prunes dangling images
-11. Reports leftovers it deliberately does not delete — e.g. a `meili_data_*` directory orphaned by a Meilisearch version bump
+6. **Current state → future state:** one line per component with its version — see [How the versions are determined](#how-the-versions-are-determined)
+7. Exits with `NOCHANGE` if neither repository nor images moved
+8. Asks how many backups to keep, lists what it is about to do, and asks for confirmation (default: no)
+9. Creates the backup archive: config files plus `mongodump --archive --gzip` of the `LibreChat` database, plus a `manifest.txt`
+10. Runs `git merge --ff-only`, then validates the Compose configuration, then `docker compose up -d`
+11. Keeps the newest backups as answered above, prunes dangling images
+12. Reports leftovers it deliberately does not delete — e.g. a `meili_data_*` directory orphaned by a Meilisearch version bump
 
 It opens no host ports: the stack keeps the `docker-compose.override.yml` written by the installer, where the published ports are reset and only the NPM network is attached.
+
+---
+
+## How the versions are determined
+
+LibreChat's `api` image is tagged `:latest`, so the tag carries no version. The table therefore builds each line from the most specific source available:
+
+| Component | Version shown | Source |
+|---|---|---|
+| LibreChat | `v0.8.1 (89c2181)` | `version` from `package.json` in the repository, plus the commit — for the future column read out of `git show FETCH_HEAD:package.json` |
+| Admin-Panel, RAG-API | tag, plus the image digest when only the digest moved | Compose config, `docker image inspect` |
+| MongoDB, Meilisearch, pgvector | the pinned tag, e.g. `8.0.20` | Compose config |
+
+The commit is shown next to LibreChat's version on purpose: between two releases the version in `package.json` stays put while `main` keeps moving, so `v0.8.1 → v0.8.1` alone would not tell you whether anything changed.
+
+The future column is read from the **new** Compose file (`git show FETCH_HEAD:docker-compose.yml`), not the current one. That is how a bumped side-service shows up before you agree to anything — a `Meilisearch v1.35.1 → v1.36.0` line is your warning that the search index directory is about to change.
 
 ---
 
@@ -104,7 +121,7 @@ It can be run from any directory — it detects the path to your installation, o
 |---|---|
 | `--dry-run` | Shows every step and what would change, performs no fetch, no pull and no restart |
 | `--dir <path>` / `INSTALL_DIR` | Sets the install path explicitly and skips detection |
-| `--keep <n>` / `KEEP_BACKUPS` | Number of backups to keep (default: 5) |
+| `--keep <n>` / `KEEP_BACKUPS` | Number of backups to keep. Without it the script **asks**, suggesting 5; unattended runs fall back to 5 |
 | `--no-db` | Skips the `mongodump`, backs up the config files only |
 | `--yes` / `ASSUME_YES=1` | Skips the confirmation — for cron |
 | `LOG_FILE` | Log file, default `/var/log/librechat-update.log` |
@@ -133,6 +150,7 @@ Everything from the inventory onwards is appended to `LOG_FILE`, so a cron run l
 - **New `.env` variables are not merged for you.** If upstream adds a setting to `.env.example`, your `.env` keeps working but misses it — the script prints a reminder, the LibreChat changelog has the details.
 - **A Meilisearch version bump leaves the old index directory behind.** The Compose file then points at a new `meili_data_<version>` folder; the old one is reported, never deleted, and can go once the new index has rebuilt.
 - **`mongodump` needs the database container running.** If `mongodb` is stopped the script says so and continues with a config-only backup instead of failing.
+- **`--keep` skips the question.** Passing it (or `KEEP_BACKUPS`) is how you keep a cron run from silently taking the fallback of 5.
 - **The backup lives inside the install directory.** That is fine for a rollback, useless if the disk dies — copy `backups/` off-host if it is your only copy.
 
 ---

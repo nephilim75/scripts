@@ -1,0 +1,8 @@
+# Zeilenenden projektweit festlegen - unabhaengig von core.autocrlf des jeweiligen Rechners.
+# Ohne diese Datei entscheidet jede lokale git-Konfiguration selbst, und ein Commit von
+# einem falsch eingestellten Rechner schiebt CRLF ins Repo. Ein Shell-Skript mit CRLF
+# scheitert auf Linux an der Shebang-Zeile ("bad interpreter"), weil das CR als Teil des
+# Interpreter-Namens gelesen wird.
+
+* text=auto eol=lf
+*.sh text eol=lf

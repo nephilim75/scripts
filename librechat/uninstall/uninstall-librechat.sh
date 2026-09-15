@@ -156,6 +156,9 @@ run() {
 }
 
 # -- Banner --------------------------------------------------------------------
+# 'clear' scheitert ohne brauchbares TERM (z.B. im Cron) - das darf das Script
+# nicht abbrechen, deshalb der Fallback.
+clear 2>/dev/null || true
 printf '%b' "${CYAN}"
 cat <<'LOGO'
                   __

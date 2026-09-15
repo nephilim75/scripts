@@ -29,7 +29,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/libr
 
 The official docs are comprehensive, but you want a repeatable, automated installer that:
 
-- checks prerequisites (Docker, Docker Compose, Nginx Proxy Manager)
+- checks prerequisites (Docker, Docker Compose, Nginx Proxy Manager) and never installs a package behind your back — a missing `git` is reported and installed only after you agree
 - creates required folder structure under `/opt`
 - generates secure `.env` values automatically
 - creates `docker-compose.override.yml` for your NPM network
@@ -42,17 +42,18 @@ The official docs are comprehensive, but you want a repeatable, automated instal
 ## What it does
 
 1. Verifies you have `sudo` or run as `root`
-2. Checks Docker + Docker Compose installed and daemon running
-3. Ensures `shared_proxy` Docker network exists
-4. Checks Nginx Proxy Manager container is running
-5. Detects existing LibreChat installation (prevents overwrite)
-6. Prompts for configuration (paths, domains, admin credentials)
-7. Clones official [LibreChat repository](https://github.com/danny-avila/LibreChat)
-8. Generates secure `.env` (random keys/secrets)
-9. Creates `docker-compose.override.yml` for NPM network
-10. Pulls Docker images and starts all services
-11. Creates admin user automatically
-12. Prints remaining setup steps (DNS, NPM proxy hosts)
+2. Checks `git` — if it is missing, explains what would be installed and **asks for consent**; a no aborts the installation rather than changing the system's packages
+3. Checks Docker + Docker Compose installed and daemon running
+4. Ensures `shared_proxy` Docker network exists
+5. Checks Nginx Proxy Manager container is running
+6. Detects existing LibreChat installation (prevents overwrite)
+7. Prompts for configuration (paths, domains, admin credentials)
+8. Clones official [LibreChat repository](https://github.com/danny-avila/LibreChat)
+9. Generates secure `.env` (random keys/secrets)
+10. Creates `docker-compose.override.yml` for NPM network
+11. Pulls Docker images and starts all services
+12. Creates admin user automatically
+13. Prints remaining setup steps (DNS, NPM proxy hosts), with the admin password shown masked
 
 ---
 
@@ -60,7 +61,8 @@ The official docs are comprehensive, but you want a repeatable, automated instal
 
 - Linux server (Debian 12+)
 - Bash ≥ 5
-- `curl`, `git`
+- `curl`
+- `git` — offered for installation if missing, with your consent; the installer aborts if you decline
 - `docker compose` (v2+)
 - Docker network `shared_proxy` (created by [Nginx Proxy Manager](https://nginxproxymanager.com/))
 - [Nginx Proxy Manager](https://nginxproxymanager.com/) running in `shared_proxy` network
@@ -122,7 +124,7 @@ After successful installation, the script guides you through:
 - **LibreChat Chat:** `https://<CHAT_DOMAIN>`
 - **Admin Panel:** `https://<ADMIN_DOMAIN>`
 - **Username:** Admin email or custom username
-- **Password:** As configured during installation
+- **Password:** As configured during installation. The closing summary prints it **masked**, with only the last three characters in clear text — enough to confirm you typed what you meant, not enough to leak it from a screenshot or a scrollback buffer
 
 ---
 

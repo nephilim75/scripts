@@ -3,15 +3,15 @@
 # LibreChat Update Script - powered by pc-fee.com
 # https://pc-fee.com | https://github.com/nephilim75/scripts
 #
-# Aktualisiert eine mit install-librechat.sh installierte LibreChat-Instanz:
-#   1. Bestandsaufnahme: Installation, Container, Git-Stand, Images, Config
-#   2. Prueft auf Neuerungen: git fetch (Repository) + compose pull (Images);
-#      der laufende Stack bleibt dabei unberuehrt
-#   3. Zeigt eine Zusammenfassung JETZT -> NACHHER und fragt nach Bestaetigung
-#   4. Erst danach: Backup von .env, librechat.yaml,
-#      docker-compose.override.yml und ein mongodump der LibreChat-Datenbank
-#   5. git merge --ff-only, Compose-Validierung, Stack neu hochfahren
-#   6. Behaelt nur die N neuesten Backups (Default: 5), raeumt dangling Images auf
+# Aktualisiert eine mit install-librechat.sh installierte LibreChat-Instanz.
+# Ablauf auf dem Bildschirm:
+#   1. Zusammenfassung - wo liegt die Installation, was ist geplant
+#   2. Pruefung auf Neuerungen (git fetch + compose pull); der laufende Stack
+#      bleibt dabei unberuehrt
+#   3. Aktueller Stand und zukuenftiger Stand mit Versionen je Komponente
+#   4. Rueckfragen: Anzahl aufzubewahrender Backups, dann die Bestaetigung
+#   5. Durchfuehrung: Backup (Konfiguration + mongodump), merge --ff-only,
+#      Compose-Validierung, Stack neu hochfahren, aufraeumen
 #
 # Ohne Bestaetigung wird nichts veraendert. Fuer Cron: --yes bzw. ASSUME_YES=1.
 #
@@ -20,10 +20,10 @@
 #
 # Optionen:
 #   --dir <pfad>   Installationspfad fest vorgeben (ueberspringt die Erkennung)
-#   --keep <n>     Anzahl aufzubewahrender Backups (Default: 5)
+#   --keep <n>     Anzahl aufzubewahrender Backups - ohne Angabe wird gefragt
 #   --no-db        Kein mongodump - nur die Konfigurationsdateien sichern
 #   --dry-run      Zeigt nur, was passieren wuerde - aendert nichts
-#   --yes          Ueberspringt die Bestaetigung (wie ASSUME_YES=1, fuer Cron)
+#   --yes          Ueberspringt die Rueckfragen (wie ASSUME_YES=1, fuer Cron)
 #   --help         Diese Hilfe anzeigen
 #
 # Umgebungsvariablen (fuer unbeaufsichtigten Betrieb, z.B. Cron):
@@ -59,32 +59,36 @@ readonly DEFAULT_DIR="/opt/librechat"
 readonly IMAGE_MARKER="danny-avila/librechat"
 readonly MONGO_DB_NAME="LibreChat"
 readonly BACKUP_PREFIX="librechat"
+readonly DEFAULT_KEEP=5
 
 # -- Optionen ------------------------------------------------------------------
 DRY_RUN=0
 WITH_DB=1
-KEEP="${KEEP_BACKUPS:-5}"
+KEEP=""
+KEEP_EXPLICIT=0
 LOG="${LOG_FILE:-/var/log/librechat-update.log}"
+
+if [[ -n "${KEEP_BACKUPS:-}" ]]; then
+  KEEP="${KEEP_BACKUPS}"
+  KEEP_EXPLICIT=1
+fi
 
 usage() {
   cat <<'USAGE'
 LibreChat Update Script - powered by pc-fee.com
 
-Aktualisiert eine mit install-librechat.sh installierte LibreChat-Instanz:
-Backup (.env, librechat.yaml, docker-compose.override.yml + mongodump),
-git merge --ff-only, Image-Pull, Neustart des Stacks nur bei tatsaechlicher
-Neuerung, Aufraeumen alter Backups und Images.
+Aktualisiert eine mit install-librechat.sh installierte LibreChat-Instanz.
+Zeigt erst eine Zusammenfassung, danach den aktuellen und den zukuenftigen
+Stand mit Versionen je Komponente, und fragt dann nach - vorher wird nichts
+veraendert.
 
 Optionen:
   --dir <pfad>   Installationspfad fest vorgeben (ueberspringt die Erkennung)
-  --keep <n>     Anzahl aufzubewahrender Backups (Default: 5)
+  --keep <n>     Anzahl aufzubewahrender Backups - ohne Angabe wird gefragt
   --no-db        Kein mongodump - nur die Konfigurationsdateien sichern
   --dry-run      Zeigt nur, was passieren wuerde - aendert nichts
-  --yes          Ueberspringt die Bestaetigung (wie ASSUME_YES=1, fuer Cron)
+  --yes          Ueberspringt die Rueckfragen (wie ASSUME_YES=1, fuer Cron)
   --help         Diese Hilfe anzeigen
-
-Das Script zeigt erst eine Zusammenfassung (JETZT -> NACHHER) und fragt nach,
-bevor Backup, Repository-Update und Neustart starten.
 
 Umgebungsvariablen: INSTALL_DIR, KEEP_BACKUPS, ASSUME_YES, LOG_FILE
 
@@ -99,8 +103,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dir)     INSTALL_DIR="${2:-}"; shift 2 || true ;;
     --dir=*)   INSTALL_DIR="${1#*=}"; shift ;;
-    --keep)    KEEP="${2:-}"; shift 2 || true ;;
-    --keep=*)  KEEP="${1#*=}"; shift ;;
+    --keep)    KEEP="${2:-}"; KEEP_EXPLICIT=1; shift 2 || true ;;
+    --keep=*)  KEEP="${1#*=}"; KEEP_EXPLICIT=1; shift ;;
     --no-db)   WITH_DB=0; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --yes|-y)  ASSUME_YES=1; shift ;;
@@ -108,13 +112,16 @@ while [[ $# -gt 0 ]]; do
     *)         echo "Unbekannte Option: $1 (siehe --help)" >&2; exit 1 ;;
   esac
 done
-readonly DRY_RUN WITH_DB
+readonly DRY_RUN WITH_DB KEEP_EXPLICIT
 
-if ! [[ "${KEEP}" =~ ^[0-9]+$ ]] || [[ "${KEEP}" -lt 1 ]]; then
-  echo "--keep erwartet eine positive Ganzzahl (erhalten: '${KEEP}')." >&2
-  exit 1
+# Ein ausdruecklich gesetzter Wert wird sofort geprueft - ein Tippfehler im
+# Cron-Eintrag soll nicht erst nach dem Backup auffallen.
+if [[ "${KEEP_EXPLICIT}" -eq 1 ]]; then
+  if ! [[ "${KEEP}" =~ ^[0-9]+$ ]] || [[ "${KEEP}" -lt 1 ]]; then
+    echo "--keep erwartet eine positive Ganzzahl (erhalten: '${KEEP}')." >&2
+    exit 1
+  fi
 fi
-readonly KEEP
 
 # -- Eingabequelle -------------------------------------------------------------
 # Wird das Script per 'curl ... | bash' gestartet, liegt auf stdin der Script-
@@ -158,6 +165,28 @@ ask_yesno() {
   [[ "${input,,}" == "j" || "${input,,}" == "y" ]]
 }
 
+# ask_number <prompt> <default> -> gibt die Zahl auf stdout aus.
+# Leere Eingabe uebernimmt den Vorschlag; ohne Terminal wird er kommentarlos
+# verwendet, damit ein Cron-Lauf nicht an einer Rueckfrage haengen bleibt.
+ask_number() {
+  local prompt="$1" default="$2" input=""
+  if [[ "${INTERACTIVE}" -eq 0 || "${ASSUME_YES:-0}" == "1" ]]; then
+    printf '%s' "${default}"
+    return 0
+  fi
+  while :; do
+    echo "" >&2
+    echo -ne "${BOLD}${prompt}${RESET} [${CYAN}${default}${RESET}]: " >&2
+    read -r input <"${TTY}" || true
+    input="${input:-${default}}"
+    if [[ "${input}" =~ ^[0-9]+$ ]] && [[ "${input}" -ge 1 ]]; then
+      printf '%s' "${input}"
+      return 0
+    fi
+    echo -e "${YELLOW}[WARN]${RESET}  Bitte eine ganze Zahl ab 1 eingeben." >&2
+  done
+}
+
 # run <befehl...> - im Dry-Run nur anzeigen, sonst ausfuehren.
 run() {
   if [[ "${DRY_RUN}" -eq 1 ]]; then
@@ -168,6 +197,9 @@ run() {
 }
 
 # -- Banner --------------------------------------------------------------------
+# 'clear' scheitert ohne brauchbares TERM (z.B. im Cron) - das darf das Script
+# nicht abbrechen, deshalb der Fallback.
+clear 2>/dev/null || true
 printf '%b' "${CYAN}"
 cat <<'LOGO'
                   __
@@ -266,7 +298,6 @@ if [[ -n "${INSTALL_DIR:-}" ]]; then
   [[ -d "${INSTALL_DIR}" ]] || die "Angegebener Pfad existiert nicht: ${INSTALL_DIR}"
   compose_file_of "${INSTALL_DIR}" >/dev/null \
     || die "In ${INSTALL_DIR} liegt keine Compose-Datei mit einem ${IMAGE_MARKER}-Image."
-  info "Installationspfad (vorgegeben): ${INSTALL_DIR}"
 else
   mapfile -t FOUND < <(detect_dirs)
   case "${#FOUND[@]}" in
@@ -275,7 +306,6 @@ else
       ;;
     1)
       INSTALL_DIR="${FOUND[0]}"
-      info "Installation erkannt: ${INSTALL_DIR}"
       ;;
     *)
       echo ""
@@ -320,53 +350,35 @@ dc_run() {
 
 # -- Logging -------------------------------------------------------------------
 # Ab hier alles zusaetzlich in die Logdatei schreiben (wichtig fuer Cron-Laeufe).
+LOG_ACTIVE=0
 if [[ "${DRY_RUN}" -eq 0 ]]; then
   if ! touch "${LOG}" 2>/dev/null; then
     warn "Logdatei ${LOG} nicht beschreibbar - Ausgabe nur auf der Konsole."
   else
     exec > >(tee -a "${LOG}") 2>&1
+    LOG_ACTIVE=1
   fi
 fi
+readonly LOG_ACTIVE
 
-echo ""
-echo "------------------------------------------------------------"
-echo -e "${BOLD} Update${RESET}  $(date '+%F %T')"
-echo "------------------------------------------------------------"
-echo -e " Installation:  ${CYAN}${INSTALL_DIR}${RESET}"
-echo -e " Compose-Datei: ${CYAN}${COMPOSE_FILE}${RESET}"
-[[ -f "${INSTALL_DIR}/docker-compose.override.yml" ]] \
-  && echo -e " Override:      ${CYAN}${INSTALL_DIR}/docker-compose.override.yml${RESET}"
-echo -e " Backups:       ${CYAN}${BACKUP_DIR}${RESET} (die letzten ${KEEP})"
-echo ""
+# -- Daten fuer die Zusammenfassung sammeln ------------------------------------
+CONTAINERS_TOTAL=0
+CONTAINERS_RUNNING=0
+while IFS= read -r line; do
+  [[ -n "${line}" ]] || continue
+  CONTAINERS_TOTAL=$((CONTAINERS_TOTAL + 1))
+  [[ "${line}" == *running* ]] && CONTAINERS_RUNNING=$((CONTAINERS_RUNNING + 1))
+done < <(dc ps -a --format '{{.Service}} {{.State}}' 2>/dev/null || true)
 
-# -- Bestandsaufnahme ----------------------------------------------------------
-echo "------------------------------------------------------------"
-echo -e "${BOLD} Bestandsaufnahme${RESET}"
-echo "------------------------------------------------------------"
-
-CONTAINERS=$(dc ps -a --format '{{.Name}} ({{.State}})' 2>/dev/null || true)
-if [[ -n "${CONTAINERS}" ]]; then
-  info "Container:"
-  while IFS= read -r c; do [[ -n "$c" ]] && echo -e "   - ${CYAN}${c}${RESET}"; done <<<"${CONTAINERS}"
-else
-  warn "Kein Container zu dieser Compose-Datei gefunden (gestoppt oder entfernt?)."
-fi
-
-# Image-Referenzen kommen aus der Compose-Config, damit auch gepinnte Tags und
-# das Admin-Panel-Image mitgenommen werden.
-mapfile -t IMAGES < <(dc config --images 2>/dev/null | sort -u || true)
-[[ "${#IMAGES[@]}" -gt 0 ]] || die "Konnte die Image-Liste nicht aus der Compose-Config lesen. Stimmen .env und Override-Datei?"
-
-declare -A OLD_IDS=()
-info "Images laut Compose-Config:"
-for img in "${IMAGES[@]}"; do
-  OLD_IDS["${img}"]="$(docker image inspect "${img}" -f '{{.Id}}' 2>/dev/null || true)"
-  if [[ -n "${OLD_IDS[${img}]}" ]]; then
-    echo -e "   - ${CYAN}${img}${RESET} (${OLD_IDS[${img}]:7:12})"
-  else
-    echo -e "   - ${CYAN}${img}${RESET} ${YELLOW}(lokal noch nicht vorhanden)${RESET}"
-  fi
+declare -a CONFIG_ITEMS=()
+for item in .env librechat.yaml docker-compose.override.yml; do
+  [[ -e "${INSTALL_DIR}/${item}" ]] && CONFIG_ITEMS+=("${item}")
 done
+
+BACKUP_COUNT=0
+if [[ -d "${BACKUP_DIR}" ]]; then
+  BACKUP_COUNT=$(find "${BACKUP_DIR}" -maxdepth 1 -name "${BACKUP_PREFIX}_*.tar.gz" -type f 2>/dev/null | wc -l | tr -d ' ')
+fi
 
 # Git-Stand. Der Installer legt die Installation als flachen Clone an, deshalb
 # spaeter '--depth=1' beim Fetch - sonst wuerde aus dem flachen Clone still ein
@@ -379,73 +391,108 @@ GIT_DIRTY=""
 if [[ "${HAVE_GIT}" -eq 1 && -d "${INSTALL_DIR}/.git" ]]; then
   GIT_OK=1
   GIT_BRANCH="$(git -C "${INSTALL_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo HEAD)"
-  if [[ "${GIT_BRANCH}" == "HEAD" ]]; then
-    GIT_BRANCH="${LIBRECHAT_BRANCH:-main}"
-    warn "Repository haengt in einem Detached HEAD - es wird gegen '${GIT_BRANCH}' geprueft."
-  fi
+  [[ "${GIT_BRANCH}" == "HEAD" ]] && GIT_BRANCH="${LIBRECHAT_BRANCH:-main}"
   GIT_OLD="$(git -C "${INSTALL_DIR}" rev-parse HEAD 2>/dev/null || true)"
   GIT_OLD_DATE="$(git -C "${INSTALL_DIR}" log -1 --format=%cd --date=short 2>/dev/null || true)"
   GIT_DIRTY="$(git -C "${INSTALL_DIR}" status --porcelain --untracked-files=no 2>/dev/null || true)"
-  info "Repository: Branch ${GIT_BRANCH}, Stand ${GIT_OLD:0:7} (${GIT_OLD_DATE:-unbekannt})"
-  if [[ -n "${GIT_DIRTY}" ]]; then
-    warn "Lokal geaenderte, versionierte Dateien im Repository:"
-    while IFS= read -r l; do [[ -n "$l" ]] && echo -e "   ${YELLOW}${l}${RESET}"; done <<<"${GIT_DIRTY}"
-    warn "Das Repository-Update wird deshalb uebersprungen - nur die Images werden aktualisiert."
-    warn "Aufloesen mit: git -C ${INSTALL_DIR} checkout -- <datei>   (verwirft die Aenderung)"
-  fi
-elif [[ "${HAVE_GIT}" -eq 0 ]]; then
-  warn "git ist nicht installiert - nur die Images koennen aktualisiert werden."
-else
-  warn "Kein Git-Repository unter ${INSTALL_DIR} - nur die Images koennen aktualisiert werden."
-fi
-
-# Zu sichernde Konfigurationsdateien. Alle drei stehen in LibreChats offizieller
-# .gitignore (.env*, librechat.yaml, docker-compose.override.yml) und werden von
-# einem Repository-Update daher nicht angefasst - gesichert werden sie trotzdem,
-# weil sie die einzigen nicht reproduzierbaren Dateien der Installation sind.
-declare -a BACKUP_ITEMS=()
-for item in .env librechat.yaml docker-compose.override.yml; do
-  [[ -e "${INSTALL_DIR}/${item}" ]] && BACKUP_ITEMS+=("${item}")
-done
-if [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]]; then
-  info "Zu sichernde Konfiguration: ${BACKUP_ITEMS[*]}"
-else
-  warn "Keine der erwarteten Konfigurationsdateien gefunden (.env, librechat.yaml, docker-compose.override.yml)."
 fi
 
 # mongodump laeuft im laufenden mongodb-Container. Ohne laufenden Container gibt
 # es keinen konsistenten Dump - dann wird nur die Konfiguration gesichert.
 DB_DUMP=0
-if [[ "${WITH_DB}" -eq 1 ]]; then
+DB_DUMP_REASON=""
+if [[ "${WITH_DB}" -eq 0 ]]; then
+  DB_DUMP_REASON="per --no-db abgeschaltet"
+else
   MONGO_STATE="$(dc ps -a --format '{{.Service}} {{.State}}' 2>/dev/null | awk '$1=="mongodb"{print $2}' || true)"
   if [[ "${MONGO_STATE}" != "running" ]]; then
-    warn "Der Service 'mongodb' laeuft nicht (Status: ${MONGO_STATE:-nicht vorhanden}) - es wird kein Datenbank-Dump erstellt."
+    DB_DUMP_REASON="Service 'mongodb' laeuft nicht (Status: ${MONGO_STATE:-nicht vorhanden})"
   elif ! dc exec -T mongodb sh -c 'command -v mongodump' >/dev/null 2>&1; then
-    warn "'mongodump' ist im mongodb-Container nicht verfuegbar - es wird kein Datenbank-Dump erstellt."
+    DB_DUMP_REASON="'mongodump' im mongodb-Container nicht verfuegbar"
   else
     DB_DUMP=1
-    info "Datenbank-Dump: mongodump der Datenbank '${MONGO_DB_NAME}' (ohne Downtime)"
   fi
-else
-  info "Datenbank-Dump per --no-db abgeschaltet - es wird nur die Konfiguration gesichert."
 fi
+readonly DB_DUMP
 
-BACKUP_COUNT=0
-if [[ -d "${BACKUP_DIR}" ]]; then
-  BACKUP_COUNT=$(find "${BACKUP_DIR}" -maxdepth 1 -name "${BACKUP_PREFIX}_*.tar.gz" -type f 2>/dev/null | wc -l | tr -d ' ')
-fi
-info "Vorhandene Backups: ${BACKUP_COUNT} in ${BACKUP_DIR} (es werden ${KEEP} behalten)"
-
-# -- Auf Neuerungen pruefen ----------------------------------------------------
-# Beides veraendert den laufenden Stack nicht: der Fetch schreibt nur in
-# .git/, der Pull laedt hoechstens Image-Layer. Alles, was den Dienst
-# tatsaechlich anfasst, passiert erst nach der Bestaetigung weiter unten.
+# -- 1. Zusammenfassung --------------------------------------------------------
 echo ""
+echo "============================================================"
+echo -e "${BOLD} ZUSAMMENFASSUNG${RESET}   $(date '+%F %T')"
+echo "============================================================"
+printf ' %-16s %s\n' "Installation:" "${INSTALL_DIR}"
+printf ' %-16s %s\n' "Compose-Datei:" "$(basename "${COMPOSE_FILE}")$( [[ -f "${INSTALL_DIR}/docker-compose.override.yml" ]] && echo " + docker-compose.override.yml" )"
+if [[ "${CONTAINERS_TOTAL}" -gt 0 ]]; then
+  printf ' %-16s %s\n' "Container:" "${CONTAINERS_TOTAL} (davon ${CONTAINERS_RUNNING} laufend)"
+else
+  printf ' %-16s %s\n' "Container:" "keine gefunden - gestoppt oder entfernt?"
+fi
+if [[ "${GIT_OK}" -eq 1 ]]; then
+  printf ' %-16s %s\n' "Repository:" "Branch ${GIT_BRANCH}, Stand ${GIT_OLD:0:7} vom ${GIT_OLD_DATE:-unbekannt}"
+elif [[ "${HAVE_GIT}" -eq 0 ]]; then
+  printf ' %-16s %s\n' "Repository:" "git nicht installiert - nur Images werden aktualisiert"
+else
+  printf ' %-16s %s\n' "Repository:" "kein Git-Repository - nur Images werden aktualisiert"
+fi
+printf ' %-16s %s\n' "Konfiguration:" "${CONFIG_ITEMS[*]:-keine der erwarteten Dateien gefunden}"
+printf ' %-16s %s\n' "Backups:" "${BACKUP_COUNT} vorhanden in ${BACKUP_DIR}"
+[[ "${LOG_ACTIVE}" -eq 1 ]] && printf ' %-16s %s\n' "Logdatei:" "${LOG}"
+
+echo ""
+echo -e " ${BOLD}Geplante Schritte${RESET}"
+echo "   1. Auf Neuerungen pruefen (Repository und Images) - ohne Eingriff"
+if [[ "${DB_DUMP}" -eq 1 ]]; then
+  echo "   2. Backup: ${CONFIG_ITEMS[*]:-Konfiguration} + mongodump der Datenbank '${MONGO_DB_NAME}'"
+else
+  echo -e "   2. Backup: ${CONFIG_ITEMS[*]:-Konfiguration} ${YELLOW}(ohne Datenbank-Dump: ${DB_DUMP_REASON})${RESET}"
+fi
+echo "   3. Repository per 'git merge --ff-only' aktualisieren"
+echo "   4. Compose-Konfiguration pruefen und den Stack neu hochfahren"
+echo "   5. Alte Backups entfernen, dangling Images aufraeumen"
+
+if [[ -n "${GIT_DIRTY}" ]]; then
+  echo ""
+  warn "Lokal geaenderte, versionierte Dateien im Repository:"
+  while IFS= read -r l; do [[ -n "$l" ]] && echo -e "   ${YELLOW}${l}${RESET}"; done <<<"${GIT_DIRTY}"
+  warn "Schritt 3 entfaellt deshalb - es werden nur die Images aktualisiert."
+  warn "Aufloesen mit: git -C ${INSTALL_DIR} checkout -- <datei>   (verwirft die Aenderung)"
+fi
+
+echo ""
+echo -e " ${BOLD}Bis zur Rueckfrage wird nichts veraendert.${RESET}"
+
+# -- 2. Auf Neuerungen pruefen -------------------------------------------------
+# Beides veraendert den laufenden Stack nicht: der Fetch schreibt nur in .git/,
+# der Pull laedt hoechstens Image-Layer.
+echo ""
+echo "------------------------------------------------------------"
+echo -e "${BOLD} Pruefe auf Neuerungen${RESET}"
+echo "------------------------------------------------------------"
+
+# Image-Referenzen der aktuellen Compose-Config - Grundlage fuer den Vergleich.
+mapfile -t IMAGES_NOW < <(dc config --images 2>/dev/null | sort -u || true)
+[[ "${#IMAGES_NOW[@]}" -gt 0 ]] || die "Konnte die Image-Liste nicht aus der Compose-Config lesen. Stimmen .env und Override-Datei?"
+
+declare -A OLD_IDS=()
+for img in "${IMAGES_NOW[@]}"; do
+  OLD_IDS["${img}"]="$(docker image inspect "${img}" -f '{{.Id}}' 2>/dev/null || true)"
+done
+
+# LibreChats eigene Versionsnummer steht in der package.json des Repositorys.
+# Zwischen zwei Releases bleibt sie auf 'main' gleich, waehrend sich der Code
+# bewegt - deshalb wird sie immer zusammen mit dem Commit-Kurzhash gezeigt.
+version_from_package_json() {
+  sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1
+}
+LC_VER_NOW=""
+[[ -f "${INSTALL_DIR}/package.json" ]] && LC_VER_NOW="$(version_from_package_json <"${INSTALL_DIR}/package.json" || true)"
+LC_VER_NEW="${LC_VER_NOW}"
+
 GIT_NEW=""
 GIT_NEW_DATE=""
 GIT_CHANGED=0
 if [[ "${GIT_OK}" -eq 1 && -z "${GIT_DIRTY}" ]]; then
-  info "Pruefe das Repository auf neue Commits (git fetch)..."
+  info "Repository (git fetch)..."
   if [[ "$(git -C "${INSTALL_DIR}" rev-parse --is-shallow-repository 2>/dev/null || echo false)" == "true" ]]; then
     run git -C "${INSTALL_DIR}" fetch --depth=1 origin "${GIT_BRANCH}"
   else
@@ -454,12 +501,15 @@ if [[ "${GIT_OK}" -eq 1 && -z "${GIT_DIRTY}" ]]; then
   if [[ "${DRY_RUN}" -eq 0 ]]; then
     GIT_NEW="$(git -C "${INSTALL_DIR}" rev-parse FETCH_HEAD 2>/dev/null || true)"
     GIT_NEW_DATE="$(git -C "${INSTALL_DIR}" log -1 --format=%cd --date=short FETCH_HEAD 2>/dev/null || true)"
-    [[ -n "${GIT_NEW}" && "${GIT_NEW}" != "${GIT_OLD}" ]] && GIT_CHANGED=1
+    if [[ -n "${GIT_NEW}" && "${GIT_NEW}" != "${GIT_OLD}" ]]; then
+      GIT_CHANGED=1
+      LC_VER_NEW="$(git -C "${INSTALL_DIR}" show FETCH_HEAD:package.json 2>/dev/null | version_from_package_json || true)"
+      [[ -n "${LC_VER_NEW}" ]] || LC_VER_NEW="${LC_VER_NOW}"
+    fi
   fi
 fi
 
-info "Pruefe auf neue Images (${COMPOSE_CMD} pull)..."
-info "Es werden nur Layer geladen - die laufenden Container bleiben unberuehrt."
+info "Images (${COMPOSE_CMD} pull) - es werden nur Layer geladen..."
 dc_run pull
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
@@ -467,77 +517,144 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo "------------------------------------------------------------"
   echo -e "${YELLOW}${BOLD} DRY-RUN beendet - es wurde nichts veraendert.${RESET}"
   echo "------------------------------------------------------------"
-  echo -e " Ob es Neuerungen gibt, laesst sich ohne Fetch/Pull nicht feststellen -"
-  echo -e " beides wurde uebersprungen. Bei einer Neuerung wuerde nach einer"
-  echo -e " Rueckfrage folgen:"
-  echo -e "   1. Backup nach ${CYAN}${BACKUP_DIR}/${BACKUP_PREFIX}_<zeitstempel>.tar.gz${RESET}"
-  [[ "${GIT_OK}" -eq 1 ]] && echo -e "   2. ${CYAN}git -C ${INSTALL_DIR} merge --ff-only FETCH_HEAD${RESET}"
-  echo -e "   3. ${CYAN}${COMPOSE_CMD} up -d${RESET} im Verzeichnis ${INSTALL_DIR}"
-  echo -e "   4. Backups ueber ${KEEP} hinaus entfernen, dangling Images aufraeumen"
+  echo -e " Ob es Neuerungen gibt, laesst sich ohne Fetch und Pull nicht"
+  echo -e " feststellen - beides wurde uebersprungen, deshalb entfaellt hier"
+  echo -e " auch die Gegenueberstellung der Versionen."
   echo ""
   exit 0
 fi
 
+# Nach dem Pull: neue Image-IDs. Bringt das Repository-Update neue Image-Tags
+# mit (z.B. eine hoehere Meilisearch-Version), stehen die in der Compose-Datei
+# des neuen Stands - deshalb wird sie fuer die Spalte NACHHER mitgelesen.
 declare -A NEW_IDS=()
 IMAGES_CHANGED=0
-for img in "${IMAGES[@]}"; do
+for img in "${IMAGES_NOW[@]}"; do
   NEW_IDS["${img}"]="$(docker image inspect "${img}" -f '{{.Id}}' 2>/dev/null || true)"
   [[ -n "${NEW_IDS[${img}]}" ]] || die "Image ${img} ist nach dem Pull nicht lokal vorhanden."
   [[ "${OLD_IDS[${img}]}" != "${NEW_IDS[${img}]}" ]] && IMAGES_CHANGED=1
 done
 
+mapfile -t IMAGES_NEXT < <(
+  if [[ "${GIT_CHANGED}" -eq 1 ]]; then
+    git -C "${INSTALL_DIR}" show "FETCH_HEAD:$(basename "${COMPOSE_FILE}")" 2>/dev/null \
+      | sed -n 's/^[[:space:]]*image:[[:space:]]*["'"'"']\{0,1\}\([^"'"'"'[:space:]]*\)["'"'"']\{0,1\}.*/\1/p' | sort -u
+  fi
+)
+[[ "${#IMAGES_NEXT[@]}" -gt 0 ]] || IMAGES_NEXT=("${IMAGES_NOW[@]}")
+
+# -- 3. Aktueller und zukuenftiger Stand ---------------------------------------
+# Ordnet ein Image einer lesbaren Komponente zu. Reihenfolge der Muster zaehlt:
+# das RAG-Image enthaelt ebenfalls "danny-avila/librechat".
+component_of() {
+  case "$1" in
+    *librechat-rag-api*)     echo "10 RAG-API" ;;
+    *librechat-admin-panel*) echo "02 Admin-Panel" ;;
+    *"${IMAGE_MARKER}"*)     echo "01 LibreChat" ;;
+    mongo:*|*/mongo:*)       echo "03 MongoDB" ;;
+    *meilisearch*)           echo "04 Meilisearch" ;;
+    *pgvector*)              echo "05 Vektor-DB (pgvector)" ;;
+    *)                       echo "20 ${1##*/}" ;;
+  esac
+}
+# Tag eines Image-Verweises. Ein Doppelpunkt im Registry-Teil (host:port) darf
+# nicht als Tag missverstanden werden, deshalb die Pruefung auf '/'.
+tag_of() {
+  local ref="$1" tail="${1##*:}"
+  [[ "${ref}" == *:* && "${tail}" != */* ]] && printf '%s' "${tail}" || printf 'latest'
+}
+
+declare -A COMP_NOW=() COMP_NEXT=()
+declare -a COMP_KEYS=()
+for img in "${IMAGES_NOW[@]}";  do key="$(component_of "${img}")"; COMP_NOW["${key}"]="${img}";  done
+for img in "${IMAGES_NEXT[@]}"; do key="$(component_of "${img}")"; COMP_NEXT["${key}"]="${img}"; done
+while IFS= read -r key; do COMP_KEYS+=("${key}"); done < <(
+  printf '%s\n' "${!COMP_NOW[@]}" "${!COMP_NEXT[@]}" | sort -u
+)
+
+echo ""
+echo "============================================================"
+echo -e "${BOLD} AKTUELLER STAND  ->  ZUKUENFTIGER STAND${RESET}"
+echo "============================================================"
+printf ' %-22s %-24s %-24s\n' "Komponente" "JETZT" "NACHHER"
+printf ' %-22s %-24s %-24s\n' "----------------------" "------------------------" "------------------------"
+
+for key in "${COMP_KEYS[@]}"; do
+  name="${key#* }"
+  img_now="${COMP_NOW[${key}]:-}"
+  img_next="${COMP_NEXT[${key}]:-${img_now}}"
+  [[ -n "${img_now}" ]] || img_now="${img_next}"
+
+  if [[ "${name}" == "LibreChat" ]]; then
+    ver_now="${LC_VER_NOW:-$(tag_of "${img_now}")} (${GIT_OLD:0:7})"
+    ver_next="${LC_VER_NEW:-$(tag_of "${img_next}")} ($( [[ "${GIT_CHANGED}" -eq 1 ]] && echo "${GIT_NEW:0:7}" || echo "${GIT_OLD:0:7}" ))"
+  else
+    ver_now="$(tag_of "${img_now}")"
+    ver_next="$(tag_of "${img_next}")"
+    # Gleicher Tag, aber neues Image: nur am Digest erkennbar.
+    if [[ "${img_now}" == "${img_next}" && -n "${OLD_IDS[${img_now}]:-}" \
+          && "${OLD_IDS[${img_now}]:-}" != "${NEW_IDS[${img_now}]:-}" ]]; then
+      ver_now="${ver_now} (${OLD_IDS[${img_now}]:7:8})"
+      ver_next="${ver_next} (${NEW_IDS[${img_now}]:7:8})"
+    fi
+  fi
+
+  changed=0
+  [[ "${ver_now}" != "${ver_next}" ]] && changed=1
+  [[ "${img_now}" != "${img_next}" ]] && changed=1
+  if [[ "${changed}" -eq 1 ]]; then
+    printf ' %-22s %-24s %b%-24s%b %b\n' "${name}" "${ver_now}" "${GREEN}" "${ver_next}" "${RESET}" "${GREEN}<- neu${RESET}"
+  else
+    printf ' %-22s %-24s %-24s\n' "${name}" "${ver_now}" "${ver_next}"
+  fi
+done
+
+echo ""
+if [[ "${GIT_OK}" -eq 1 ]]; then
+  if [[ "${GIT_CHANGED}" -eq 1 ]]; then
+    echo -e " Repository:  ${GIT_OLD:0:7} (${GIT_OLD_DATE:-unbekannt})  ->  ${GREEN}${GIT_NEW:0:7} (${GIT_NEW_DATE:-unbekannt})${RESET}"
+  elif [[ -n "${GIT_DIRTY}" ]]; then
+    echo -e " Repository:  ${GIT_OLD:0:7} - ${YELLOW}Update uebersprungen (lokale Aenderungen)${RESET}"
+  else
+    echo -e " Repository:  ${GIT_OLD:0:7} (${GIT_OLD_DATE:-unbekannt}) - unveraendert"
+  fi
+fi
+
 # -- Nichts Neues: hier ist Schluss, ohne irgendetwas anzufassen ----------------
 if [[ "${GIT_CHANGED}" -eq 0 && "${IMAGES_CHANGED}" -eq 0 ]]; then
   echo ""
   echo "------------------------------------------------------------"
-  success "NOCHANGE: bereits aktuell (Repository ${GIT_OLD:0:7}, alle Images unveraendert)"
+  success "NOCHANGE: bereits aktuell - kein Backup, kein Neustart, keine Aenderung."
   echo "------------------------------------------------------------"
-  echo -e " Kein Backup, kein Neustart, keine Aenderung am Stack."
   echo ""
   exit 0
 fi
 
-# -- Zusammenfassung -----------------------------------------------------------
+# -- 4. Rueckfragen ------------------------------------------------------------
+echo ""
+echo "------------------------------------------------------------"
+echo -e "${BOLD} Rueckfragen${RESET}"
+echo "------------------------------------------------------------"
+
+if [[ "${KEEP_EXPLICIT}" -eq 1 ]]; then
+  info "Aufzubewahrende Backups: ${KEEP} (per --keep bzw. KEEP_BACKUPS vorgegeben)."
+else
+  KEEP="$(ask_number "Wie viele Backups sollen aufbewahrt werden?" "${DEFAULT_KEEP}")"
+  if [[ "${INTERACTIVE}" -eq 0 || "${ASSUME_YES:-0}" == "1" ]]; then
+    info "Keine Rueckfrage moeglich - es werden ${KEEP} Backups aufbewahrt (mit --keep aenderbar)."
+  fi
+fi
+readonly KEEP
+
 TS=$(date +%F_%H-%M-%S)
 BACKUP_FILE="${BACKUP_DIR}/${BACKUP_PREFIX}_${TS}.tar.gz"
-
 mapfile -t DROP_BACKUPS < <(ls -1t "${BACKUP_DIR}"/${BACKUP_PREFIX}_*.tar.gz 2>/dev/null | tail -n "+${KEEP}" || true)
 
 echo ""
-echo "------------------------------------------------------------"
-echo -e "${BOLD} Zusammenfassung${RESET}"
-echo "------------------------------------------------------------"
-echo -e " Installation:  ${CYAN}${INSTALL_DIR}${RESET}"
-echo ""
-if [[ "${GIT_OK}" -eq 1 ]]; then
-  if [[ "${GIT_CHANGED}" -eq 1 ]]; then
-    echo -e " ${BOLD}Repository${RESET}"
-    echo -e "   JETZT      ${GIT_OLD:0:7}  (${GIT_OLD_DATE:-unbekannt})"
-    echo -e "   NACHHER    ${GREEN}${GIT_NEW:0:7}${RESET}  (${GIT_NEW_DATE:-unbekannt})  ${GREEN}<- neu${RESET}"
-  elif [[ -n "${GIT_DIRTY}" ]]; then
-    echo -e " ${BOLD}Repository${RESET}  ${YELLOW}uebersprungen (lokale Aenderungen)${RESET}"
-  else
-    echo -e " ${BOLD}Repository${RESET}  unveraendert (${GIT_OLD:0:7})"
-  fi
-  echo ""
-fi
-echo -e " ${BOLD}Images${RESET}"
-for img in "${IMAGES[@]}"; do
-  if [[ "${OLD_IDS[${img}]}" != "${NEW_IDS[${img}]}" ]]; then
-    # Image-IDs beginnen mit "sha256:" - fuer die Anzeige die ersten 12 Zeichen
-    # des eigentlichen Digests, wie es auch 'docker images' zeigt.
-    old_short="${OLD_IDS[${img}]:7:12}"
-    echo -e "   ${GREEN}neu${RESET}           ${img}"
-    echo -e "                 ${old_short:-(noch nicht vorhanden)} -> ${GREEN}${NEW_IDS[${img}]:7:12}${RESET}"
-  else
-    echo -e "   unveraendert  ${img}"
-  fi
-done
-echo ""
-echo -e " ${BOLD}Es wird:${RESET}"
-if [[ "${#BACKUP_ITEMS[@]}" -gt 0 || "${DB_DUMP}" -eq 1 ]]; then
+echo -e " ${BOLD}Es wird jetzt:${RESET}"
+if [[ "${#CONFIG_ITEMS[@]}" -gt 0 || "${DB_DUMP}" -eq 1 ]]; then
   echo -ne "   1. gesichert nach ${CYAN}$(basename "${BACKUP_FILE}")${RESET}: "
-  [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]] && echo -n "${BACKUP_ITEMS[*]}"
+  [[ "${#CONFIG_ITEMS[@]}" -gt 0 ]] && echo -n "${CONFIG_ITEMS[*]}"
   [[ "${DB_DUMP}" -eq 1 ]] && echo -n " + mongodump (${MONGO_DB_NAME})"
   echo ""
 else
@@ -557,40 +674,35 @@ else
 fi
 echo -e "   5. dangling Images auf diesem Host aufgeraeumt"
 echo ""
-echo -e " ${BOLD}Unveraendert bleibt:${RESET}"
-echo -e "   - ${CYAN}.env${RESET}, ${CYAN}librechat.yaml${RESET} und ${CYAN}docker-compose.override.yml${RESET}"
-echo -e "     (stehen in LibreChats .gitignore und werden vom Merge nicht beruehrt)"
-echo -e "   - deine Chats, Nutzer und Dateien in ${CYAN}data-node/${RESET}, ${CYAN}uploads/${RESET}, ${CYAN}images/${RESET}"
-echo -e "   - das Docker-Netzwerk und alle anderen Stacks darauf"
-echo ""
+echo -e " ${BOLD}Unveraendert bleibt:${RESET} .env, librechat.yaml und die Override-Datei"
+echo -e " (stehen in LibreChats .gitignore), deine Chats und Dateien in data-node/,"
+echo -e " uploads/ und images/, sowie das Docker-Netzwerk mit allen anderen Stacks."
 
-# -- Bestaetigung --------------------------------------------------------------
-echo "------------------------------------------------------------"
 if ! ask_yesno "${BOLD}Update jetzt durchfuehren?${RESET}" "n"; then
   warn "Abgebrochen. Es wurde nichts veraendert."
   echo -e " Geladene Images und Commits liegen lokal und werden beim naechsten Lauf verwendet."
   exit 0
 fi
 
-# -- Durchfuehrung -------------------------------------------------------------
+# -- 5. Durchfuehrung ----------------------------------------------------------
 echo ""
 echo "------------------------------------------------------------"
 echo -e "${BOLD} Durchfuehrung${RESET}"
 echo "------------------------------------------------------------"
 
-if [[ "${#BACKUP_ITEMS[@]}" -gt 0 || "${DB_DUMP}" -eq 1 ]]; then
+if [[ "${#CONFIG_ITEMS[@]}" -gt 0 || "${DB_DUMP}" -eq 1 ]]; then
   info "Erstelle Backup..."
   mkdir -p "${BACKUP_DIR}"
   chmod 700 "${BACKUP_DIR}"
   STAGE="$(mktemp -d "${BACKUP_DIR}/.tmp-backup-XXXXXX")" || die "Konnte kein temporaeres Verzeichnis anlegen."
   trap 'rm -rf "${STAGE}"' EXIT
 
-  if [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]]; then
+  if [[ "${#CONFIG_ITEMS[@]}" -gt 0 ]]; then
     mkdir -p "${STAGE}/config"
-    for item in "${BACKUP_ITEMS[@]}"; do
+    for item in "${CONFIG_ITEMS[@]}"; do
       cp -a "${INSTALL_DIR}/${item}" "${STAGE}/config/"
     done
-    success "Konfiguration gesichert: ${BACKUP_ITEMS[*]}"
+    success "Konfiguration gesichert: ${CONFIG_ITEMS[*]}"
   fi
 
   if [[ "${DB_DUMP}" -eq 1 ]]; then
@@ -608,8 +720,9 @@ if [[ "${#BACKUP_ITEMS[@]}" -gt 0 || "${DB_DUMP}" -eq 1 ]]; then
     echo "ERSTELLT=${TS}"
     echo "HOST=$(hostname 2>/dev/null || echo unbekannt)"
     echo "INSTALL_DIR=${INSTALL_DIR}"
+    echo "LIBRECHAT_VERSION=${LC_VER_NOW:-unbekannt}"
     echo "GIT_COMMIT_VOR_UPDATE=${GIT_OLD:-unbekannt}"
-    echo "KONFIGURATION=${BACKUP_ITEMS[*]:-keine}"
+    echo "KONFIGURATION=${CONFIG_ITEMS[*]:-keine}"
     echo "DATENBANK=$( [[ "${DB_DUMP}" -eq 1 ]] && echo "mongodump-${MONGO_DB_NAME}.archive.gz" || echo "nicht gesichert" )"
   } > "${STAGE}/manifest.txt"
 
@@ -647,7 +760,11 @@ success "Compose-Konfiguration ist gueltig."
 
 info "Fahre den Stack neu hoch..."
 dc up -d
-success "UPDATED: $( [[ "${GIT_CHANGED}" -eq 1 ]] && echo "${GIT_OLD:0:7} -> ${GIT_NEW:0:7}" || echo "Images aktualisiert" )"
+if [[ "${GIT_CHANGED}" -eq 1 ]]; then
+  success "UPDATED: LibreChat ${LC_VER_NOW:-?} (${GIT_OLD:0:7}) -> ${LC_VER_NEW:-?} (${GIT_NEW:0:7})"
+else
+  success "UPDATED: Images aktualisiert, Repository unveraendert (${GIT_OLD:0:7})"
+fi
 
 echo ""
 dc ps || true

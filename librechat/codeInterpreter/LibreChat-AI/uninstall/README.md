@@ -18,13 +18,7 @@ Reverses the [Code Interpreter install script](../install/README.md): the eight 
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/LibreChat-AI/uninstall/uninstall-avila-code-interpreter.sh)"
 ```
 
-Detects the installation, prints a full inventory with sizes, and asks separately for every destructive step. Prompts are read from `/dev/tty`, so the one-liner works despite the script itself arriving on stdin.
-
-Run it once as a preview first — same inventory, same commands, nothing deleted:
-
-```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/LibreChat-AI/uninstall/uninstall-avila-code-interpreter.sh)" -- --dry-run
-```
+Detects the installation, prints a full inventory with sizes, and asks separately for every destructive step. Prompts are read from `/dev/tty`, so the one-liner works despite the script itself arriving on stdin. Add `-- --dry-run` to see the whole run without deleting anything (see [Options](#options)).
 
 ---
 

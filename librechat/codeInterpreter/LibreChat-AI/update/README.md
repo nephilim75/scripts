@@ -1,10 +1,10 @@
 # 🔄 Code Interpreter Update Script
 
-[🏠 Overview](../../../../) → [💬 LibreChat](../../../) → [🧩 Code Interpreter](../../) → [LibreChat-AI](../) → Update
+[🏠 Overview](../../../../) → [💬 LibreChat](../../../) → [🧩 Code Interpreter](../../) → [🚀 LibreChat-AI](../) → Update
 
 [![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/) [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs) [![GitHub](https://img.shields.io/badge/GitHub-code--interpreter-181717?style=for-the-badge&logo=github)](https://github.com/LibreChat-AI/code-interpreter) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../../LICENSE)
 
-[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#) [![Ports](https://img.shields.io/badge/Host--ports-none%20opened-2E7D32?style=flat-square)](#security) [![Dry-run](https://img.shields.io/badge/Dry--run-supported-2E7D32?style=flat-square)](#options) [![Backup](https://img.shields.io/badge/Backup-before%20every%20run-2E7D32?style=flat-square)](#what-gets-backed-up)
+[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#) [![Ports](https://img.shields.io/badge/Host--ports-none%20opened-2E7D32?style=flat-square)](#security) [![Re-runnable](https://img.shields.io/badge/Re--runnable-yes-2E7D32?style=flat-square)](#what-it-does) [![Backup](https://img.shields.io/badge/Backup-before%20every%20run-2E7D32?style=flat-square)](#what-gets-backed-up) [![Dry-run](https://img.shields.io/badge/Dry--run-supported-2E7D32?style=flat-square)](#options)
 
 Companion script to the [Code Interpreter install script](../install/README.md) — updates an existing installation to the current upstream source, **rebuilds the locally built images**, regenerates the patched NsJail sandbox launcher when upstream changes it, and brings the stack back up behind the Nginx Proxy Manager. **No host port is ever published.**
 
@@ -18,13 +18,7 @@ Companion script to the [Code Interpreter install script](../install/README.md) 
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/LibreChat-AI/update/update-avila-code-interpreter.sh)"
 ```
 
-Finds the installation on its own, prints the current and the future state per component, and asks once before anything changes. Prompts are read from `/dev/tty`, so the one-liner works despite the script itself arriving on stdin.
-
-Want to see what would happen without changing anything first?
-
-```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/LibreChat-AI/update/update-avila-code-interpreter.sh)" -- --dry-run
-```
+Finds the installation on its own, prints the current and the future state per component, and asks once before anything changes. Prompts are read from `/dev/tty`, so the one-liner works despite the script itself arriving on stdin. Add `-- --dry-run` to walk through the whole run without changing anything (see [Options](#options)).
 
 ---
 

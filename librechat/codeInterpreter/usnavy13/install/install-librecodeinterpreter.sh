@@ -25,6 +25,20 @@ warn()    { printf '%b\n' "${YELLOW}[WARN]${RESET}  $*"; }
 error()   { printf '%b\n' "${RED}[FEHLER]${RESET} $*"; }
 die()     { error "$*"; exit 1; }
 
+# -- Eingabequelle -------------------------------------------------------------
+# 'read' ohne Umleitung liest von stdin. Beim dokumentierten Aufruf
+# (sudo bash -c "$(curl -fsSL ...)") ist stdin noch das Terminal - wird das
+# Skript stattdessen wie "curl ... | sudo bash" aufgerufen, landet der Rest
+# des Skripttexts auf stdin und 'read' verschluckt ihn statt einer echten
+# Eingabe (die Domain-Abfrage wuerde dann endlos "Ungueltige Domain." melden,
+# ohne dass je eine echte Eingabe ankommen koennte).
+if { : </dev/tty; } 2>/dev/null; then
+  TTY=/dev/tty
+else
+  die "Kein Terminal fuer interaktive Eingaben verfuegbar. Bitte das Skript lokal herunterladen und ausfuehren, oder mit 'sudo bash -c \"\$(curl -fsSL ...)\"' aufrufen (nicht per 'curl | bash')."
+fi
+readonly TTY
+
 readonly REPO_URL="https://github.com/usnavy13/LibreCodeInterpreter.git"
 readonly DEFAULT_INSTALL_DIR="/opt/LibreCodeInterpreter"
 readonly DEFAULT_NPM_NETWORK="shared_proxy"
@@ -92,14 +106,14 @@ detect_public_ipv4() {
 printf '%b\n' "\n${BOLD}Schritt 1: Konfiguration${RESET}"
 echo "------------------------------------------------------------"
 
-read -rp "Docker-Netzwerk des Nginx Proxy Managers [${DEFAULT_NPM_NETWORK}]: " NPM_NETWORK
+read -rp "Docker-Netzwerk des Nginx Proxy Managers [${DEFAULT_NPM_NETWORK}]: " NPM_NETWORK <"${TTY}"
 NPM_NETWORK="${NPM_NETWORK:-${DEFAULT_NPM_NETWORK}}"
 ${SUDO} docker network inspect "${NPM_NETWORK}" >/dev/null 2>&1 \
   || die "Docker-Netzwerk '${NPM_NETWORK}' existiert nicht. Anleitung: ${NPM_GUIDE}"
 success "Docker-Netzwerk '${NPM_NETWORK}' gefunden."
 
 while :; do
-  read -rp "Domain fuer den Code-Interpreter (z.B. code.example.de): " DOMAIN
+  read -rp "Domain fuer den Code-Interpreter (z.B. code.example.de): " DOMAIN <"${TTY}"
   is_domain "${DOMAIN}" && break || warn "Ungueltige Domain."
 done
 
@@ -107,7 +121,7 @@ printf '%b\n' "\n${BOLD}Zusammenfassung${RESET}"
 echo "------------------------------------------------------------"
 printf 'Installationspfad: %s\nDomain:            %s\nNPM-Netzwerk:      %s\n' \
   "${DEFAULT_INSTALL_DIR}" "${DOMAIN}" "${NPM_NETWORK}"
-read -rp "Installation starten? [j/N]: " CONFIRM
+read -rp "Installation starten? [j/N]: " CONFIRM <"${TTY}"
 [[ "${CONFIRM,,}" == "j" ]] || { warn "Abgebrochen (keine oder verneinende Eingabe)."; exit 0; }
 
 # -----------------------------------------------------------------------------

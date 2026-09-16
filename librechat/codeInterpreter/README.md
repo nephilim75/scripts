@@ -1,60 +1,70 @@
-# 🚀 LibreChat-AI
+# 🚀 usnavy13
 
-[🏠 Overview](../../../) → [💬 LibreChat](../../) → [🧩 Code Interpreter](../) → LibreChat-AI
+[🏠 Overview](../../../../) → [💬 LibreChat](../../../) → [🧩 Code Interpreter](../../) → usnavy13
 
-[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/) [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs) [![GitHub](https://img.shields.io/badge/GitHub-code--interpreter-181717?style=for-the-badge&logo=github)](https://github.com/LibreChat-AI/code-interpreter) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/) [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs) [![GitHub](https://img.shields.io/badge/GitHub-LibreCodeInterpreter-181717?style=for-the-badge&logo=github)](https://github.com/usnavy13/LibreCodeInterpreter) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../../LICENSE)
 
-Installs, updates and removes `LibreChat-AI/code-interpreter` — a fork of `ClickHouse/code-interpreter` maintained by the LibreChat team — in a fully hardened configuration (MicroVM + NsJail, signed execution manifests) behind an Nginx Proxy Manager. Covers the complete life cycle: **install**, **update** and **uninstall**.
+This folder contains the lifecycle scripts for the **LibreCodeInterpreter** variant of the LibreChat Code Interpreter. LibreCodeInterpreter is an independent add-on that gives LibreChat the ability to execute generated Python code in a sandboxed environment.
 
-> **Don't get confused:** the folder name "LibreChat-AI" refers to the GitHub organisation this interpreter project lives under. It is **not** LibreChat itself, but an extension for it.
+The scripts here install, update, and cleanly remove the stack under `/opt/LibreCodeInterpreter`. The service is always placed behind an existing Nginx Proxy Manager and does not bind any host ports.
 
 ---
 
-## 🚀 Quick Install
+## Quick Install
 
 ```bash
-sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/LibreChat-AI/install/install-avila-code-interpreter.sh)"
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/usnavy13/install/install-librecodeinterpreter.sh)"
 ```
 
-The installer walks you through everything and aborts with a clear message if something is missing. Updating and removing it again are one-liners too — see [update](update/README.md) and [uninstall](uninstall/README.md).
+This installs LibreCodeInterpreter behind your existing Nginx Proxy Manager. After the installation, create an API key in the dashboard and add it to LibreChat's `.env`.
 
 ---
 
-## 📂 Structure
+## Structure
 
 | Folder | Description |
 |--------|-------------|
-| [install](install/README.md) | Sets up the interpreter: MicroVM or NsJail, JWT-signed jobs, local or external mode |
-| [uninstall](uninstall/README.md) | Removes an installation completely, with a dry-run mode and separate confirmations |
-| [update](update/README.md) | Rebuilds from the current upstream source, with backup and confirmation |
+| [install](install/README.md) | Install LibreCodeInterpreter as a new stack. |
+| [update](update/README.md) | Update an existing LibreCodeInterpreter installation. |
+| [uninstall](uninstall/README.md) | Completely remove LibreCodeInterpreter. |
 
 ---
 
-## ✨ What You Get
+## What You Get
 
-- ✅ MicroVM isolation (own guest kernel) when `/dev/kvm` is available, NsJail sandboxing as a fallback
-- ✅ Execution manifests signed with Ed25519, and optional JWT-signed jobs from LibreChat
-- ✅ No host port ever published — all access via Docker networks or the Nginx Proxy Manager
-- ✅ Local mode (same server as LibreChat) or external mode (own domain)
-- ✅ An update path with a current-vs-future summary, config backup, and confirmation before anything rebuilds
-- ✅ A removal path with a full inventory first and separate confirmations for data, backups and images
+- ✅ A self-hosted code-execution backend for LibreChat
+- ✅ No host ports opened — access only through the `shared_proxy` Docker network
+- ✅ Automatic generation of the `MASTER_API_KEY`
+- ✅ Domain validation and Nginx Proxy Manager integration hints
+- ✅ Backup before every update
+- ✅ Clean uninstall with separate confirmation steps
 
 ---
 
-## 🔗 References
+## Security
 
-- [Install script](install/README.md) · [Update script](update/README.md) · [Uninstall script](uninstall/README.md)
-- [code-interpreter (GitHub)](https://github.com/LibreChat-AI/code-interpreter)
-- [Security Disclaimer](https://github.com/LibreChat-AI/code-interpreter#security-disclaimer)
+- The stack does not expose ports on the host. All traffic flows through Nginx Proxy Manager.
+- The `MASTER_API_KEY` is generated randomly and shown once at the end of the installation.
+- The API key used by LibreChat is embedded in the URL and may appear in NPM access logs. Rotate it in the dashboard if needed.
+- All lifecycle scripts require root or `sudo`.
+
+---
+
+## References
+
+- [LibreCodeInterpreter (GitHub)](https://github.com/usnavy13/LibreCodeInterpreter)
+- [SECURITY.md](https://github.com/usnavy13/LibreCodeInterpreter/blob/main/docs/SECURITY.md)
+- [Official LibreChat](https://www.librechat.ai/)
 - [LibreChat Docs](https://www.librechat.ai/docs)
 - [Nginx Proxy Manager](https://nginxproxymanager.com/)
+- [Docker Compose Docs](https://docs.docker.com/compose/)
 - [pc-fee.com Blog](https://pc-fee.com/blog)
 
 ---
 
 ## License
 
-This project is licensed under the MIT License — see the [LICENSE](../../../LICENSE) file in the repository root.
+This project is licensed under the MIT License — see the [LICENSE](../../../../LICENSE) file in the repository root.
 
 <sub>The scripts in this folder were researched, written and iteratively revised at pc-fee.com with the help of AI models, and reviewed by a human before publication. All technical statements were checked against the official project documentation and source code. Please verify for yourself before using them in production.</sub>
 

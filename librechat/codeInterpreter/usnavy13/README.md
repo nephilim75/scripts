@@ -2,17 +2,9 @@
 
 [🏠 Overview](../../../) → [💬 LibreChat](../../) → [🧩 Code Interpreter](../) → usnavy13
 
-[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
-[![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
-[![GitHub](https://img.shields.io/badge/GitHub-LibreCodeInterpreter-181717?style=for-the-badge&logo=github)](https://github.com/usnavy13/LibreCodeInterpreter)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/) [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs) [![GitHub](https://img.shields.io/badge/GitHub-LibreCodeInterpreter-181717?style=for-the-badge&logo=github)](https://github.com/usnavy13/LibreCodeInterpreter) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
 
-[![Sandbox](https://img.shields.io/badge/Sandbox-NsJail-2E7D32?style=flat-square)](#security)
-[![Auth](https://img.shields.io/badge/Auth-API--key-2E7D32?style=flat-square)](#the-two-keys--dont-mix-them-up)
-[![Ports](https://img.shields.io/badge/Host--ports-none-2E7D32?style=flat-square)](#security)
-[![Tested](https://img.shields.io/badge/Tested-Debian%2012%20%7C%2013-A81D33?style=flat-square&logo=debian&logoColor=white)](#prerequisites)
-[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
-[![Idempotent](https://img.shields.io/badge/Re--runnable-guarded-2E7D32?style=flat-square)](#quick-install)
+[![Sandbox](https://img.shields.io/badge/Sandbox-NsJail-2E7D32?style=flat-square)](#security) [![Auth](https://img.shields.io/badge/Auth-API--key-2E7D32?style=flat-square)](#the-two-keys--dont-mix-them-up) [![Ports](https://img.shields.io/badge/Host--ports-none-2E7D32?style=flat-square)](#security) [![Tested](https://img.shields.io/badge/Tested-Debian%2012%20%7C%2013-A81D33?style=flat-square&logo=debian&logoColor=white)](#prerequisites) [![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#) [![Idempotent](https://img.shields.io/badge/Re--runnable-guarded-2E7D32?style=flat-square)](#quick-install)
 
 Installs `usnavy13/LibreCodeInterpreter` behind an Nginx Proxy Manager — the lean
 option: prebuilt images, a few minutes of installation time, no compiling.
@@ -35,6 +27,16 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/
 
 The script checks all prerequisites first and aborts with a clear message if
 something is missing. It never overwrites anything that already exists.
+
+---
+
+## 📂 Structure
+
+| Folder | Description |
+|--------|-------------|
+| [install](install/README.md) | Install LibreCodeInterpreter as a new stack. |
+| [uninstall](uninstall/README.md) | Completely remove LibreCodeInterpreter. |
+| [update](update/README.md) | Update an existing LibreCodeInterpreter installation. |
 
 ---
 
@@ -311,6 +313,6 @@ first.
 This project is licensed under the MIT License — see the
 [LICENSE](../../../LICENSE) file in the repository root.
 
-<sub>This script was researched, written and iteratively revised at pc-fee.com with the help of AI models, and reviewed by a human before publication. All technical statements were checked against the official project documentation and source code. Please verify for yourself before using it in production.</sub>
+<sub>The scripts in this folder were researched, written and iteratively revised at pc-fee.com with the help of AI models, and reviewed by a human before publication. All technical statements were checked against the official project documentation and source code. Please verify for yourself before using them in production.</sub>
 
 <sub>[← Back to the overview](../)</sub>

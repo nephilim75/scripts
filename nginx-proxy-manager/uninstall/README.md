@@ -2,17 +2,11 @@
 
 [🏠 Overview](../../) → [🌐 Nginx Proxy Manager](../) → Uninstall
 
-[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
-[![Guide](https://img.shields.io/badge/Guide-Nginx%20Proxy%20Manager-FE5200?style=for-the-badge)](https://pc-fee.com/nginx-proxy-manager/)
-[![Docs](https://img.shields.io/badge/Docs-nginxproxymanager.com-2496ED?style=for-the-badge)](https://nginxproxymanager.com/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/) [![Guide](https://img.shields.io/badge/Guide-Nginx%20Proxy%20Manager-FE5200?style=for-the-badge)](https://pc-fee.com/nginx-proxy-manager/) [![Docs](https://img.shields.io/badge/Docs-nginxproxymanager.com-2496ED?style=for-the-badge)](https://nginxproxymanager.com/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
-[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#requirements)
-[![Host-ports](https://img.shields.io/badge/Host--ports-none%20opened-2E7D32?style=flat-square)](#what-it-does)
-[![Re-runnable](https://img.shields.io/badge/Re--runnable-yes-2E7D32?style=flat-square)](#what-it-does)
-[![Dry-run](https://img.shields.io/badge/Dry--run-supported-2E7D32?style=flat-square)](#options)
+[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#requirements) [![Host-ports](https://img.shields.io/badge/Host--ports-none%20opened-2E7D32?style=flat-square)](#what-it-does) [![Re-runnable](https://img.shields.io/badge/Re--runnable-yes-2E7D32?style=flat-square)](#what-it-does) [![Dry-run](https://img.shields.io/badge/Dry--run-supported-2E7D32?style=flat-square)](#options)
 
-Companion to the [install script](../install/README.md) — removes a [Nginx Proxy Manager](https://nginxproxymanager.com/) instance completely: containers, the install directory (`data/`, `letsencrypt/`, the Compose file), and on request the backups and the Docker images. Like the installer and the [update script](../update/README.md), it runs **from anywhere** and finds the installation itself.
+Companion to the [install script](../install/README.md) — removes a [Nginx Proxy Manager](https://nginxproxymanager.com/) instance completely: containers, the install directory (`data/` including the admin Proxy Host the installer created, `letsencrypt/`, the Compose file), and on request the backups and the Docker images. Like the installer and the [update script](../update/README.md), it runs **from anywhere** and finds the installation itself.
 
 > Destructive by design: `data/` holds the SQLite database with **all Proxy Hosts, access lists and credentials**, `letsencrypt/` holds **all issued certificates**. There is no built-in undo. Run it with `--dry-run` first.
 
@@ -33,7 +27,7 @@ Locates your installation, shows a full inventory of what it found, then asks fo
 - shows an inventory first — containers, directory contents, number and size of backups, matching images — so nothing is a surprise
 - up to three separate confirmations, each defaulting to "no": data, backups, images
 - can **keep your backups**: if you decline that question, `backups/` is moved next to the install directory instead of being deleted with it
-- never touches the `shared_proxy` network; it lists the other containers still attached to it and points out that they stay up but lose their reverse proxy
+- never touches the proxy network (`shared_proxy`, or whatever name NPM is attached to — it is read from the container); it lists the other containers still attached to it and points out that they stay up but lose their reverse proxy
 - points out leftovers it deliberately does not touch, such as a cron entry for the update script
 - runs from anywhere via a one-liner, and refuses to delete anything unattended unless you explicitly pass `ASSUME_YES`
 
@@ -44,13 +38,13 @@ Locates your installation, shows a full inventory of what it found, then asks fo
 1. Checks prerequisites (root, Docker running, Docker Compose available)
 2. Determines the install path the same way the [update script](../update/README.md#how-it-finds-your-installation) does, and asks if several installations exist
 3. If no install directory is left but NPM containers still exist, offers to clean up those orphans instead of silently doing nothing
-4. Shows an inventory: containers, `data/`, `letsencrypt/`, the Compose file, backup count and size, matching local images, plus other containers on `shared_proxy`
+4. Shows an inventory: containers, `data/`, `letsencrypt/`, the Compose file, backup count and size, matching local images, plus other containers on the proxy network
 5. Asks for confirmation before anything is removed (default: no)
 6. Runs `compose down --remove-orphans`, or removes orphaned containers individually if no Compose file is left
 7. Moves `backups/` out of the way, unless you chose to delete it too
 8. Optionally removes the `nginx-proxy-manager` images (asked separately, also defaults to no)
 9. Removes the install directory
-10. Reports leftovers: a `update-npm.sh` cron entry and `/var/log/npm-update.log` are named but never touched
+10. Reports leftovers: a `update-npm.sh` cron entry and `/var/log/npm-update.log` are named but never touched, and it reminds you of DNS records outside the host
 
 It opens no host ports, and re-running it on an already clean host simply reports that there is nothing to do.
 
@@ -103,9 +97,9 @@ sudo INSTALL_DIR=/opt/nginx-proxy-manager ASSUME_YES=1 bash -c "$(curl -fsSL htt
 
 ## What's left alone, on purpose
 
-- **The `shared_proxy` Docker network** — shared with n8n, LibreChat and anything else you proxied. Removing it would break those stacks' Compose files, so it stays.
+- **The proxy network (default `shared_proxy`)** — shared with n8n, LibreChat and anything else you proxied. Removing it would break those stacks' Compose files, so it stays.
 - **Containers of other stacks** — they keep running, but with the proxy gone they are no longer reachable from outside. Either set up a new reverse proxy or bind their ports directly.
-- **Your DNS records and firewall rules** — nothing outside this host is touched.
+- **Your DNS records and firewall rules** — nothing outside this host is touched. This includes the A record for the admin domain the installer asked for; remove it at your DNS provider if you no longer need it. Issued certificates simply expire.
 - **A cron entry for `update-npm.sh`** — reported with a reminder to remove it via `crontab -e`, never edited automatically.
 - **`/var/log/npm-update.log`** — kept, so you still have the update history.
 

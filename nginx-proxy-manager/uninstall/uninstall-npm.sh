@@ -8,7 +8,7 @@
 # Hosts, letsencrypt/ mit allen Zertifikaten, docker-compose.yml), auf Wunsch
 # die Backups und die Docker-Images.
 #
-# Das Docker-Netzwerk "shared_proxy" wird NICHT angefasst - es wird von
+# Das Proxy-Netzwerk (Standard "shared_proxy") wird NICHT angefasst - es wird von
 # weiteren Stacks (n8n, LibreChat, ...) mitgenutzt. Diese Container laufen
 # nach dem Entfernen weiter, sind aber von aussen nicht mehr erreichbar.
 #
@@ -44,7 +44,8 @@ BOLD='\033[1m'
 RESET='\033[0m'
 
 # -- Konstanten ----------------------------------------------------------------
-readonly PROXY_NETWORK="shared_proxy"
+readonly DEFAULT_PROXY_NETWORK="shared_proxy"
+PROXY_NETWORK="${DEFAULT_PROXY_NETWORK}"
 readonly DEFAULT_DIR="/opt/nginx-proxy-manager"
 readonly INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/nephilim75/scripts/main/nginx-proxy-manager/install/install-npm.sh"
 
@@ -156,7 +157,7 @@ echo -e " Entfernt eine mit ${BOLD}install-npm.sh${RESET} installierte NPM-Insta
 echo -e " Container, Installationsverzeichnis (${BOLD}data/${RESET} mit allen Proxy Hosts,"
 echo -e " ${BOLD}letsencrypt/${RESET} mit allen Zertifikaten), auf Wunsch Backups und Images."
 echo ""
-echo -e " ${YELLOW}Wird NICHT angefasst:${RESET} das Docker-Netzwerk ${BOLD}${PROXY_NETWORK}${RESET} und"
+echo -e " ${YELLOW}Wird NICHT angefasst:${RESET} das Proxy-Netzwerk (Standard ${BOLD}${DEFAULT_PROXY_NETWORK}${RESET}) und"
 echo -e " die Container anderer Stacks (n8n, LibreChat, ...)."
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo ""
@@ -319,7 +320,16 @@ if [[ -d "${INSTALL_DIR}/backups" ]]; then
   echo -e "     ${YELLOW}+- backups/${RESET}     - ${BACKUP_COUNT} Backup(s), ${BACKUP_SIZE} (separate Abfrage)"
 fi
 
-# Andere Container am shared_proxy-Netz: die verlieren ihren Reverse Proxy.
+# Proxy-Netzwerk aus dem NPM-Container lesen (install-npm.sh erlaubt einen
+# anderen Namen als shared_proxy). Fallback: shared_proxy.
+if [[ "${#NPM_CONTAINERS[@]}" -gt 0 ]]; then
+  DETECTED_NET=$(docker inspect --format '{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{"\n"}}{{end}}' "${NPM_CONTAINERS[0]}" 2>/dev/null \
+    | grep -vE '^(bridge|host|none)?$' | grep -v '_default$' | head -n 1 || true)
+  [[ -n "${DETECTED_NET}" ]] && PROXY_NETWORK="${DETECTED_NET}"
+fi
+readonly PROXY_NETWORK
+
+# Andere Container am Proxy-Netz: die verlieren ihren Reverse Proxy.
 OTHERS=""
 if docker network inspect "${PROXY_NETWORK}" &>/dev/null; then
   OTHERS=$(docker network inspect "${PROXY_NETWORK}" \
@@ -427,6 +437,11 @@ echo ""
 echo -e " Unangetastet geblieben: Netzwerk ${CYAN}${PROXY_NETWORK}${RESET} und alle Container"
 echo -e " anderer Stacks. Diese sind ohne Reverse Proxy nicht mehr von aussen"
 echo -e " erreichbar - entweder neuen Proxy aufsetzen oder Ports direkt binden."
+echo ""
+echo -e " ${BOLD}Ausserhalb dieses Servers bleibt bestehen:${RESET}"
+echo -e "   - DNS-Eintraege (A-Records) fuer die Admin-Domain und alle Proxy Hosts"
+echo -e "   - die bei Let's Encrypt ausgestellten Zertifikate laufen einfach aus"
+echo -e " Nicht mehr benoetigte DNS-Eintraege bitte beim DNS-Anbieter entfernen."
 echo ""
 
 # Uebrig gebliebene Reste, die dieses Script bewusst nicht anfasst.

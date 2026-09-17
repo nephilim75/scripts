@@ -5,11 +5,17 @@
 #
 # Aktualisiert eine mit install-npm.sh installierte NPM-Instanz:
 #   1. Bestandsaufnahme: Installation, Container, aktuelles Image, Datenmengen
-#   2. Prueft auf ein neues Image (Download, laufender Container bleibt unberuehrt)
-#   3. Zeigt Zusammenfassung JETZT -> NACHHER und fragt nach Bestaetigung
-#   4. Erst danach: Backup von data/ (inkl. SQLite-DB) und letsencrypt/
-#   5. Erstellt den Container neu (erzwingt auch Major-Spruenge, z.B. v14->v15)
-#   6. Behaelt nur die N neuesten Backups (Default: 5), raeumt dangling Images auf
+#   2. Ermittelt die Zielversion:
+#      - feste Version (z.B. ':2.15.1', Standard von install-npm.sh): neueste
+#        stabile Version auf Docker Hub oder die per --version vorgegebene
+#      - gleitender Tag (z.B. ':latest'): neues Image unter demselben Tag
+#   3. Laedt das Image (laufender Container bleibt unberuehrt)
+#   4. Zeigt Zusammenfassung JETZT -> NACHHER und fragt nach Bestaetigung
+#   5. Erst danach: Backup von data/ (inkl. SQLite-DB), letsencrypt/ und der
+#      Compose-Datei, dann ggf. neue Version in die Compose-Datei eintragen
+#   6. Erstellt den Container neu (erzwingt auch Major-Spruenge, z.B. v14->v15);
+#      startet er nicht, wird die alte Compose-Datei wiederhergestellt
+#   7. Behaelt nur die N neuesten Backups (Default: 5), raeumt alte Images auf
 #
 # Ohne Bestaetigung wird nichts veraendert. Fuer Cron: --yes bzw. ASSUME_YES=1.
 #
@@ -18,6 +24,7 @@
 #
 # Optionen:
 #   --dir <pfad>   Installationspfad fest vorgeben (ueberspringt die Erkennung)
+#   --version <v>  Zielversion fest vorgeben (z.B. 2.15.1 oder latest)
 #   --keep <n>     Anzahl aufzubewahrender Backups (Default: 5)
 #   --dry-run      Zeigt nur, was passieren wuerde - aendert nichts
 #   --yes          Ueberspringt die Bestaetigung (wie ASSUME_YES=1, fuer Cron)
@@ -25,6 +32,7 @@
 #
 # Umgebungsvariablen (fuer unbeaufsichtigten Betrieb, z.B. Cron):
 #   INSTALL_DIR    wie --dir
+#   NPM_VERSION    wie --version
 #   KEEP_BACKUPS   wie --keep
 #   ASSUME_YES=1   wie --yes
 #   LOG_FILE       Logdatei (Default: /var/log/npm-update.log)
@@ -54,9 +62,12 @@ RESET='\033[0m'
 readonly NPM_GUIDE="https://pc-fee.com/2026/05/03/nginx-proxy-manager/"
 readonly DEFAULT_DIR="/opt/nginx-proxy-manager"
 readonly DEFAULT_IMAGE="jc21/nginx-proxy-manager:latest"
+readonly HUB_REPO="jc21/nginx-proxy-manager"
+readonly HUB_TAGS_URL="https://hub.docker.com/v2/repositories/${HUB_REPO}/tags?page_size=100&ordering=last_updated"
 
 # -- Optionen ------------------------------------------------------------------
 DRY_RUN=0
+TARGET_VERSION="${NPM_VERSION:-}"
 KEEP="${KEEP_BACKUPS:-5}"
 LOG="${LOG_FILE:-/var/log/npm-update.log}"
 
@@ -65,11 +76,15 @@ usage() {
 Nginx Proxy Manager Update Script - powered by pc-fee.com
 
 Aktualisiert eine mit install-npm.sh installierte NPM-Instanz: Backup von
-data/ und letsencrypt/, Image-Pull, Neuerstellung des Containers nur bei
-tatsaechlich neuem Image, Aufraeumen alter Images.
+data/, letsencrypt/ und Compose-Datei, Image-Pull, Neuerstellung des
+Containers nur bei tatsaechlich neuer Version, Aufraeumen alter Images.
+
+Bei fester Version (z.B. ':2.15.1') wird die neueste stabile Version von
+Docker Hub ermittelt und nach Bestaetigung in die Compose-Datei eingetragen.
 
 Optionen:
   --dir <pfad>   Installationspfad fest vorgeben (ueberspringt die Erkennung)
+  --version <v>  Zielversion fest vorgeben (z.B. 2.15.1 oder latest)
   --keep <n>     Anzahl aufzubewahrender Backups (Default: 5)
   --dry-run      Zeigt nur, was passieren wuerde - aendert nichts
   --yes          Ueberspringt die Bestaetigung (wie ASSUME_YES=1, fuer Cron)
@@ -78,12 +93,13 @@ Optionen:
 Das Script zeigt erst eine Zusammenfassung (JETZT -> NACHHER) und fragt nach,
 bevor Backup und Container-Neuerstellung starten.
 
-Umgebungsvariablen: INSTALL_DIR, KEEP_BACKUPS, ASSUME_YES, LOG_FILE
+Umgebungsvariablen: INSTALL_DIR, NPM_VERSION, KEEP_BACKUPS, ASSUME_YES, LOG_FILE
 
 Beispiele:
   sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/nginx-proxy-manager/update/update-npm.sh)"
   sudo ./update-npm.sh --dry-run
   sudo ./update-npm.sh --dir /srv/npm --keep 10
+  sudo ./update-npm.sh --version 2.15.1
 USAGE
 }
 
@@ -91,6 +107,8 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --dir)     INSTALL_DIR="${2:-}"; shift 2 || true ;;
     --dir=*)   INSTALL_DIR="${1#*=}"; shift ;;
+    --version) TARGET_VERSION="${2:-}"; shift 2 || true ;;
+    --version=*) TARGET_VERSION="${1#*=}"; shift ;;
     --keep)    KEEP="${2:-}"; shift 2 || true ;;
     --keep=*)  KEEP="${1#*=}"; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
@@ -106,6 +124,11 @@ if ! [[ "${KEEP}" =~ ^[0-9]+$ ]] || [[ "${KEEP}" -lt 1 ]]; then
   exit 1
 fi
 readonly KEEP
+
+if [[ -n "${TARGET_VERSION}" ]] && ! [[ "${TARGET_VERSION}" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]]; then
+  echo "--version erwartet einen gueltigen Image-Tag (erhalten: '${TARGET_VERSION}')." >&2
+  exit 1
+fi
 
 # -- Eingabequelle -------------------------------------------------------------
 # Wird das Script per 'curl ... | bash' gestartet, liegt auf stdin der Script-
@@ -294,6 +317,57 @@ IMAGE=$(sed -n "s/^[[:space:]]*image:[[:space:]]*[\"']\{0,1\}\([^\"'[:space:]]*n
 IMAGE="${IMAGE:-${DEFAULT_IMAGE}}"
 readonly IMAGE
 
+# Repository und Tag trennen (ein ':' im letzten Pfadteil ist der Tag).
+if [[ "${IMAGE##*/}" == *:* ]]; then
+  IMAGE_REPO="${IMAGE%:*}"
+  CUR_TAG="${IMAGE##*:}"
+else
+  IMAGE_REPO="${IMAGE}"
+  CUR_TAG="latest"
+fi
+readonly IMAGE_REPO CUR_TAG
+
+is_semver() { [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; }
+
+# Neueste stabile Version (x.y.z) von Docker Hub - nur lesend.
+latest_hub_version() {
+  command -v curl &>/dev/null || return 1
+  curl -fsSL --max-time 20 "${HUB_TAGS_URL}" 2>/dev/null \
+    | grep -oE '"name"[[:space:]]*:[[:space:]]*"[^"]+"' \
+    | sed -E 's/.*"([^"]+)"$/\1/' \
+    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+    | sort -V | tail -n 1
+}
+
+# Ist $1 eine hoehere Version als $2?
+version_gt() {
+  [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" == "$1" ]]
+}
+
+# -- Zielversion bestimmen -----------------------------------------------------
+if [[ -n "${TARGET_VERSION}" ]]; then
+  TARGET_TAG="${TARGET_VERSION}"
+elif is_semver "${CUR_TAG}"; then
+  # Feste Version: ein Pull desselben Tags bringt nie etwas Neues. Deshalb die
+  # neueste stabile Version auf Docker Hub nachschlagen.
+  if [[ "${IMAGE_REPO#docker.io/}" != "${HUB_REPO}" ]]; then
+    die "Image ${IMAGE} stammt nicht von Docker Hub (${HUB_REPO}).\n  Zielversion bitte direkt angeben: --version <tag>"
+  fi
+  info "Feste Version ${CUR_TAG} erkannt - frage neueste Version bei Docker Hub ab..."
+  TARGET_TAG="$(latest_hub_version || true)"
+  [[ -n "${TARGET_TAG}" ]] \
+    || die "Docker Hub nicht erreichbar oder keine Version gefunden.\n  Zielversion bitte direkt angeben: --version <tag>"
+else
+  TARGET_TAG="${CUR_TAG}"
+fi
+readonly TARGET_TAG
+NEW_IMAGE="${IMAGE_REPO}:${TARGET_TAG}"
+readonly NEW_IMAGE
+
+VERSION_CHANGE=0
+[[ "${NEW_IMAGE}" != "${IMAGE}" ]] && VERSION_CHANGE=1
+readonly VERSION_CHANGE
+
 # -- Logging -------------------------------------------------------------------
 # Ab hier alles zusaetzlich in die Logdatei schreiben (wichtig fuer Cron-Laeufe).
 if [[ "${DRY_RUN}" -eq 0 ]]; then
@@ -311,6 +385,9 @@ echo "------------------------------------------------------------"
 echo -e " Installation:  ${CYAN}${INSTALL_DIR}${RESET}"
 echo -e " Compose-Datei: ${CYAN}${COMPOSE_FILE}${RESET}"
 echo -e " Image:         ${CYAN}${IMAGE}${RESET}"
+if [[ "${VERSION_CHANGE}" -eq 1 ]]; then
+  echo -e " Zielversion:   ${GREEN}${NEW_IMAGE}${RESET}"
+fi
 echo -e " Backups:       ${CYAN}${BACKUP_DIR}${RESET} (die letzten ${KEEP})"
 echo ""
 
@@ -335,8 +412,31 @@ else
   warn "Image ${IMAGE} ist lokal noch nicht vorhanden - es wird erstmalig geladen."
 fi
 
+# Feste Version, die bereits die neueste ist: nichts zu tun.
+if [[ "${VERSION_CHANGE}" -eq 0 && -n "${OLD_ID}" ]] && is_semver "${CUR_TAG}"; then
+  echo ""
+  echo "------------------------------------------------------------"
+  success "NOCHANGE: ${IMAGE} ist die aktuelle Version."
+  echo "------------------------------------------------------------"
+  echo -e " Kein Download, kein Backup, kein Neustart."
+  echo ""
+  exit 0
+fi
+
+# Aeltere Zielversion: Datenbank-Migrationen lassen sich nicht zurueckdrehen.
+if is_semver "${CUR_TAG}" && is_semver "${TARGET_TAG}" && version_gt "${CUR_TAG}" "${TARGET_TAG}"; then
+  echo ""
+  warn "Zielversion ${TARGET_TAG} ist AELTER als die installierte ${CUR_TAG}."
+  warn "Ein Downgrade kann an bereits migrierten Datenbanken scheitern."
+  warn "Sicherer Weg zurueck: ein Backup von vor dem Update einspielen (siehe README)."
+  if [[ "${ASSUME_YES:-0}" == "1" ]]; then
+    die "Downgrade wird mit --yes nicht automatisch ausgefuehrt."
+  fi
+  ask_yesno "Trotzdem auf ${TARGET_TAG} wechseln?" "n" || { warn "Abgebrochen. Es wurde nichts veraendert."; exit 0; }
+fi
+
 declare -a BACKUP_ITEMS=()
-for item in data letsencrypt; do
+for item in data letsencrypt "$(basename "${COMPOSE_FILE}")"; do
   [[ -e "${INSTALL_DIR}/${item}" ]] && BACKUP_ITEMS+=("${item}")
 done
 if [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]]; then
@@ -359,31 +459,38 @@ info "Vorhandene Backups: ${BACKUP_COUNT} in ${BACKUP_DIR} (es werden ${KEEP} be
 # nicht angefasst. Alles, was den Dienst tatsaechlich veraendert, passiert erst
 # nach der Bestaetigung weiter unten.
 echo ""
-info "Pruefe auf ein neues Image (${IMAGE})..."
+info "Lade Image ${NEW_IMAGE}..."
 info "Es wird nur geladen - der laufende Container bleibt dabei unberuehrt."
-run ${COMPOSE_CMD} -f "${COMPOSE_FILE}" pull
+run docker pull "${NEW_IMAGE}"
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo ""
   echo "------------------------------------------------------------"
   echo -e "${YELLOW}${BOLD} DRY-RUN beendet - es wurde nichts veraendert.${RESET}"
   echo "------------------------------------------------------------"
-  echo -e " Ob ein neues Image vorliegt, laesst sich ohne Download nicht"
-  echo -e " feststellen - der Pull wurde uebersprungen. Bei neuem Image wuerde"
-  echo -e " nach einer Rueckfrage folgen:"
+  if [[ "${VERSION_CHANGE}" -eq 1 ]]; then
+    echo -e " Versionswechsel ${CYAN}${IMAGE}${RESET} -> ${GREEN}${NEW_IMAGE}${RESET}."
+    echo -e " Nach einer Rueckfrage wuerde folgen:"
+  else
+    echo -e " Ob ein neues Image vorliegt, laesst sich ohne Download nicht"
+    echo -e " feststellen - der Pull wurde uebersprungen. Bei neuem Image wuerde"
+    echo -e " nach einer Rueckfrage folgen:"
+  fi
   echo -e "   1. Backup nach ${CYAN}${BACKUP_DIR}/npm_<zeitstempel>.tar.gz${RESET}"
-  echo -e "   2. ${CYAN}${COMPOSE_CMD} -f ${COMPOSE_FILE} up -d --force-recreate${RESET}"
-  echo -e "   3. Backups ueber ${KEEP} hinaus entfernen, dangling Images aufraeumen"
+  [[ "${VERSION_CHANGE}" -eq 1 ]] && \
+    echo -e "   2. Image-Zeile in ${CYAN}$(basename "${COMPOSE_FILE}")${RESET} auf ${NEW_IMAGE} setzen"
+  echo -e "   3. ${CYAN}${COMPOSE_CMD} -f ${COMPOSE_FILE} up -d --force-recreate${RESET}"
+  echo -e "   4. Backups ueber ${KEEP} hinaus entfernen, alte Images aufraeumen"
   echo ""
   exit 0
 fi
 
-NEW_ID=$(docker image inspect "${IMAGE}" -f '{{.Id}}' 2>/dev/null || true)
-NEW_CREATED=$(docker image inspect "${IMAGE}" -f '{{.Created}}' 2>/dev/null | cut -c1-10 || true)
-[[ -n "${NEW_ID}" ]] || die "Image ${IMAGE} ist nach dem Pull nicht lokal vorhanden."
+NEW_ID=$(docker image inspect "${NEW_IMAGE}" -f '{{.Id}}' 2>/dev/null || true)
+NEW_CREATED=$(docker image inspect "${NEW_IMAGE}" -f '{{.Created}}' 2>/dev/null | cut -c1-10 || true)
+[[ -n "${NEW_ID}" ]] || die "Image ${NEW_IMAGE} ist nach dem Pull nicht lokal vorhanden."
 
 # -- Kein neues Image: hier ist Schluss, ohne irgendetwas anzufassen ------------
-if [[ "${OLD_ID}" == "${NEW_ID}" ]]; then
+if [[ "${VERSION_CHANGE}" -eq 0 && "${OLD_ID}" == "${NEW_ID}" ]]; then
   echo ""
   echo "------------------------------------------------------------"
   success "NOCHANGE: bereits aktuell (${NEW_ID:0:19}, Stand ${NEW_CREATED:-unbekannt})"
@@ -404,10 +511,9 @@ echo "------------------------------------------------------------"
 echo -e "${BOLD} Zusammenfassung${RESET}"
 echo "------------------------------------------------------------"
 echo -e " Installation:  ${CYAN}${INSTALL_DIR}${RESET}"
-echo -e " Image:         ${CYAN}${IMAGE}${RESET}"
 echo ""
-echo -e " ${BOLD}JETZT${RESET}      ${OLD_ID:0:19}  (Stand ${OLD_CREATED:-unbekannt})"
-echo -e " ${BOLD}NACHHER${RESET}    ${GREEN}${NEW_ID:0:19}${RESET}  (Stand ${NEW_CREATED:-unbekannt})  ${GREEN}<- neu${RESET}"
+echo -e " ${BOLD}JETZT${RESET}      ${IMAGE}  ${OLD_ID:0:19}  (Stand ${OLD_CREATED:-unbekannt})"
+echo -e " ${BOLD}NACHHER${RESET}    ${GREEN}${NEW_IMAGE}${RESET}  ${GREEN}${NEW_ID:0:19}${RESET}  (Stand ${NEW_CREATED:-unbekannt})  ${GREEN}<- neu${RESET}"
 echo ""
 echo -e " ${BOLD}Es wird:${RESET}"
 if [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]]; then
@@ -415,16 +521,29 @@ if [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]]; then
 else
   echo -e "   1. ${YELLOW}kein Backup erstellt${RESET} (weder data/ noch letsencrypt/ vorhanden)"
 fi
-echo -e "   2. der Container neu erstellt - kurze Downtime, meist 10-30 Sekunden"
+if [[ "${VERSION_CHANGE}" -eq 1 ]]; then
+  echo -e "   2. in ${CYAN}$(basename "${COMPOSE_FILE}")${RESET} die Image-Zeile auf ${NEW_IMAGE} gesetzt"
+  echo -e "      und der Container neu erstellt - kurze Downtime, meist 10-30 Sekunden"
+else
+  echo -e "   2. der Container neu erstellt - kurze Downtime, meist 10-30 Sekunden"
+fi
 if [[ "${#DROP_BACKUPS[@]}" -gt 0 ]]; then
   echo -e "   3. ${#DROP_BACKUPS[@]} alte(s) Backup(s) entfernt, aeltestes: ${CYAN}$(basename "${DROP_BACKUPS[-1]}")${RESET}"
 else
   echo -e "   3. kein altes Backup entfernt (${BACKUP_COUNT} von ${KEEP} belegt)"
 fi
-echo -e "   4. dangling Images auf diesem Host aufgeraeumt"
+if [[ "${VERSION_CHANGE}" -eq 1 ]]; then
+  echo -e "   4. das alte Image ${IMAGE} und dangling Images aufgeraeumt"
+else
+  echo -e "   4. dangling Images auf diesem Host aufgeraeumt"
+fi
 echo ""
 echo -e " ${BOLD}Unveraendert bleibt:${RESET}"
-echo -e "   - ${CYAN}$(basename "${COMPOSE_FILE}")${RESET} inkl. Portfreigaben und Hardening"
+if [[ "${VERSION_CHANGE}" -eq 1 ]]; then
+  echo -e "   - ${CYAN}$(basename "${COMPOSE_FILE}")${RESET} bis auf die Image-Zeile, inkl. Portfreigaben und Hardening"
+else
+  echo -e "   - ${CYAN}$(basename "${COMPOSE_FILE}")${RESET} inkl. Portfreigaben und Hardening"
+fi
 echo -e "   - deine Proxy Hosts, Zertifikate und Zugangsdaten in data/ und letsencrypt/"
 echo -e "   - das Docker-Netzwerk und alle anderen Stacks darauf"
 echo ""
@@ -451,9 +570,33 @@ if [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]]; then
   success "Backup erstellt: $(basename "${BACKUP_FILE}") ($(du -h "${BACKUP_FILE}" | cut -f1))"
 fi
 
+COMPOSE_BAK=""
+if [[ "${VERSION_CHANGE}" -eq 1 ]]; then
+  COMPOSE_BAK="$(mktemp "${COMPOSE_FILE}.pre-update.XXXXXX")"
+  cp -p "${COMPOSE_FILE}" "${COMPOSE_BAK}"
+  info "Setze Image in $(basename "${COMPOSE_FILE}") auf ${NEW_IMAGE}..."
+  # Nur die image:-Zeile mit exakt dem alten Wert ersetzen (Sonderzeichen maskiert).
+  OLD_RE="$(printf '%s' "${IMAGE}" | sed 's/[][\\/.^$*|]/\\&/g')"
+  NEW_RE="$(printf '%s' "${NEW_IMAGE}" | sed 's/[\\/&|]/\\&/g')"
+  sed -i -E "s|^([[:space:]]*image:[[:space:]]*[\"']?)${OLD_RE}([\"']?[[:space:]]*)$|\\1${NEW_RE}\\2|" "${COMPOSE_FILE}"
+  grep -qF "${NEW_IMAGE}" "${COMPOSE_FILE}" || {
+    mv -f "${COMPOSE_BAK}" "${COMPOSE_FILE}"
+    die "Image-Zeile konnte nicht angepasst werden. Compose-Datei unveraendert."
+  }
+fi
+
 info "Erstelle Container neu..."
-${COMPOSE_CMD} -f "${COMPOSE_FILE}" up -d --force-recreate
-success "UPDATED: ${OLD_ID:0:19} -> ${NEW_ID:0:19}"
+if ! ${COMPOSE_CMD} -f "${COMPOSE_FILE}" up -d --force-recreate; then
+  error "Container konnte mit ${NEW_IMAGE} nicht gestartet werden."
+  if [[ -n "${COMPOSE_BAK}" ]]; then
+    warn "Stelle die vorherige Compose-Datei (${IMAGE}) wieder her..."
+    mv -f "${COMPOSE_BAK}" "${COMPOSE_FILE}"
+    ${COMPOSE_CMD} -f "${COMPOSE_FILE}" up -d --force-recreate || true
+  fi
+  die "Update fehlgeschlagen. Backup: ${BACKUP_FILE:-keins}"
+fi
+[[ -n "${COMPOSE_BAK}" ]] && rm -f "${COMPOSE_BAK}"
+success "UPDATED: ${IMAGE} (${OLD_ID:0:19}) -> ${NEW_IMAGE} (${NEW_ID:0:19})"
 
 # Rotation erst jetzt - das frische Backup zaehlt mit.
 mapfile -t OLD_BACKUPS < <(ls -1t "${BACKUP_DIR}"/npm_*.tar.gz 2>/dev/null | tail -n "+$((KEEP + 1))" || true)
@@ -462,7 +605,11 @@ if [[ "${#OLD_BACKUPS[@]}" -gt 0 ]]; then
   for old in "${OLD_BACKUPS[@]}"; do rm -f "${old}"; done
 fi
 
-info "Raeume alte (dangling) Images auf..."
+info "Raeume alte Images auf..."
+if [[ "${VERSION_CHANGE}" -eq 1 ]]; then
+  docker image rm "${IMAGE}" >/dev/null 2>&1 \
+    || warn "Altes Image ${IMAGE} konnte nicht entfernt werden (noch in Benutzung?)."
+fi
 docker image prune -f >/dev/null
 success "Aufgeraeumt."
 
@@ -476,6 +623,11 @@ if [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]]; then
   echo -e "   ${CYAN}${COMPOSE_CMD} -f ${COMPOSE_FILE} down${RESET}"
   echo -e "   ${CYAN}tar xzf ${BACKUP_FILE} -C ${INSTALL_DIR}${RESET}"
   echo -e "   ${CYAN}${COMPOSE_CMD} -f ${COMPOSE_FILE} up -d${RESET}"
+  echo ""
+fi
+if [[ "${VERSION_CHANGE}" -eq 1 ]]; then
+  echo -e " Die Compose-Datei ist im Backup enthalten - der Rollback stellt also"
+  echo -e " auch die vorherige Version (${IMAGE}) wieder her."
   echo ""
 fi
 echo -e " Hardening & Tipps: ${CYAN}${NPM_GUIDE}${RESET}"

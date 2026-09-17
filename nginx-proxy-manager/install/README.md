@@ -116,13 +116,16 @@ NPM only creates the admin account from `INITIAL_ADMIN_*` on an **empty** databa
 - **a** — abort (recommended), nothing is changed
 - **b** — back up and reinstall: the old container is removed, its `data/` and `letsencrypt/` are archived to `backups/npm_<timestamp>_*.tar.gz` and then deleted
 
+Before asking, the script warns that a reinstall requests a new Let's Encrypt certificate for the domain — see the rate limit under [Known pitfalls](#known-pitfalls).
+
 The old installation is located through the container itself (Compose working directory and mounts), so it is found even if it lived in a different path. Removal happens only after you have confirmed the summary. The archives use the same layout as the update script's backups and can be restored with `tar xzf <backup> -C <install path>`.
 
 ---
 
 ## Known pitfalls
 
-- **Let's Encrypt fails** — almost always one of: the A record does not (yet) point to this server, port 80 is blocked by a provider firewall or security group, or the rate limit for this domain is exhausted. In that case the script keeps port 81 **open** and prints the credentials, so you can fix the cause and request the certificate in the UI.
+- **Let's Encrypt fails** — almost always one of: the A record does not (yet) point to this server, or port 80 is blocked by a provider firewall or security group. The script names the likely cause, keeps port 81 **open**, prints the credentials and lists the steps to finish in the UI. **Do not re-run the script** in that state — a reinstall discards the setup and requests yet another certificate.
+- **Repeated test runs hit the rate limit.** Every (re)install requests a new certificate, and Let's Encrypt issues at most **5 certificates per exact domain within 7 days** ("too many certificates (5) already issued for this exact set of identifiers"). The script detects this, skips the pointless retry and shows when the limit expires (UTC and German time). Until then, finish the setup in the UI later, or test with a different subdomain — each one has its own limit, with a cap of 50 certificates per registered domain per week. The previous certificate is still in the `npm_*_pre-reinstall.tar.gz` backup.
 - **HTTPS check fails although the certificate exists** — the script then asks before binding port 81 locally. If you decline, bind it later by changing `- '81:81'` to `- '127.0.0.1:81:81'` in `docker-compose.yml` and running `docker compose up -d`.
 - **Cloudflare proxy (orange cloud)** — the DNS check shows Cloudflare IPs instead of the server IP. Continue only if HTTP on port 80 is passed through to the origin.
 - **Custom network name** — the n8n, n8n Sandbox and SearXNG installers use `shared_proxy` unconditionally. The script warns and asks before accepting any other name.

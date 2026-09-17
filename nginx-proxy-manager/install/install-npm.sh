@@ -203,6 +203,39 @@ api_fail() {
   [[ "$code" == "000" ]] && warn "Keine Verbindung zur API. Container-Logs: docker logs ${NPM_CONTAINER_NAME}"
 }
 
+# Ordnet eine fehlgeschlagene Zertifikatsanfrage ein (Antwort der NPM-API).
+#   ratelimit - Let's-Encrypt-Limit erreicht, Wiederholen ist sinnlos
+#   dns       - Domain nicht aufloesbar / kein passender Eintrag
+#   challenge - HTTP-Challenge nicht erreichbar (Port 80, Firewall, falsche IP)
+#   other     - alles andere (Wiederholen kann helfen)
+cert_error_kind() {
+  local f="$1"
+  if grep -qiE 'too many (certificates|failed authorizations|new orders)|rateLimited|rate[- ]limit' "$f" 2>/dev/null; then
+    echo ratelimit
+  elif grep -qiE 'NXDOMAIN|DNS problem|no valid A records' "$f" 2>/dev/null; then
+    echo dns
+  elif grep -qiE 'Timeout during connect|Connection refused|Invalid response from|unauthorized' "$f" 2>/dev/null; then
+    echo challenge
+  else
+    echo other
+  fi
+}
+
+# "retry after 2026-09-18 02:47:50 UTC" -> "2026-09-18 02:47:50 UTC (04:47 Uhr deutscher Zeit)"
+cert_retry_after() {
+  local f="$1" ts out
+  ts="$(grep -oE 'retry after [0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2} UTC' "$f" 2>/dev/null \
+        | head -n 1 | sed 's/^retry after //' || true)"
+  [[ -n "$ts" ]] || return 0
+  out="$ts"
+  if [[ -e /usr/share/zoneinfo/Europe/Berlin ]]; then
+    local de
+    de="$(TZ=Europe/Berlin date -d "$ts" '+%d.%m.%Y %H:%M' 2>/dev/null || true)"
+    [[ -n "$de" ]] && out="${out} (${de} Uhr deutscher Zeit)"
+  fi
+  echo "$out"
+}
+
 wait_for_npm_api() {
   local attempts=60 i
   info "Warte auf NPM-API unter ${NPM_API}..."
@@ -510,6 +543,11 @@ if [[ -n "$EXISTING_CONTAINER" || "$EXISTING_DB" -eq 1 ]]; then
   warn "Admin-Account automatisch anzulegen. Vorher wird ein Backup unter"
   warn "${BACKUP_ROOT} erstellt (Bind-Mounts; Docker-Volumes werden nur geloescht)."
   echo ""
+  warn "Jede Neuinstallation fordert ein NEUES Let's-Encrypt-Zertifikat fuer"
+  warn "${DOMAIN} an. Let's Encrypt stellt pro exakter Domain hoechstens 5 Zertifikate"
+  warn "in 7 Tagen aus - danach schlaegt die Installation bis zum Ablauf der Sperre fehl."
+  warn "Fuer Testlaeufe besser jeweils eine andere Subdomain verwenden."
+  echo ""
 
   [[ "${INTERACTIVE}" -eq 1 ]] \
     || die "Bestehende Installation erkannt, aber kein Terminal fuer Rueckfrage vorhanden. Abbruch."
@@ -694,25 +732,88 @@ cat >"${WORK_DIR}/cert.json" <<EOF
 }
 EOF
 CERT_ID=""
+CERT_ERR="other"
 for ((i=1; i<=2; i++)); do
   HTTP_CODE="$(api POST /api/nginx/certificates "${WORK_DIR}/cert.out" "${WORK_DIR}/cert.json" 300)"
   if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "201" ]]; then
     CERT_ID="$(extract_json_value "${WORK_DIR}/cert.out" id)"
     break
   fi
-  if [[ "$i" -lt 2 ]]; then
+  CERT_ERR="$(cert_error_kind "${WORK_DIR}/cert.out")"
+  # Rate-Limit und DNS-Fehler aendern sich nicht in 15 Sekunden - kein zweiter Versuch.
+  if [[ "$i" -lt 2 && "$CERT_ERR" != "ratelimit" && "$CERT_ERR" != "dns" ]]; then
     warn "Zertifikatsanfrage fehlgeschlagen (HTTP ${HTTP_CODE}), neuer Versuch in 15 Sekunden..."
     sleep 15
+  else
+    break
   fi
 done
 if [[ ! "$CERT_ID" =~ ^[0-9]+$ ]]; then
-  api_fail "Erstellen des SSL-Zertifikats" "$HTTP_CODE" "${WORK_DIR}/cert.out"
-  warn "Haeufige Ursachen: DNS zeigt nicht auf diesen Server, Port 80 ist von aussen"
-  warn "nicht erreichbar (Firewall/Security-Group) oder Let's-Encrypt-Rate-Limit."
-  warn "Port 81 bleibt offen, damit du das Zertifikat unter http://${SERVER_IP:-SERVER-IP}:81"
-  warn "manuell anlegen kannst. Login: ${ADMIN_EMAIL} / ${ADMIN_PASSWORD}"
+  # Port 81 offen lassen, Initial-Zugangsdaten aus der Compose-Datei entfernen.
   write_compose "81:81" 0
   "${COMPOSE[@]}" -f "${INSTALL_DIR}/docker-compose.yml" up -d >/dev/null 2>&1 || true
+
+  echo ""
+  case "$CERT_ERR" in
+    ratelimit)
+      error "Let's Encrypt hat die Anfrage abgelehnt: Rate-Limit erreicht."
+      echo -e " Fuer ${CYAN}${DOMAIN}${RESET} wurden in den letzten 7 Tagen bereits zu viele"
+      echo -e " Zertifikate ausgestellt (meist durch wiederholte Installationen)."
+      RETRY_AT="$(cert_retry_after "${WORK_DIR}/cert.out")"
+      [[ -n "$RETRY_AT" ]] && echo -e " Neuer Versuch moeglich ab: ${BOLD}${RETRY_AT}${RESET}"
+      echo -e " Details: ${CYAN}https://letsencrypt.org/docs/rate-limits/${RESET}"
+      ;;
+    dns)
+      api_fail "Erstellen des SSL-Zertifikats" "$HTTP_CODE" "${WORK_DIR}/cert.out"
+      warn "Ursache: ${DOMAIN} ist per DNS nicht (korrekt) aufloesbar."
+      warn "Bitte den A-Record auf ${SERVER_IP:-die Server-IP} pruefen und die Propagation abwarten."
+      ;;
+    challenge)
+      api_fail "Erstellen des SSL-Zertifikats" "$HTTP_CODE" "${WORK_DIR}/cert.out"
+      warn "Ursache: Let's Encrypt erreicht http://${DOMAIN}/.well-known/ nicht."
+      warn "Bitte pruefen: A-Record zeigt auf ${SERVER_IP:-die Server-IP}, Port 80 ist in"
+      warn "Provider-Firewall/Security-Group offen, kein CDN-Proxy davor."
+      ;;
+    *)
+      api_fail "Erstellen des SSL-Zertifikats" "$HTTP_CODE" "${WORK_DIR}/cert.out"
+      warn "Haeufige Ursachen: DNS zeigt nicht auf diesen Server, Port 80 ist von aussen"
+      warn "nicht erreichbar (Firewall/Security-Group) oder Let's-Encrypt-Rate-Limit."
+      ;;
+  esac
+
+  echo ""
+  echo -e "${BOLD}============================================================${RESET}"
+  echo -e "${BOLD} STAND UND NAECHSTE SCHRITTE${RESET}"
+  echo -e "${BOLD}============================================================${RESET}"
+  echo -e " NPM laeuft, der Admin-Account und der Proxy Host fuer ${CYAN}${DOMAIN}${RESET}"
+  echo -e " (noch ohne SSL) sind angelegt. Port 81 bleibt vorerst ${YELLOW}oeffentlich${RESET}."
+  echo ""
+  echo -e " ${BOLD}Admin-Login:${RESET} ${CYAN}http://${SERVER_IP:-SERVER-IP}:81${RESET}"
+  echo -e "   Email:    ${CYAN}${ADMIN_EMAIL}${RESET}"
+  echo -e "   Passwort: ${CYAN}${ADMIN_PASSWORD}${RESET}"
+  echo -e "   (wird nicht erneut angezeigt - jetzt sicher speichern)"
+  echo ""
+  echo -e " ${YELLOW}${BOLD}Das Script NICHT erneut starten:${RESET} eine Neuinstallation verwirft diesen"
+  echo -e " Stand und fordert ein weiteres Zertifikat an."
+  echo ""
+  if [[ "$CERT_ERR" == "ratelimit" ]]; then
+    echo -e " 1. Nach Ablauf der Sperre einloggen (siehe oben)."
+  else
+    echo -e " 1. Ursache beheben, dann einloggen (siehe oben)."
+  fi
+  echo -e " 2. ${BOLD}Certificates${RESET} -> Let's-Encrypt-Zertifikat fuer ${CYAN}${DOMAIN}${RESET} anlegen."
+  echo -e " 3. ${BOLD}Proxy Hosts${RESET} -> ${DOMAIN} bearbeiten -> Reiter SSL: Zertifikat waehlen,"
+  echo -e "    Force SSL, HTTP/2 und HSTS aktivieren."
+  echo -e " 4. Port 81 lokal binden: in ${CYAN}${INSTALL_DIR}/docker-compose.yml${RESET}"
+  echo -e "    ${CYAN}- '81:81'${RESET} durch ${CYAN}- '127.0.0.1:81:81'${RESET} ersetzen, dann:"
+  echo -e "    ${CYAN}${COMPOSE[*]} -f ${INSTALL_DIR}/docker-compose.yml up -d${RESET}"
+  echo -e " 5. Passwort aendern und 2FA im Benutzermenue aktivieren."
+  echo ""
+  if [[ "$CERT_ERR" == "ratelimit" ]]; then
+    echo -e " Sofort weitermachen geht nur mit einer ${BOLD}anderen Subdomain${RESET} (eigener A-Record):"
+    echo -e " dafuer in Schritt 2 und 3 statt ${DOMAIN} die neue Domain verwenden."
+    echo ""
+  fi
   die "SSL-Zertifikat konnte nicht erstellt werden."
 fi
 success "SSL-Zertifikat erstellt (ID ${CERT_ID})."

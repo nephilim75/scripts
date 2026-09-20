@@ -114,7 +114,7 @@ Then open `http://localhost:8181` in your local browser.
 NPM only creates the admin account from `INITIAL_ADMIN_*` on an **empty** database. If the script finds an existing NPM container or data in `<install path>/data`, it therefore stops and offers two choices:
 
 - **a** — abort (recommended), nothing is changed
-- **b** — back up and reinstall: the old container is removed, its `data/` and `letsencrypt/` are archived to `backups/npm_<timestamp>_*.tar.gz` and then deleted
+- **b** — back up and reinstall: the old container is removed. **Only bind-mounted** `data/` and `letsencrypt/` directories are archived to `backups/npm_<timestamp>_*.tar.gz` before deletion. If the old installation used named Docker volumes instead of bind mounts, those volumes are removed directly via `docker volume rm` **without being backed up** — check `docker volume ls` beforehand if you're unsure how the previous instance was set up.
 
 Before asking, the script warns that a reinstall requests a new Let's Encrypt certificate for the domain — see the rate limit under [Known pitfalls](#known-pitfalls).
 
@@ -129,7 +129,8 @@ The old installation is located through the container itself (Compose working di
 - **HTTPS check fails although the certificate exists** — the script then asks before binding port 81 locally. If you decline, bind it later by changing `- '81:81'` to `- '127.0.0.1:81:81'` in `docker-compose.yml` and running `docker compose up -d`.
 - **Cloudflare proxy (orange cloud)** — the DNS check shows Cloudflare IPs instead of the server IP. Continue only if HTTP on port 80 is passed through to the origin.
 - **Custom network name** — the n8n, n8n Sandbox and SearXNG installers use `shared_proxy` unconditionally. The script warns and asks before accepting any other name.
-- **Non-interactive runs are not supported** — without a terminal the script aborts at the first question.
+- **Non-interactive runs are not fully supported** — without a terminal, the install path and yes/no prompts silently fall back to their defaults, but the admin domain has no default and is required. The script aborts there ("Keine Eingabe moeglich (kein Terminal).") rather than literally at the first question.
+- **Named Docker volumes are not backed up on reinstall.** The backup-and-reinstall path only archives bind-mounted `data/` and `letsencrypt/` directories; an old instance using named volumes loses that data on reinstall with no archive created.
 
 ---
 

@@ -1,4 +1,3 @@
-root@my-vps:/opt/admin-lc/modules/lifecycle# cat purge-librechat.sh
 #!/usr/bin/env bash
 # purge-librechat.sh
 # Entfernt ausschließlich das LibreChat-Compose-Projekt unter /opt/librechat.

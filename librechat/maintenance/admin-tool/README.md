@@ -1,13 +1,10 @@
-# 🔧 LibreChat Maintenance
+# 🔧 LibreChat Admin Tool
 
-[🏠 Overview](../../) → [💬 LibreChat](../) → Maintenance
+[🏠 Overview](../../../) → [💬 LibreChat](../../) → [🔧 Maintenance](../) → Admin Tool
 
-[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
-[![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/) [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs) [![GitHub](https://img.shields.io/badge/GitHub-LibreChat-181717?style=for-the-badge&logo=github)](https://github.com/danny-avila/LibreChat) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
 
-[![Shell](https://img.shields.io/badge/Shell-POSIX%20sh-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#)
-[![Idempotent](https://img.shields.io/badge/Re--runnable-yes-2E7D32?style=flat-square)](#quick-install)
+[![Shell](https://img.shields.io/badge/Shell-POSIX%20sh-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#) [![Idempotent](https://img.shields.io/badge/Re--runnable-yes-2E7D32?style=flat-square)](#quick-install)
 
 Interactive menu-driven maintenance tool for deployed [LibreChat](https://www.librechat.ai/) instances based on pc-fee.com's [blog posts](https://pc-fee.com/blog). Handles user management, container control, SMTP configuration, instance settings, the Code Interpreter, backups, purging, and reinstallation.
 
@@ -21,7 +18,7 @@ Written in POSIX `sh`, aimed at people who are new to Linux: every menu explains
 bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/maintenance/install/install-admin-lc.sh)
 ```
 
-The installer checks prerequisites, installs the tool to `/opt/admin-lc`, tries to detect an existing LibreChat installation (asks for the path if it can't, and stores it in `config.sh`), and offers to start the menu right away. Safe to run again later — it won't fail if run twice, and it won't overwrite your `config.sh`.
+The installer checks prerequisites, tries to detect an existing LibreChat installation, and asks where the tool should go (suggesting `/opt/admin-lc`). It shows a summary and changes nothing until you confirm. Safe to run again later — on an existing install it offers an update in place and only overwrites `config.sh` if you agree. Details: [install script](../install/README.md).
 
 ---
 
@@ -37,11 +34,11 @@ sudo mkdir -p /opt/admin-lc
 cd /opt/admin-lc
 ```
 
-2. Clone librechat/maintenance content directly into /opt/admin-lc:
+2. Copy the content of `librechat/maintenance/admin-tool` into /opt/admin-lc:
 
 ```bash
 sudo git clone --depth 1 https://github.com/nephilim75/scripts.git temp
-sudo cp -r temp/librechat/maintenance/. .
+sudo cp -r temp/librechat/maintenance/admin-tool/. .
 sudo rm -rf temp
 ```
 
@@ -67,6 +64,10 @@ An interactive menu appears with options for all maintenance tasks.
 ### Updating
 
 The tool updates itself: **main menu → 8) Admin-Tool aktualisieren**. It backs up the current state to `/tmp`, pulls the latest version, fixes permissions and line endings, and restarts the menu. Your own `config.sh` is left untouched.
+
+### Uninstalling
+
+To remove the tool (and only the tool), see the [uninstall script](../uninstall/README.md).
 
 ---
 
@@ -179,7 +180,6 @@ Both Code Interpreter variants show whether they are installed, so you always kn
 
 | Module | Purpose |
 |--------|---------|
-| `install/` | Quick-install script for this tool |
 | `lib/` | Shared helpers: colours, prompts, `.env` access, path detection |
 | `modules/useradmin/` | User creation, deletion, management |
 | `modules/appctl/` | Container management for all LibreChat services |
@@ -207,7 +207,8 @@ Useful to know before adding a module:
 
 ## References
 
-- [Installation Guide](../install/README.md)
+- [LibreChat installation guide](../../install/README.md)
+- [Admin tool install script](../install/README.md) · [Admin tool uninstall script](../uninstall/README.md)
 - [Official Docs](https://www.librechat.ai/docs)
 - [GitHub Repository](https://github.com/danny-avila/LibreChat)
 - [Blog](https://pc-fee.com/blog)
@@ -226,7 +227,7 @@ first.
 ## License
 
 This project is licensed under the MIT License — see the
-[LICENSE](../../LICENSE) file in the repository root.
+[LICENSE](../../../LICENSE) file in the repository root.
 
 <sub>This script was researched, written and iteratively revised at pc-fee.com with the help of AI models, and reviewed by a human before publication. All technical statements were checked against the official project documentation and source code. Please verify for yourself before using it in production.</sub>
 

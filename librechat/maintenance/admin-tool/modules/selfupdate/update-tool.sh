@@ -19,7 +19,7 @@
 # =============================================================================
 
 REPO_URL="https://github.com/nephilim75/scripts.git"
-REPO_SUBDIR="librechat/maintenance"
+REPO_SUBDIR="librechat/maintenance/admin-tool"
 
 # --- Stufe 1: nach /tmp ausweichen -------------------------------------------
 # Die Stufe wird ueber einen ausdruecklichen Schalter erkannt, nicht ueber den

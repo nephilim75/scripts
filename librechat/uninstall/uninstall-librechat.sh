@@ -58,7 +58,7 @@ readonly INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/nephilim75/script
 readonly EXTRA_DIRS=(
   "/opt/LibreCodeInterpreter:Code Interpreter (usnavy13)"
   "/opt/avila-code-interpreter:Code Interpreter (LibreChat-AI/avila)"
-  "/opt/admin-lc:LibreChat Admin-Tool (maintenance/menu.sh)"
+  "/opt/admin-lc:LibreChat Admin-Tool (maintenance/admin-tool/menu.sh)"
 )
 
 # -- Optionen ------------------------------------------------------------------

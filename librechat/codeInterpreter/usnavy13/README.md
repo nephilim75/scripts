@@ -34,7 +34,7 @@ The installer checks all prerequisites first and aborts with a clear message if 
 
 - ✅ A self-hosted code-execution backend for LibreChat
 - ✅ No host ports opened — access only through the `shared_proxy` Docker network
-- ✅ Automatic generation of the `MASTER_API_KEY`
+- ✅ Automatic generation of the `MASTER_API_KEY` and of the API key for LibreChat
 - ✅ Domain validation and Nginx Proxy Manager integration hints
 - ✅ Backup before every update
 - ✅ Clean uninstall with separate confirmation steps

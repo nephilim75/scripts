@@ -5,7 +5,7 @@
 # - kein Port wird an den Host gebunden, Zugriff ausschliesslich ueber ein
 #   bestehendes externes Docker-Netzwerk eines Nginx Proxy Managers (NPM)
 # - generiert automatisch den MASTER_API_KEY (Zugang zum Admin-Dashboard) und
-#   zeigt ihn am Ende an
+#   einen API-Key fuer LibreChat und zeigt beide am Ende an
 #
 # -----------------------------------------------------------------------------
 # AI-Transparenzhinweis:
@@ -239,9 +239,40 @@ else
 fi
 
 # -----------------------------------------------------------------------------
+# Schritt 6: API-Key fuer LibreChat anlegen
+# -----------------------------------------------------------------------------
+# Angelegt ueber die Admin-Schnittstelle IM Container: Die Domain ist zu diesem
+# Zeitpunkt noch nicht erreichbar (DNS und NPM-Proxy fehlen noch). Mehrere
+# Versuche, weil die API kurz nach "healthy" gelegentlich noch nicht antwortet.
+printf '%b\n' "\n${BOLD}Schritt 6: API-Key fuer LibreChat${RESET}"
+echo "------------------------------------------------------------"
+LIBRECHAT_KEY=""
+for _ in {1..5}; do
+  LIBRECHAT_KEY="$(${COMPOSE_CMD} exec -T api python3 -c '
+import json,sys,urllib.request as u
+r=u.Request("http://localhost:8000/api/v1/admin/keys",
+  data=json.dumps({"name":"LibreChat"}).encode(),
+  headers={"x-api-key":sys.argv[1],"Content-Type":"application/json"})
+print(json.load(u.urlopen(r,timeout=15))["api_key"])
+' "${MASTER_API_KEY}" 2>/dev/null || true)"
+  [[ "${LIBRECHAT_KEY}" =~ ^[A-Za-z0-9_-]+$ ]] && break
+  LIBRECHAT_KEY=""
+  sleep 3
+done
+
+if [[ -n "${LIBRECHAT_KEY}" ]]; then
+  success "API-Key fuer LibreChat angelegt (Name: LibreChat)."
+else
+  warn "API-Key konnte nicht automatisch angelegt werden."
+  warn "Bitte spaeter im Dashboard manuell anlegen und unten statt <KEY> einsetzen."
+  LIBRECHAT_KEY="<KEY>"
+fi
+
+# -----------------------------------------------------------------------------
 # Abschluss / Naechste Schritte
 # -----------------------------------------------------------------------------
 HOST_IPV4="$(detect_public_ipv4)"
+readonly LC_ENV="/opt/librechat/.env"
 
 echo ""
 printf '%b\n' "${GREEN}${BOLD}#############################################${RESET}"
@@ -259,11 +290,16 @@ cat <<DNS
    ${HOST_IPV4}   A   (TTL 300)   ${DOMAIN}
 DNS
 else
+  echo ""
   warn "Oeffentliche IPv4 konnte nicht automatisch ermittelt werden."
   echo "   Bitte die Server-IP manuell ermitteln und einen A-Record fuer"
   echo "   ${DOMAIN} beim Domain-Provider anlegen."
 fi
 
+# Die Befehle fuer den Nutzer stehen bewusst immer mit sudo da: als root
+# schadet es nicht, ohne root wuerden sie sonst scheitern. Beim Anhaengen an
+# die .env deshalb "| sudo tee -a" statt ">>" (die Umleitung macht die eigene
+# Shell, nicht sudo).
 cat <<NEXT
 
 2) Proxy Host im Nginx Proxy Manager anlegen:
@@ -281,63 +317,49 @@ cat <<NEXT
      HTTP/2 Support:     an
      HSTS Enabled:       an
 
-3) Dashboard oeffnen:
-   Admin-Dashboard:  https://${DOMAIN}/admin-dashboard
-   Health-Check:     https://${DOMAIN}/health
+Schluessel dieser Installation:
 
-   Anmeldung am Dashboard mit dem MASTER_API_KEY:
+   MASTER_API_KEY (Dashboard):   ${MASTER_API_KEY}
+   API-Key fuer LibreChat:       ${LIBRECHAT_KEY}
 
-   ${MASTER_API_KEY}
+   Der MASTER_API_KEY steht auch in: ${DEFAULT_INSTALL_DIR}/.env
 
-   Er steht auch in: ${DEFAULT_INSTALL_DIR}/.env
-NEXT
+3) Code-Interpreter in LibreChat eintragen - diesen Befehl kopieren
+   und auf dem LibreChat-Server ausfuehren:
 
-printf '%b\n' "\n${YELLOW}${BOLD}>>> Das ist der letzte offene Schritt - ohne ihn laeuft nichts. <<<${RESET}"
+     sudo sed -i -E '/^#?\s*LIBRECHAT_CODE_(BASEURL|API_KEY)=/d' ${LC_ENV} && echo "LIBRECHAT_CODE_BASEURL=https://${LIBRECHAT_KEY}@${DOMAIN}" | sudo tee -a ${LC_ENV} >/dev/null
 
-cat <<NEXT
+   Danach LibreChat stoppen und starten - ein 'docker restart' allein
+   liest die .env NICHT neu ein:
 
-4) Im Dashboard einen eigenen API-Key fuer LibreChat anlegen:
-
-   Der MASTER_API_KEY oben ist NICHT der Schluessel fuer LibreChat. Er dient
-   allein der Anmeldung am Dashboard. Traegt man ihn in LibreChat ein,
-   funktioniert die Anbindung nicht.
-
-   Im Dashboard einen neuen API-Key erzeugen und kopieren - er ist in der
-   Regel nur einmal vollstaendig sichtbar.
-
-5) In der .env von LibreChat eintragen - eine einzige Zeile:
-
-   LIBRECHAT_CODE_BASEURL=https://<KEY>@${DOMAIN}
-
-   Der Key steht also IN der Adresse, direkt vor dem @. Beispiel mit einem
-   Key "abc123":
-
-     LIBRECHAT_CODE_BASEURL=https://abc123@${DOMAIN}
-
-   Kein /v1 am Ende, und keine Zeile LIBRECHAT_CODE_API_KEY. Die dokumentierte
-   Variante mit getrenntem Key funktioniert mit LibreChat v0.8.8-rc1 nicht -
-   die Variable wird dort nirgends ausgelesen. Im Chat erscheint dann
-   "Code execution is not authorized", ohne dass hier ueberhaupt ein Request
-   ankommt.
-
-   Danach LibreChat stoppen und starten - ein reines 'docker restart' liest
-   die .env NICHT neu ein:
-
-     docker stop LibreChat && docker start LibreChat
+     sudo docker stop LibreChat && sudo docker start LibreChat
 
    Pruefen, ob der Wert angekommen ist:
 
-     docker exec LibreChat env | grep LIBRECHAT_CODE
+     sudo docker exec LibreChat env | grep LIBRECHAT_CODE
 
-   Hinweis: Weil der Key Teil der Adresse ist, steht er in den Access-Logs des
-   Nginx Proxy Managers. Wer diese Logs aufhebt oder weitergibt, sollte das
-   wissen. Ist der Key einmal draussen: im Dashboard zurueckziehen und einen
-   neuen anlegen.
+4) CodeInterpreter Dashboard (optional):
+NEXT
 
-Wichtige Befehle:
-  Logs:    cd ${DEFAULT_INSTALL_DIR} && ${COMPOSE_CMD} logs -f api
-  Status:  cd ${DEFAULT_INSTALL_DIR} && ${COMPOSE_CMD} ps
-  Update:  cd ${DEFAULT_INSTALL_DIR} && ${COMPOSE_CMD} pull && ${COMPOSE_CMD} up -d
+printf '%b\n' "   ${CYAN}https://${DOMAIN}/admin-dashboard${RESET}"
+
+cat <<NEXT
+
+   Anmeldung mit dem MASTER_API_KEY (siehe oben).
+
+   Der API-Key fuer LibreChat (Name: LibreChat) wurde automatisch
+   angelegt. Im Dashboard lassen sich weitere Keys manuell anlegen,
+   sperren und loeschen.
+
+   Der MASTER_API_KEY ist NICHT der Schluessel fuer LibreChat. Er dient
+   allein der Anmeldung am Dashboard.
+
+
+Nuetzliche Befehle:
+  Logs:    cd ${DEFAULT_INSTALL_DIR} && sudo docker compose logs -f api
+  Status:  cd ${DEFAULT_INSTALL_DIR} && sudo docker compose ps
+  Update:  cd ${DEFAULT_INSTALL_DIR} && sudo docker compose pull && sudo docker compose up -d
+  Health:  curl -s https://${DOMAIN}/health
 
 GitHub-Referenz:
   https://github.com/nephilim75/scripts/tree/main/librechat/codeInterpreter/usnavy13

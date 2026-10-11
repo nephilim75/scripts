@@ -14,6 +14,7 @@ A collection of scripts for various use cases. Each subfolder contains its own R
 | [🐳 docker & docker compose](docker%20&%20docker%20compose/README.md) | Docker and Docker Compose scripts |
 | [💬 librechat](librechat/README.md) | LibreChat scripts |
 | [🔗 n8n](n8n/README.md) | n8n scripts |
+| [☁️ nextcloud](nextcloud/README.md) | Nextcloud scripts (planned) |
 | [🌐 nginx-proxy-manager](nginx-proxy-manager/README.md) | npm scripts |
 | [🔍 searxng](searxng/README.md) | SearXNG scripts |
 

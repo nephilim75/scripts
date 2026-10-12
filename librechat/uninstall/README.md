@@ -46,7 +46,7 @@ Locates your installation, shows a full inventory of what it found — container
 2. Determines the install path the same way the [update script](../update/README.md#what-it-does) does, and asks if several installations exist
 3. If no install directory is left but LibreChat containers still exist, offers to clean up those orphans instead of silently doing nothing
 4. Verifies the resolved path is a real subdirectory — `/`, `/opt`, `/home` and friends are refused outright
-5. Shows an inventory: containers, the project's Docker volumes with sizes, the directory contents item by item, backup count and size, the matching local images split into LibreChat's own and shared base images, other containers on `shared_proxy`, and any additional LibreChat components found elsewhere on the host
+5. Shows an inventory: containers, the project's Docker volumes with sizes, the directory contents item by item, backup count and size, the matching local images split into LibreChat's own and shared base images, and any additional LibreChat components found elsewhere on the host
 6. Asks for confirmation before anything is removed (default: no), stating plainly that chats, accounts and uploads go with it
 7. Runs `compose down -v --remove-orphans` from the install directory, so the override is in effect and the project's volumes go too — or removes the containers individually if no Compose file is left
 8. Removes any project volume that survived, matched by the Compose project label rather than by name

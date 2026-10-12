@@ -50,7 +50,9 @@ RESET='\033[0m'
 # -- Konstanten ----------------------------------------------------------------
 readonly PROXY_NETWORK="shared_proxy"
 readonly DEFAULT_DIR="/opt/librechat"
-readonly IMAGE_MARKER="danny-avila/librechat"
+# Regex: LibreChat hat den Image-Namespace von danny-avila auf librechat-ai
+# umgestellt - aeltere Installationen tragen noch den alten Namen.
+readonly IMAGE_MARKER="(danny-avila|librechat-ai)/librechat"
 readonly ADMIN_IMAGE_MARKER="clickhouse/librechat-admin-panel"
 readonly INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/install/install-librechat.sh"
 # Verzeichnisse zusaetzlicher Komponenten. Werden ausschliesslich gemeldet -
@@ -211,11 +213,11 @@ readonly COMPOSE_CMD
 # -- Installationspfad ermitteln -----------------------------------------------
 # Identische Erkennung wie im Update-Script: Container-Label -> Bind-Mount-
 # Quelle -> Standardpfad. Ein Verzeichnis gilt als LibreChat-Installation, wenn
-# es eine Compose-Datei mit danny-avila/librechat-Image enthaelt.
+# es eine Compose-Datei mit LibreChat-Image enthaelt.
 compose_file_of() {
   local d="$1" f
   for f in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
-    if [[ -f "${d}/${f}" ]] && grep -qi "${IMAGE_MARKER}" "${d}/${f}"; then
+    if [[ -f "${d}/${f}" ]] && grep -qiE "${IMAGE_MARKER}" "${d}/${f}"; then
       echo "${d}/${f}"
       return 0
     fi
@@ -257,7 +259,7 @@ detect_dirs() {
     [[ -n "${d}" && "${d}" == /* ]] && raw+=("$(dirname "${d}")")
     d=$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/app/uploads"}}{{.Source}}{{end}}{{end}}' "${cid}" 2>/dev/null || true)
     [[ -n "${d}" && "${d}" == /* ]] && raw+=("$(dirname "${d}")")
-  done < <(docker ps -a --format '{{.ID}} {{.Image}}' | awk -v img="${IMAGE_MARKER}" 'index($2, img) {print $1}')
+  done < <(docker ps -a --format '{{.ID}} {{.Image}}' | awk -v img="${IMAGE_MARKER}" '$2 ~ img {print $1}')
 
   raw+=("${DEFAULT_DIR}")
 
@@ -278,7 +280,7 @@ detect_dirs() {
 # api und admin-panel tragen unterschiedliche Images, beide zaehlen dazu.
 mapfile -t LC_CONTAINERS < <(
   docker ps -a --format '{{.ID}} {{.Names}} {{.Image}}' \
-    | awk -v a="${IMAGE_MARKER}" -v b="${ADMIN_IMAGE_MARKER}" 'index($3, a) || index($3, b) {print $2}'
+    | awk -v a="${IMAGE_MARKER}" -v b="${ADMIN_IMAGE_MARKER}" '$3 ~ a || index($3, b) {print $2}'
 )
 
 if [[ -n "${INSTALL_DIR:-}" ]]; then
@@ -356,7 +358,7 @@ COMPOSE_FILE=""
 COMPOSE_FILE="$(compose_file_of "${INSTALL_DIR}" || true)"
 readonly COMPOSE_FILE
 if [[ -z "${COMPOSE_FILE}" ]]; then
-  warn "Unvollstaendige Installation: keine Compose-Datei mit ${IMAGE_MARKER}-Image${LEFTOVER_REASON:+ (erkannt an: ${LEFTOVER_REASON})}."
+  warn "Unvollstaendige Installation: keine Compose-Datei mit LibreChat-Image${LEFTOVER_REASON:+ (erkannt an: ${LEFTOVER_REASON})}."
   warn "Container werden einzeln entfernt, Volumes ueber das Projekt-Label."
 fi
 
@@ -513,7 +515,7 @@ if [[ -n "${COMPOSE_FILE}" ]]; then
   while IFS= read -r img; do
     [[ -n "${img}" ]] || continue
     docker image inspect "${img}" >/dev/null 2>&1 || continue
-    if [[ "${img}" == *"${IMAGE_MARKER}"* || "${img}" == *"${ADMIN_IMAGE_MARKER}"* ]]; then
+    if [[ "${img}" =~ ${IMAGE_MARKER} || "${img}" == *"${ADMIN_IMAGE_MARKER}"* ]]; then
       LC_IMAGES+=("${img}")
     else
       SHARED_IMAGES+=("${img}")

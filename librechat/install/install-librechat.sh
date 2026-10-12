@@ -124,7 +124,7 @@ fi
 # Ein Substring-Filter auf "librechat" allein ist zu unscharf, daher gezielt
 # auf die offiziellen Image-Namen pruefen.
 EXISTING_IMAGES="$(${SUDO} docker ps -a --format '{{.Names}}\t{{.Image}}' \
-  | grep -Ei 'danny-avila/librechat|clickhouse/librechat-admin-panel' || true)"
+  | grep -Ei '(danny-avila|librechat-ai)/librechat|clickhouse/librechat-admin-panel' || true)"
 if [[ -n "${EXISTING_IMAGES}" ]]; then
   error "Es existieren bereits Container einer LibreChat-Installation:"
   echo "${EXISTING_IMAGES}" | sed 's/^/    /'

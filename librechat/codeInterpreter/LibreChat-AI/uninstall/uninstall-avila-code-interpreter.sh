@@ -65,7 +65,7 @@ readonly API_CONTAINER="avila-api"
 readonly PKG_INIT_IMAGE="avila-package-init"
 # Vom Installer optional angelegt (Schritt 3) - inklusive fstab-Eintrag.
 readonly SWAP_FILE="/swapfile-avila-code-interpreter"
-readonly LIBRECHAT_IMAGE_MARKER="danny-avila/librechat"
+readonly LIBRECHAT_IMAGE_MARKER="(danny-avila|librechat-ai)/librechat"
 readonly LIBRECHAT_DEFAULT_DIR="/opt/librechat"
 readonly INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/LibreChat-AI/install/install-avila-code-interpreter.sh"
 # Container-Namen aus der Override-Datei des Installers. Dienen als Rueckfall,
@@ -461,7 +461,7 @@ while IFS= read -r cid; do
   [[ -n "${cid}" ]] || continue
   d=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "${cid}" 2>/dev/null || true)
   [[ -n "${d}" && -f "${d}/.env" ]] && { LIBRECHAT_DIR="${d}"; break; }
-done < <(docker ps -a --format '{{.ID}} {{.Image}}' | awk -v img="${LIBRECHAT_IMAGE_MARKER}" 'index($2, img) {print $1}')
+done < <(docker ps -a --format '{{.ID}} {{.Image}}' | awk -v img="${LIBRECHAT_IMAGE_MARKER}" '$2 ~ img {print $1}')
 [[ -z "${LIBRECHAT_DIR}" && -f "${LIBRECHAT_DEFAULT_DIR}/.env" ]] && LIBRECHAT_DIR="${LIBRECHAT_DEFAULT_DIR}"
 
 if [[ -n "${LIBRECHAT_DIR}" ]]; then

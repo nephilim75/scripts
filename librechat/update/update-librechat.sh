@@ -56,7 +56,9 @@ readonly LIBRECHAT_GUIDE="https://github.com/nephilim75/scripts/tree/main/librec
 readonly DEFAULT_DIR="/opt/librechat"
 # Marker, an dem eine Compose-Datei als LibreChat-Stack erkannt wird. Bewusst
 # eng gefasst: ein blosses "librechat" wuerde auch fremde Stacks treffen.
-readonly IMAGE_MARKER="danny-avila/librechat"
+# Regex: LibreChat hat den Image-Namespace von danny-avila auf librechat-ai
+# umgestellt - aeltere Installationen tragen noch den alten Namen.
+readonly IMAGE_MARKER="(danny-avila|librechat-ai)/librechat"
 readonly MONGO_DB_NAME="LibreChat"
 readonly BACKUP_PREFIX="librechat"
 readonly DEFAULT_KEEP=5
@@ -249,11 +251,11 @@ command -v git &>/dev/null || HAVE_GIT=0
 
 # -- Installationspfad ermitteln -----------------------------------------------
 # Ein Verzeichnis gilt als LibreChat-Installation, wenn es eine Compose-Datei
-# enthaelt, die auf ein danny-avila/librechat-Image verweist.
+# enthaelt, die auf ein LibreChat-Image verweist.
 compose_file_of() {
   local d="$1" f
   for f in docker-compose.yml docker-compose.yaml compose.yml compose.yaml; do
-    if [[ -f "${d}/${f}" ]] && grep -qi "${IMAGE_MARKER}" "${d}/${f}"; then
+    if [[ -f "${d}/${f}" ]] && grep -qiE "${IMAGE_MARKER}" "${d}/${f}"; then
       echo "${d}/${f}"
       return 0
     fi
@@ -276,7 +278,7 @@ detect_dirs() {
     [[ -n "${d}" && "${d}" == /* ]] && raw+=("$(dirname "${d}")")
     d=$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/app/uploads"}}{{.Source}}{{end}}{{end}}' "${cid}" 2>/dev/null || true)
     [[ -n "${d}" && "${d}" == /* ]] && raw+=("$(dirname "${d}")")
-  done < <(docker ps -a --format '{{.ID}} {{.Image}}' | awk -v img="${IMAGE_MARKER}" 'index($2, img) {print $1}')
+  done < <(docker ps -a --format '{{.ID}} {{.Image}}' | awk -v img="${IMAGE_MARKER}" '$2 ~ img {print $1}')
 
   # 3. Standardpfad des Installers.
   raw+=("${DEFAULT_DIR}")
@@ -297,12 +299,12 @@ detect_dirs() {
 if [[ -n "${INSTALL_DIR:-}" ]]; then
   [[ -d "${INSTALL_DIR}" ]] || die "Angegebener Pfad existiert nicht: ${INSTALL_DIR}"
   compose_file_of "${INSTALL_DIR}" >/dev/null \
-    || die "In ${INSTALL_DIR} liegt keine Compose-Datei mit einem ${IMAGE_MARKER}-Image."
+    || die "In ${INSTALL_DIR} liegt keine Compose-Datei mit einem LibreChat-Image."
 else
   mapfile -t FOUND < <(detect_dirs)
   case "${#FOUND[@]}" in
     0)
-      die "Keine LibreChat-Installation gefunden.\n  Erwartet wurde eine Compose-Datei mit ${IMAGE_MARKER}-Image,\n  z.B. unter ${DEFAULT_DIR}.\n  Pfad ggf. direkt angeben: --dir /pfad/zur/installation"
+      die "Keine LibreChat-Installation gefunden.\n  Erwartet wurde eine Compose-Datei mit LibreChat-Image,\n  z.B. unter ${DEFAULT_DIR}.\n  Pfad ggf. direkt angeben: --dir /pfad/zur/installation"
       ;;
     1)
       INSTALL_DIR="${FOUND[0]}"
@@ -545,12 +547,12 @@ mapfile -t IMAGES_NEXT < <(
 
 # -- 3. Aktueller und zukuenftiger Stand ---------------------------------------
 # Ordnet ein Image einer lesbaren Komponente zu. Reihenfolge der Muster zaehlt:
-# das RAG-Image enthaelt ebenfalls "danny-avila/librechat".
+# das RAG-Image enthaelt ebenfalls ".../librechat".
 component_of() {
   case "$1" in
     *librechat-rag-api*)     echo "10 RAG-API" ;;
     *librechat-admin-panel*) echo "02 Admin-Panel" ;;
-    *"${IMAGE_MARKER}"*)     echo "01 LibreChat" ;;
+    *danny-avila/librechat*|*librechat-ai/librechat*) echo "01 LibreChat" ;;
     mongo:*|*/mongo:*)       echo "03 MongoDB" ;;
     *meilisearch*)           echo "04 Meilisearch" ;;
     *pgvector*)              echo "05 Vektor-DB (pgvector)" ;;

@@ -223,6 +223,28 @@ compose_file_of() {
   return 1
 }
 
+# Reste einer Installation ohne (erkennbare) Compose-Datei: z.B. nach einem
+# abgebrochenen Install, einem halb durchgelaufenen Uninstall oder wenn die
+# docker-compose.yml von Hand geloescht/umgebaut wurde. Damit das Script dann
+# nicht faelschlich "Nichts zu tun" meldet, zaehlt ein Verzeichnis auch dann als
+# LibreChat, wenn mindestens ein eindeutiges Merkmal von install-librechat.sh
+# vorhanden ist. Bewusst nur Merkmale, die ein fremdes Projekt nicht hat.
+leftover_reason() {
+  local d="$1"
+  [[ -d "${d}" ]] || return 1
+  if [[ -f "${d}/.git/config" ]] && grep -qi 'danny-avila/LibreChat' "${d}/.git/config"; then
+    echo "geklontes LibreChat-Repository (.git)"; return 0
+  fi
+  if [[ -f "${d}/librechat.yaml" ]]; then
+    echo "librechat.yaml"; return 0
+  fi
+  if [[ -f "${d}/docker-compose.override.yml" ]] \
+     && grep -qiE 'librechat|admin-panel' "${d}/docker-compose.override.yml"; then
+    echo "docker-compose.override.yml von install-librechat.sh"; return 0
+  fi
+  return 1
+}
+
 detect_dirs() {
   local -a raw=() out=()
   local cid d existing seen
@@ -264,8 +286,21 @@ if [[ -n "${INSTALL_DIR:-}" ]]; then
   info "Installationspfad (vorgegeben): ${INSTALL_DIR}"
 else
   mapfile -t FOUND < <(detect_dirs)
+  # Kein Verzeichnis mit gueltiger Compose-Datei - aber liegt am Standardpfad
+  # noch eine (beschaedigte) Installation? Dann diese aufraeumen statt
+  # "Nichts zu tun" zu melden. Der weitere Ablauf kommt ohne Compose-Datei aus
+  # (Container einzeln, Volumes per Projekt-Label, danach das Verzeichnis).
+  if [[ "${#FOUND[@]}" -eq 0 ]] && LEFTOVER_REASON="$(leftover_reason "${DEFAULT_DIR}")"; then
+    warn "Unvollstaendige LibreChat-Installation gefunden: ${DEFAULT_DIR}"
+    warn "Keine Compose-Datei mit ${IMAGE_MARKER}-Image - erkannt an: ${LEFTOVER_REASON}"
+    FOUND=("${DEFAULT_DIR}")
+  fi
   case "${#FOUND[@]}" in
     0)
+      if [[ -d "${DEFAULT_DIR}" ]]; then
+        warn "${DEFAULT_DIR} existiert, enthaelt aber keine erkennbare LibreChat-Installation."
+        warn "Es wird nichts geloescht. Falls es doch LibreChat ist: --dir ${DEFAULT_DIR}"
+      fi
       if [[ "${#LC_CONTAINERS[@]}" -gt 0 ]]; then
         warn "Kein Installationsverzeichnis gefunden, aber es existieren noch LibreChat-Container:"
         for c in "${LC_CONTAINERS[@]}"; do echo -e "   - ${CYAN}${c}${RESET}"; done
@@ -322,6 +357,10 @@ readonly INSTALL_DIR
 COMPOSE_FILE=""
 COMPOSE_FILE="$(compose_file_of "${INSTALL_DIR}" || true)"
 readonly COMPOSE_FILE
+if [[ -z "${COMPOSE_FILE}" ]]; then
+  warn "In ${INSTALL_DIR} liegt keine Compose-Datei mit ${IMAGE_MARKER}-Image."
+  warn "Container werden einzeln, Volumes ueber das Projekt-Label entfernt."
+fi
 
 # Compose aus dem Installationsverzeichnis heraus aufrufen, damit Override und
 # .env automatisch gezogen werden - sonst kennt 'down' die Netzwerke nicht.

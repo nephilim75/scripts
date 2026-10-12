@@ -45,7 +45,7 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
-LBLUE='\033[1;94m'; LGREEN='\033[0;92m'
+LYELLOW='\033[1;93m'; LGREEN='\033[0;92m'
 
 # -- Konstanten ----------------------------------------------------------------
 readonly PROXY_NETWORK="shared_proxy"
@@ -515,13 +515,14 @@ success "Verzeichnis entfernt."
 
 # -- Abschluss -----------------------------------------------------------------
 echo ""
-echo "------------------------------------------------------------"
 if [[ "${DRY_RUN}" -eq 1 ]]; then
-  echo -e "${YELLOW}${BOLD} DRY-RUN beendet - es wurde NICHTS geloescht.${RESET}"
+  BOX_COLOR="${YELLOW}"; BOX_TEXT="#        DRY-RUN - nichts geloescht         #"
 else
-  echo -e "${GREEN}${BOLD} LibreCodeInterpreter vollstaendig entfernt.${RESET}"
+  BOX_COLOR="${GREEN}";  BOX_TEXT="#       LibreCodeInterpreter entfernt       #"
 fi
-echo "------------------------------------------------------------"
+echo -e "${BOX_COLOR}${BOLD}#############################################${RESET}"
+echo -e "${BOX_COLOR}${BOLD}${BOX_TEXT}${RESET}"
+echo -e "${BOX_COLOR}${BOLD}#############################################${RESET}"
 echo ""
 [[ -n "${KEEP_DIR}" ]] && echo -e " Aufbewahrte Backups: ${CYAN}${KEEP_DIR}${RESET}" && echo ""
 echo -e " Unangetastet geblieben: Netzwerk ${CYAN}${PROXY_NETWORK}${RESET} und alle Container"
@@ -547,23 +548,28 @@ if [[ -f /var/log/librecodeinterpreter-update.log ]]; then
   echo ""
 fi
 
-echo -e "${LBLUE}Letzte Schritte${RESET}"
-echo -e "${LBLUE}------------------------------------------------------------${RESET}"
-echo ""
-echo -e " 1) Falls im Nginx Proxy Manager noch ein Proxy Host fuer die Code-Interpreter-"
-echo -e "    Domain existiert, bitte dort manuell entfernen - ebenso den zugehoerigen"
-echo -e "    DNS-A-Record beim Domain-Provider."
-echo ""
-# Die .env von LibreChat wird bewusst NICHT selbst geaendert (siehe Kopf:
-# nichts ausserhalb der eigenen Installation anfassen). Stattdessen ein
-# fertiger Befehl - immer angezeigt, da LibreChat auch auf einem anderen
-# Server laufen kann. Stop+Start, weil "docker restart" die .env nicht neu liest.
-echo -e " 2) LibreChat zeigt noch auf den entfernten Code-Interpreter."
-echo -e "    Dieser Befehl loest die Verbindung und startet LibreChat neu."
-echo -e "    Auf dem LibreChat-Server ausfuehren:"
-echo ""
-printf '      %b%s%b\n' "${LGREEN}" "sudo sed -i -E '/^#?\\s*LIBRECHAT_CODE_(BASEURL|API_KEY)=/d' /opt/librechat/.env && sudo docker stop LibreChat && sudo docker start LibreChat" "${RESET}"
-echo ""
+# Offene Aufgaben bewusst als eigener Abschnitt NACH der Erfolgsmeldung:
+# technisch ist die Deinstallation fertig, organisatorisch bleibt noch etwas
+# zu tun. Im Dry-Run wurde nichts entfernt - dann gibt es auch nichts aufzuraeumen.
+if [[ "${DRY_RUN}" -ne 1 ]]; then
+  echo -e "${LYELLOW}Noch aufzuraeumen${RESET}"
+  echo -e "${LYELLOW}------------------------------------------------------------${RESET}"
+  echo ""
+  echo -e " 1) Nginx Proxy Manager: Proxy Host der Code-Interpreter-Domain"
+  echo -e "    entfernen. Beim Domain-Provider den A-Record loeschen."
+  echo ""
+  # Die .env von LibreChat wird bewusst NICHT selbst geaendert (siehe Kopf:
+  # nichts ausserhalb der eigenen Installation anfassen). Stattdessen ein
+  # fertiger Befehl - immer angezeigt, da LibreChat auch auf einem anderen
+  # Server laufen kann. Stop+Start, weil "docker restart" die .env nicht neu liest.
+  echo -e " 2) LibreChat zeigt noch auf den entfernten Code-Interpreter."
+  echo -e "    Dieser Befehl loest die Verbindung und startet LibreChat neu."
+  echo -e "    Auf dem LibreChat-Server ausfuehren:"
+  echo ""
+  printf '      %b%s%b\n' "${LGREEN}" "sudo sed -i -E '/^#?\\s*LIBRECHAT_CODE_(BASEURL|API_KEY)=/d' /opt/librechat/.env && sudo docker stop LibreChat && sudo docker start LibreChat" "${RESET}"
+  echo ""
+fi
+
 echo -e " Neuinstallation jederzeit moeglich mit:"
 echo -e " ${CYAN}sudo bash -c \"\$(curl -fsSL ${INSTALL_SCRIPT_URL})\"${RESET}"
 echo ""

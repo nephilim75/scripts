@@ -19,6 +19,8 @@ set -Eeuo pipefail
 trap 'rc=$?; echo "[FEHLER] Abbruch in Zeile ${LINENO} (Exit ${rc})." >&2; exit ${rc}' ERR
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; BLUE='\033[0;34m'; BOLD='\033[1m'; RESET='\033[0m'
+# Hellere Toene fuer den Abschluss - auf dunklem Terminal-Hintergrund besser lesbar
+LBLUE='\033[1;94m'; LYELLOW='\033[1;93m'; LGREEN='\033[0;92m'
 info()    { printf '%b\n' "${CYAN}[INFO]${RESET}  $*"; }
 success() { printf '%b\n' "${GREEN}[OK]${RESET}    $*"; }
 warn()    { printf '%b\n' "${YELLOW}[WARN]${RESET}  $*"; }
@@ -279,8 +281,8 @@ printf '%b\n' "${GREEN}${BOLD}#############################################${RES
 printf '%b\n' "${GREEN}${BOLD}#         Installation erfolgreich          #${RESET}"
 printf '%b\n' "${GREEN}${BOLD}#############################################${RESET}"
 
-printf '%b\n' "\n${BLUE}${BOLD}Naechste Schritte${RESET}"
-printf '%b\n' "${BLUE}------------------------------------------------------------${RESET}"
+printf '%b\n' "\n${LBLUE}Naechste Schritte${RESET}"
+printf '%b\n' "${LBLUE}------------------------------------------------------------${RESET}"
 
 if [[ -n "${HOST_IPV4}" ]]; then
 cat <<DNS
@@ -317,22 +319,29 @@ cat <<NEXT
      HTTP/2 Support:     an
      HSTS Enabled:       an
 
-Schluessel dieser Installation:
+NEXT
 
-   MASTER_API_KEY (Dashboard):   ${MASTER_API_KEY}
-   API-Key fuer LibreChat:       ${LIBRECHAT_KEY}
+# Keys und Einzeiler per printf, weil cat keine Farbcodes umsetzt.
+printf '%b\n' "   Schluessel dieser Installation:"
+echo ""
+printf '%b\n' "      MASTER_API_KEY (Dashboard):   ${LYELLOW}${MASTER_API_KEY}${RESET}"
+printf '%b\n' "      API-Key fuer LibreChat:       ${LYELLOW}${LIBRECHAT_KEY}${RESET}"
+echo ""
+echo "      Der MASTER_API_KEY steht auch in: ${DEFAULT_INSTALL_DIR}/.env"
 
-   Der MASTER_API_KEY steht auch in: ${DEFAULT_INSTALL_DIR}/.env
+cat <<NEXT
 
-3) Code-Interpreter in LibreChat eintragen - diesen Befehl kopieren
-   und auf dem LibreChat-Server ausfuehren:
+3) Code-Interpreter in LibreChat eintragen und LibreChat neu starten -
+   diesen Befehl kopieren und auf dem LibreChat-Server ausfuehren:
 
-     sudo sed -i -E '/^#?\s*LIBRECHAT_CODE_(BASEURL|API_KEY)=/d' ${LC_ENV} && echo "LIBRECHAT_CODE_BASEURL=https://${LIBRECHAT_KEY}@${DOMAIN}" | sudo tee -a ${LC_ENV} >/dev/null
+NEXT
 
-   Danach LibreChat stoppen und starten - ein 'docker restart' allein
-   liest die .env NICHT neu ein:
+# Stop+Start statt "docker restart": nur so wird die .env neu eingelesen.
+# Als Teil des Einzeilers, damit der Schritt nicht vergessen werden kann.
+LC_CMD="sudo sed -i -E '/^#?\\s*LIBRECHAT_CODE_(BASEURL|API_KEY)=/d' ${LC_ENV} && echo \"LIBRECHAT_CODE_BASEURL=https://${LIBRECHAT_KEY}@${DOMAIN}\" | sudo tee -a ${LC_ENV} >/dev/null && sudo docker stop LibreChat && sudo docker start LibreChat"
+printf '     %b%s%b\n' "${LGREEN}" "${LC_CMD}" "${RESET}"
 
-     sudo docker stop LibreChat && sudo docker start LibreChat
+cat <<NEXT
 
    Pruefen, ob der Wert angekommen ist:
 

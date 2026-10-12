@@ -34,6 +34,7 @@ This downloads the uninstall script and runs it interactively. It will ask multi
 4. **Stops and removes** the stack with `docker compose down -v --remove-orphans`.
 5. **Deletes** the installation directory.
 6. **Reports** any related components that were left untouched (LibreChat, avila-code-interpreter, NPM proxy hosts).
+7. **Prints** a ready-to-paste command that disconnects LibreChat from the removed interpreter.
 
 ---
 
@@ -82,6 +83,19 @@ Environment variables for unattended operation: `INSTALL_DIR`, `ASSUME_YES=1`.
   - LibreChat under `/opt/librechat`
   - avila-code-interpreter under `/opt/avila-code-interpreter`
 - DNS records and Nginx Proxy Manager proxy hosts (must be removed manually)
+- LibreChat's `.env` — the connection line stays until you remove it (see below)
+
+---
+
+## Disconnecting LibreChat
+
+The script does not edit LibreChat's `.env` itself. Instead it prints this command at the end. Run it **on the LibreChat server**:
+
+```bash
+sudo sed -i -E '/^#?\s*LIBRECHAT_CODE_(BASEURL|API_KEY)=/d' /opt/librechat/.env && sudo docker stop LibreChat && sudo docker start LibreChat
+```
+
+It removes the `LIBRECHAT_CODE_BASEURL` and `LIBRECHAT_CODE_API_KEY` lines and then stops and starts LibreChat — a plain `docker restart` does **not** reload `.env`. Without this step LibreChat keeps pointing at the removed interpreter and code execution fails in the chat.
 
 ---
 

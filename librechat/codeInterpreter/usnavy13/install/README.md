@@ -99,16 +99,10 @@ After confirmation it proceeds automatically. At the end it prints:
 The installer already creates the API key for LibreChat and prints a ready-to-paste command with key and domain filled in. Run it **on the LibreChat server**:
 
 ```bash
-sudo sed -i -E '/^#?\s*LIBRECHAT_CODE_(BASEURL|API_KEY)=/d' /opt/librechat/.env && echo "LIBRECHAT_CODE_BASEURL=https://<API-KEY>@<your-domain>" | sudo tee -a /opt/librechat/.env >/dev/null
+sudo sed -i -E '/^#?\s*LIBRECHAT_CODE_(BASEURL|API_KEY)=/d' /opt/librechat/.env && echo "LIBRECHAT_CODE_BASEURL=https://<API-KEY>@<your-domain>" | sudo tee -a /opt/librechat/.env >/dev/null && sudo docker stop LibreChat && sudo docker start LibreChat
 ```
 
-It removes any existing `LIBRECHAT_CODE_BASEURL` and `LIBRECHAT_CODE_API_KEY` lines (including commented-out ones) and appends the correct line. The path `/opt/librechat` matches the LibreChat installer from this repository.
-
-Then **stop and start** LibreChat — `docker restart` does **not** reload `.env`:
-
-```bash
-sudo docker stop LibreChat && sudo docker start LibreChat
-```
+It removes any existing `LIBRECHAT_CODE_BASEURL` and `LIBRECHAT_CODE_API_KEY` lines (including commented-out ones), appends the correct line and then **stops and starts** LibreChat — a plain `docker restart` does **not** reload `.env`. The path `/opt/librechat` matches the LibreChat installer from this repository.
 
 Verify the variable is loaded:
 

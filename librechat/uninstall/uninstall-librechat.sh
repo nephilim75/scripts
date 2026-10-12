@@ -291,8 +291,6 @@ else
   # "Nichts zu tun" zu melden. Der weitere Ablauf kommt ohne Compose-Datei aus
   # (Container einzeln, Volumes per Projekt-Label, danach das Verzeichnis).
   if [[ "${#FOUND[@]}" -eq 0 ]] && LEFTOVER_REASON="$(leftover_reason "${DEFAULT_DIR}")"; then
-    warn "Unvollstaendige LibreChat-Installation gefunden: ${DEFAULT_DIR}"
-    warn "Keine Compose-Datei mit ${IMAGE_MARKER}-Image - erkannt an: ${LEFTOVER_REASON}"
     FOUND=("${DEFAULT_DIR}")
   fi
   case "${#FOUND[@]}" in
@@ -358,8 +356,8 @@ COMPOSE_FILE=""
 COMPOSE_FILE="$(compose_file_of "${INSTALL_DIR}" || true)"
 readonly COMPOSE_FILE
 if [[ -z "${COMPOSE_FILE}" ]]; then
-  warn "In ${INSTALL_DIR} liegt keine Compose-Datei mit ${IMAGE_MARKER}-Image."
-  warn "Container werden einzeln, Volumes ueber das Projekt-Label entfernt."
+  warn "Unvollstaendige Installation: keine Compose-Datei mit ${IMAGE_MARKER}-Image${LEFTOVER_REASON:+ (erkannt an: ${LEFTOVER_REASON})}."
+  warn "Container werden einzeln entfernt, Volumes ueber das Projekt-Label."
 fi
 
 # Compose aus dem Installationsverzeichnis heraus aufrufen, damit Override und
@@ -381,13 +379,46 @@ echo "------------------------------------------------------------"
 echo -e "${BOLD} Bestandsaufnahme${RESET}"
 echo "------------------------------------------------------------"
 
-CONTAINERS=""
-if [[ -n "${COMPOSE_FILE}" ]]; then
-  CONTAINERS=$(dc ps -a --format '{{.Name}}' 2>/dev/null || true)
-fi
-if [[ -z "${CONTAINERS}" && "${#LC_CONTAINERS[@]}" -gt 0 ]]; then
-  CONTAINERS=$(printf '%s\n' "${LC_CONTAINERS[@]}")
-fi
+# Projektname wie bei Compose: aus der Config, sonst aus dem Verzeichnisnamen.
+PROJECT_NAME="$(dc config --format json 2>/dev/null | sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1 || true)"
+[[ -n "${PROJECT_NAME}" ]] || PROJECT_NAME="$(basename "${INSTALL_DIR}" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')"
+mapfile -t PROJECT_VOLUMES < <(
+  docker volume ls --filter "label=com.docker.compose.project=${PROJECT_NAME}" --format '{{.Name}}' 2>/dev/null || true
+)
+
+# Container dieser Installation. Der Image-Name allein reicht nicht: nach einem
+# Update zeigt 'docker ps' fuer Container mit altem Image nur noch die Image-ID,
+# und mongo/meilisearch/pgvector tragen ohnehin kein LibreChat-Image. Deshalb
+# zusaetzlich ueber Compose-Labels, Volumes und Bind-Mounts zuordnen - jeweils
+# nur, wenn der Container eindeutig zu ${INSTALL_DIR} gehoert. Bleibt auch nur
+# einer stehen, haelt er Volumes fest und legt das Verzeichnis neu an.
+collect_containers() {
+  local id wd mounts v
+  if [[ -n "${COMPOSE_FILE}" ]]; then
+    dc ps -a --format '{{.Name}}' 2>/dev/null || true
+  fi
+  printf '%s\n' ${LC_CONTAINERS[@]+"${LC_CONTAINERS[@]}"}
+  # Compose-Label: Projekt und Arbeitsverzeichnis muessen passen.
+  while IFS= read -r id; do
+    [[ -n "${id}" ]] || continue
+    wd="$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "${id}" 2>/dev/null || true)"
+    [[ -z "${wd}" || "${wd}" == "${INSTALL_DIR}" ]] \
+      && docker inspect --format '{{.Name}}' "${id}" 2>/dev/null | sed 's#^/##'
+  done < <(docker ps -aq --filter "label=com.docker.compose.project=${PROJECT_NAME}" 2>/dev/null || true)
+  # Nutzer der Projekt-Volumes.
+  for v in ${PROJECT_VOLUMES[@]+"${PROJECT_VOLUMES[@]}"}; do
+    docker ps -a --filter "volume=${v}" --format '{{.Names}}' 2>/dev/null || true
+  done
+  # Bind-Mounts aus dem Installationsverzeichnis (data-node, uploads, ...).
+  while IFS= read -r id; do
+    [[ -n "${id}" ]] || continue
+    mounts="$(docker inspect --format '{{range .Mounts}}{{.Source}}{{"\n"}}{{end}}' "${id}" 2>/dev/null || true)"
+    if grep -qE "^${INSTALL_DIR}(/|\$)" <<<"${mounts}"; then
+      docker inspect --format '{{.Name}}' "${id}" 2>/dev/null | sed 's#^/##'
+    fi
+  done < <(docker ps -aq 2>/dev/null || true)
+}
+CONTAINERS="$(collect_containers | grep -v '^$' | sort -u || true)"
 
 if [[ -n "${CONTAINERS}" ]]; then
   info "Folgende Container werden entfernt:"
@@ -400,14 +431,9 @@ fi
 # aus der Compose-Datei (pgdata2, librechat-data); auf dem Host tragen sie das
 # Projekt-Praefix. Ueber das Label com.docker.compose.project sind sie sicher
 # zuzuordnen, ohne fremde Volumes mit aehnlichem Namen zu treffen.
-PROJECT_NAME="$(dc config --format json 2>/dev/null | sed -n 's/.*"name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1 || true)"
-[[ -n "${PROJECT_NAME}" ]] || PROJECT_NAME="$(basename "${INSTALL_DIR}" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')"
-mapfile -t PROJECT_VOLUMES < <(
-  docker volume ls --filter "label=com.docker.compose.project=${PROJECT_NAME}" --format '{{.Name}}' 2>/dev/null || true
-)
 if [[ "${#PROJECT_VOLUMES[@]}" -gt 0 ]]; then
   echo ""
-  warn "Diese Docker-Volumes des Projekts '${PROJECT_NAME}' werden mit entfernt (compose down -v):"
+  warn "Diese Docker-Volumes des Projekts '${PROJECT_NAME}' werden mit entfernt:"
   for v in "${PROJECT_VOLUMES[@]}"; do
     vpath="$(docker volume inspect "${v}" -f '{{.Mountpoint}}' 2>/dev/null || true)"
     vsize=""
@@ -454,21 +480,6 @@ if [[ -d "${INSTALL_DIR}/backups" ]]; then
   item "${YELLOW}" "backups/" "- ${BACKUP_COUNT} Backup(s), ${BACKUP_SIZE} (separate Abfrage)"
 fi
 
-# Andere Container am shared_proxy-Netz: die verlieren ihren Reverse Proxy nicht,
-# werden hier aber genannt, damit klar ist, was auf dem Host weiterlaeuft.
-OTHERS=""
-if docker network inspect "${PROXY_NETWORK}" &>/dev/null; then
-  OTHERS=$(docker network inspect "${PROXY_NETWORK}" \
-    --format '{{range .Containers}}{{.Name}}{{"\n"}}{{end}}' 2>/dev/null \
-    | grep -v '^$' | grep -viE 'librechat|admin-panel|chat-mongodb|chat-meilisearch|vectordb|rag_api' || true)
-fi
-if [[ -n "${OTHERS}" ]]; then
-  echo ""
-  warn "Diese Container haengen ebenfalls am Netzwerk '${PROXY_NETWORK}':"
-  while IFS= read -r c; do [[ -n "$c" ]] && echo -e "   - ${CYAN}${c}${RESET}"; done <<<"${OTHERS}"
-  warn "Sie laufen unveraendert weiter - dieses Script ruehrt das Netzwerk nicht an."
-fi
-
 # Zusaetzliche Komponenten: nur melden, niemals anfassen.
 declare -a EXTRAS_FOUND=()
 for entry in "${EXTRA_DIRS[@]}"; do
@@ -492,7 +503,6 @@ if [[ "${#EXTRAS_FOUND[@]}" -gt 0 || "${#AVILA_CONTAINERS[@]}" -gt 0 || "${#CI_C
   for c in ${CI_CONTAINERS[@]+"${CI_CONTAINERS[@]}"}; do
     echo -e "   - Container ${CYAN}${c}${RESET}"
   done
-  warn "Sie wurden von eigenen Scripten installiert und muessen dort entfernt werden."
 fi
 
 # Images ermitteln - bewusst aus der Compose-Config, damit auch gepinnte Tags
@@ -562,18 +572,21 @@ echo "------------------------------------------------------------"
 echo -e "${BOLD} Entfernen${RESET}"
 echo "------------------------------------------------------------"
 
+FAILED=0
 if [[ -n "${COMPOSE_FILE}" ]]; then
   info "Stoppe und entferne Container samt Volumes (compose down -v)..."
-  dc_run down -v --remove-orphans
-  success "Container und Volumes entfernt."
-elif [[ -n "${CONTAINERS}" ]]; then
-  warn "Keine Compose-Datei gefunden - entferne Container einzeln."
+  dc_run down -v --remove-orphans || warn "compose down meldete einen Fehler - raeume einzeln nach."
+fi
+# Alles, was 'down' nicht erwischt hat (oder ohne Compose-Datei: alles).
+if [[ -n "${CONTAINERS}" ]]; then
   while IFS= read -r c; do
     [[ -n "$c" ]] || continue
-    run docker rm -f "$c"
+    [[ "${DRY_RUN}" -eq 0 ]] && ! docker inspect "$c" >/dev/null 2>&1 && continue
+    info "Entferne Container ${c}..."
+    run docker rm -f "$c" || { warn "Container ${c} konnte nicht entfernt werden."; FAILED=1; }
   done <<<"${CONTAINERS}"
-  success "Container entfernt."
 fi
+success "Container entfernt."
 
 # Falls 'down -v' ein Volume nicht erwischt hat (z.B. weil es aus einem frueheren
 # Projektnamen stammt), gezielt nachraeumen - ausschliesslich Volumes mit dem
@@ -581,7 +594,7 @@ fi
 for v in ${PROJECT_VOLUMES[@]+"${PROJECT_VOLUMES[@]}"}; do
   if docker volume inspect "${v}" >/dev/null 2>&1; then
     info "Entferne uebrig gebliebenes Volume ${v}..."
-    run docker volume rm "${v}" || warn "Volume ${v} konnte nicht entfernt werden (noch in Benutzung?)."
+    run docker volume rm "${v}" || { warn "Volume ${v} konnte nicht entfernt werden (noch in Benutzung?)."; FAILED=1; }
   fi
 done
 
@@ -612,36 +625,30 @@ else
 fi
 
 info "Entferne Verzeichnis ${INSTALL_DIR}..."
-run rm -rf "${INSTALL_DIR}"
-success "Verzeichnis entfernt."
+run rm -rf "${INSTALL_DIR}" || true
+if [[ "${DRY_RUN}" -eq 0 && -e "${INSTALL_DIR}" ]]; then
+  error "${INSTALL_DIR} existiert noch (bzw. wurde von einem Container neu angelegt)."
+  FAILED=1
+else
+  success "Verzeichnis entfernt."
+fi
 
 # -- Abschluss -----------------------------------------------------------------
 echo ""
 echo "------------------------------------------------------------"
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo -e "${YELLOW}${BOLD} DRY-RUN beendet - es wurde NICHTS geloescht.${RESET}"
+elif [[ "${FAILED}" -eq 1 ]]; then
+  echo -e "${RED}${BOLD} LibreChat wurde NICHT vollstaendig entfernt - siehe Meldungen oben.${RESET}"
 else
   echo -e "${GREEN}${BOLD} LibreChat vollstaendig entfernt.${RESET}"
 fi
 echo "------------------------------------------------------------"
 echo ""
 [[ -n "${KEEP_DIR}" ]] && echo -e " Aufbewahrte Backups: ${CYAN}${KEEP_DIR}${RESET}" && echo ""
-echo -e " Unangetastet geblieben: Netzwerk ${CYAN}${PROXY_NETWORK}${RESET} und alle Container"
-echo -e " anderer Stacks (Nginx Proxy Manager, n8n, SearXNG, ...)."
-echo ""
-
 if [[ "${#EXTRAS_FOUND[@]}" -gt 0 || "${#AVILA_CONTAINERS[@]}" -gt 0 || "${#CI_CONTAINERS[@]}" -gt 0 ]]; then
-  warn "Diese Komponenten bestehen weiterhin und muessen separat entfernt werden:"
-  for e in ${EXTRAS_FOUND[@]+"${EXTRAS_FOUND[@]}"}; do
-    echo -e "   - ${CYAN}${e}${RESET}"
-  done
-  for c in ${AVILA_CONTAINERS[@]+"${AVILA_CONTAINERS[@]}"}; do
-    echo -e "   - Container ${CYAN}${c}${RESET}"
-  done
-  for c in ${CI_CONTAINERS[@]+"${CI_CONTAINERS[@]}"}; do
-    echo -e "   - Container ${CYAN}${c}${RESET}"
-  done
-  echo -e "   Anleitung: ${CYAN}https://github.com/nephilim75/scripts/tree/main/librechat/codeInterpreter${RESET}"
+  info "Code Interpreter / Admin-Tool bestehen weiter. Entfernen mit den eigenen Scripten:"
+  echo -e "   ${CYAN}https://github.com/nephilim75/scripts/tree/main/librechat${RESET}"
   echo ""
 fi
 

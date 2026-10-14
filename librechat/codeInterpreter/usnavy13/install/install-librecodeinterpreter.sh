@@ -20,7 +20,7 @@ trap 'rc=$?; echo "[FEHLER] Abbruch in Zeile ${LINENO} (Exit ${rc})." >&2; exit 
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; BLUE='\033[0;34m'; BOLD='\033[1m'; RESET='\033[0m'
 # Hellere Toene fuer den Abschluss - auf dunklem Terminal-Hintergrund besser lesbar
-LBLUE='\033[1;94m'; LYELLOW='\033[1;93m'; LGREEN='\033[0;92m'
+LBLUE='\033[1;38;5;117m'; LYELLOW='\033[1;93m'; LGREEN='\033[0;92m'
 info()    { printf '%b\n' "${CYAN}[INFO]${RESET}  $*"; }
 success() { printf '%b\n' "${GREEN}[OK]${RESET}    $*"; }
 warn()    { printf '%b\n' "${YELLOW}[WARN]${RESET}  $*"; }
@@ -328,6 +328,9 @@ printf '%b\n' "      MASTER_API_KEY (Dashboard):   ${LYELLOW}${MASTER_API_KEY}${
 printf '%b\n' "      API-Key fuer LibreChat:       ${LYELLOW}${LIBRECHAT_KEY}${RESET}"
 echo ""
 echo "      Der MASTER_API_KEY steht auch in: ${DEFAULT_INSTALL_DIR}/.env"
+echo ""
+echo "      Beide Schluessel sind wie Passwoerter zu behandeln: geheim halten,"
+echo "      nicht in Chats, Tickets oder Screenshots weitergeben."
 
 cat <<NEXT
 
@@ -345,7 +348,7 @@ cat <<NEXT
 
    Pruefen, ob der Wert angekommen ist:
 
-     sudo docker exec LibreChat env | grep LIBRECHAT_CODE
+     sudo docker exec LibreChat grep '^LIBRECHAT_CODE_BASEURL=' /app/.env
 
 4) CodeInterpreter Dashboard (optional):
 NEXT
@@ -362,6 +365,12 @@ cat <<NEXT
 
    Der MASTER_API_KEY ist NICHT der Schluessel fuer LibreChat. Er dient
    allein der Anmeldung am Dashboard.
+
+5) Optional haerten: Im Nginx Proxy Manager eine Access List mit
+   IP-Regeln anlegen und dem Proxy Host zuweisen.
+   ACHTUNG: Nur sinnvoll, wenn LibreChat auf einem ANDEREN Server
+   laeuft - auf demselben Server sperrt die Regel LibreChat aus.
+   Keinen Benutzernamen/Passwort setzen - das sperrt LibreChat immer aus.
 
 
 Nuetzliche Befehle:

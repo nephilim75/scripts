@@ -107,7 +107,7 @@ It removes any existing `LIBRECHAT_CODE_BASEURL` and `LIBRECHAT_CODE_API_KEY` li
 Verify the variable is loaded:
 
 ```bash
-sudo docker exec LibreChat env | grep LIBRECHAT_CODE
+sudo docker exec LibreChat grep '^LIBRECHAT_CODE_BASEURL=' /app/.env
 ```
 
 The `MASTER_API_KEY` is **only for logging into the dashboard** at `https://<your-domain>/admin-dashboard`. Do not paste it into LibreChat. In the dashboard you can create, disable and delete further API keys manually.

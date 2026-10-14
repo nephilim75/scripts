@@ -3,6 +3,10 @@
 # avila-code-interpreter Installer
 # - installiert https://github.com/LibreChat-AI/code-interpreter (Fork von
 #   ClickHouse/code-interpreter) unter /opt/avila-code-interpreter
+# - installiert eine veroeffentlichte Version (Tag) - nie den laufend
+#   wechselnden Entwicklungsstand "main", so wie es das Projekt selbst
+#   empfiehlt (README, Abschnitt "Releases"). Vorgeschlagen wird die neueste;
+#   eine andere laesst sich bei der Abfrage eintragen (wie beim n8n-Installer)
 # - volle gehaertete Konfiguration: MicroVM (libkrun) + NsJail im Gast,
 #   Egress-Gateway, signierte Execution-Manifeste, Hardened Mode
 # - Voraussetzung: laufender Nginx Proxy Manager (NPM) + Docker-Netzwerk
@@ -29,6 +33,15 @@ error()   { printf '%b\n' "${RED}[FEHLER]${RESET} $*"; }
 die()     { error "$*"; exit 1; }
  
 readonly REPO_URL="https://github.com/LibreChat-AI/code-interpreter.git"
+# Upstream veroeffentlicht nach jedem erfolgreichen CI-Lauf eine neue
+# Versionsnummer (Tag, z.B. v1.10.4). Der Installer schlaegt die neueste vor.
+# Ersatzvorschlag, falls sie sich nicht ermitteln laesst (zuletzt mit diesem
+# Skript geprueft):
+readonly FALLBACK_CODEAPI_VERSION="v1.10.4"
+# Vorbelegung des Vorschlags, z.B. fuer Tests mit einer bestimmten Version:
+#   CODEAPI_VERSION=v1.9.1 sudo -E ./install-avila-code-interpreter.sh
+CODEAPI_VERSION_PRESET="${CODEAPI_VERSION:-}"
+CODEAPI_VERSION=""
 readonly DEFAULT_INSTALL_DIR="/opt/avila-code-interpreter"
 readonly DEFAULT_LIBRECHAT_DIR="/opt/librechat"
 readonly DEFAULT_NPM_NETWORK="shared_proxy"
@@ -87,6 +100,28 @@ success "Docker Compose Plugin gefunden: $(${COMPOSE_CMD} version --short 2>/dev
  
 command -v openssl >/dev/null 2>&1 || die "openssl ist nicht installiert (wird fuer Secrets und Schluessel gebraucht)."
 success "openssl gefunden."
+
+# Neueste veroeffentlichte Version ermitteln. Nur stabile Versionen
+# (vX.Y.Z), keine Vorabversionen (-rcN). ls-remote liest nur.
+latest_codeapi_version() {
+  git ls-remote --tags --refs "${REPO_URL}" 'v*' 2>/dev/null \
+    | awk -F/ '{print $NF}' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true
+}
+# Gibt es diese Version upstream? (Format + Existenz)
+codeapi_version_exists() {
+  [[ "$1" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]] || return 1
+  git ls-remote --exit-code --tags "${REPO_URL}" "refs/tags/$1" >/dev/null 2>&1
+}
+LATEST_CODEAPI_VERSION="$(latest_codeapi_version)"
+if [[ -n "${LATEST_CODEAPI_VERSION}" ]]; then
+  success "Neueste Code-Interpreter-Version: ${LATEST_CODEAPI_VERSION}"
+  VERSION_DEFAULT="${LATEST_CODEAPI_VERSION}"
+else
+  warn "Neueste Code-Interpreter-Version nicht ermittelbar (GitHub erreichbar?)."
+  warn "Vorschlag ist deshalb ${FALLBACK_CODEAPI_VERSION}."
+  VERSION_DEFAULT="${FALLBACK_CODEAPI_VERSION}"
+fi
+[[ -n "${CODEAPI_VERSION_PRESET}" ]] && VERSION_DEFAULT="${CODEAPI_VERSION_PRESET}"
  
 # curl wird nur fuer die Anzeige der oeffentlichen IP am Ende gebraucht (siehe
 # detect_public_ipv4). Fehlt es, laeuft die Installation vollstaendig durch -
@@ -219,6 +254,30 @@ else
   JWT_AUTH="true"
   success "JWT-Absicherung wird eingerichtet."
 fi
+
+# -----------------------------------------------------------------------------
+# Version abfragen (Vorschlag: neueste) - geprueft wird, ob es sie gibt, bevor
+# irgendetwas am System veraendert wird.
+# -----------------------------------------------------------------------------
+echo ""
+while :; do
+  read -rp "Code-Interpreter-Version [${VERSION_DEFAULT}]: " CODEAPI_VERSION
+  CODEAPI_VERSION="${CODEAPI_VERSION:-${VERSION_DEFAULT}}"
+  # "1.10.4" ohne fuehrendes v ebenfalls akzeptieren.
+  [[ "${CODEAPI_VERSION}" =~ ^[0-9] ]] && CODEAPI_VERSION="v${CODEAPI_VERSION}"
+  if codeapi_version_exists "${CODEAPI_VERSION}"; then
+    break
+  fi
+  warn "Version '${CODEAPI_VERSION}' gibt es upstream nicht (oder GitHub ist nicht erreichbar)."
+  warn "Verfuegbare Versionen: https://github.com/LibreChat-AI/code-interpreter/tags"
+done
+readonly CODEAPI_VERSION
+if [[ -n "${LATEST_CODEAPI_VERSION}" && "${CODEAPI_VERSION}" != "${LATEST_CODEAPI_VERSION}" ]]; then
+  warn "Version ${CODEAPI_VERSION} gewaehlt - neuer ist ${LATEST_CODEAPI_VERSION}."
+  warn "Spaeter aktualisieren: update-avila-code-interpreter.sh"
+else
+  success "Version: ${CODEAPI_VERSION}"
+fi
  
 # -----------------------------------------------------------------------------
 # Schritt 2: Speicherplatz pruefen
@@ -328,6 +387,7 @@ fi
 printf '%b\n' "\n${BOLD}Zusammenfassung${RESET}"
 echo "------------------------------------------------------------"
 printf 'Installationspfad: %s\nModus:             %s\n' "${INSTALL_DIR}" "${MODE}"
+printf 'Version:           %s\n' "${CODEAPI_VERSION}"
 [[ -n "${LIBRECHAT_DIR}" ]] && printf 'LibreChat:         %s\n' "${LIBRECHAT_DIR}"
 [[ -n "${DOMAIN}" ]] && printf 'Domain:            %s\n' "${DOMAIN}"
 printf 'NPM-Netzwerk:      %s\n' "${DEFAULT_NPM_NETWORK}"
@@ -340,10 +400,13 @@ read -rp "Installation starten? [j/N]: " CONFIRM
 # -----------------------------------------------------------------------------
 printf '%b\n' "\n${BOLD}Schritt 5: Repository${RESET}"
 echo "------------------------------------------------------------"
-${SUDO} git clone --depth=1 "${REPO_URL}" "${INSTALL_DIR}"
+# --branch mit einem Tag holt genau diese Version (ohne Verlauf, --depth=1).
+# Das Repository steht danach auf "detached HEAD" - gewollt, es wird nie
+# lokal darin entwickelt; das Update-Skript wechselt per Tag weiter.
+${SUDO} git -c advice.detachedHead=false clone --depth=1 --branch "${CODEAPI_VERSION}" "${REPO_URL}" "${INSTALL_DIR}"
 cd "${INSTALL_DIR}"
 [[ -f docker-compose.yaml ]] || die "docker-compose.yaml fehlt im Repository - hat sich die Struktur geaendert?"
-success "Repository bereit."
+success "Repository bereit (Version ${CODEAPI_VERSION})."
  
 # -----------------------------------------------------------------------------
 # Schritt 6: Secrets + Ed25519-Schluesselpaar erzeugen, .env schreiben
@@ -415,6 +478,14 @@ fi
     echo "CODEAPI_AUTH_PROVIDER=none"
     echo "CODEAPI_ALLOW_AUTH_PROVIDER_NONE=true"
   fi
+  # Remote-Bridge (Anbindung externer Sandbox-VMs) wird hier nicht genutzt.
+  # Die Compose-Datei schaltet sie per Standardwert ein (paired + dynamische
+  # Worker); im gehaerteten Modus verweigert die API dann den Start ohne
+  # CODEAPI_BRIDGE_TOKEN (service/src/secure-startup.ts). Ausdruecklich aus-
+  # geschaltet entfaellt die Bridge-Schnittstelle samt Token komplett (README,
+  # Abschnitt "Local Development": "leave bridge routes disabled").
+  echo "CODEAPI_BRIDGE_AUTH_MODE=static"
+  echo "CODEAPI_BRIDGE_DYNAMIC_WORKERS=false"
   echo "KVM_ENABLED=${KVM_ENABLED}"
   echo "CODEAPI_INTERNAL_SERVICE_TOKEN=${CODEAPI_INTERNAL_SERVICE_TOKEN}"
   echo "CODEAPI_EGRESS_GRANT_SECRET=${CODEAPI_EGRESS_GRANT_SECRET}"
@@ -479,31 +550,19 @@ EOF
   success "LibreChat-Konfigurationsblock abgelegt: ${LIBRECHAT_BLOCK_FILE}"
  
   # Im lokalen Modus ist der Pfad bekannt und geprueft - dort kann der Block
-  # auf Wunsch direkt angehaengt werden. Vorher wird die bestehende .env
-  # gesichert, damit ein Rueckweg bleibt.
+  # auf Wunsch direkt angehaengt werden. Gefragt wird jetzt, eingetragen wird
+  # aber erst ganz am Ende, wenn der Stack nachweislich laeuft: bricht der
+  # Build ab, bleibt LibreChats .env unberuehrt (sonst zeigte LibreChat auf
+  # einen Interpreter, den es nicht gibt).
+  LC_WRITE_WANTED="false"
   if [[ "${MODE}" == "lokal" ]]; then
     echo ""
-    read -rp "Block jetzt automatisch in ${LIBRECHAT_DIR}/.env eintragen? [J/n]: " LC_WRITE
+    read -rp "Block nach erfolgreicher Installation automatisch in ${LIBRECHAT_DIR}/.env eintragen? [J/n]: " LC_WRITE
     if [[ "${LC_WRITE,,}" != "n" ]]; then
-      LC_BACKUP="${LIBRECHAT_DIR}/.env.vor-code-interpreter-$(date +%Y%m%d-%H%M%S)"
-      ${SUDO} cp "${LIBRECHAT_DIR}/.env" "${LC_BACKUP}"
-      # Vorhandene Eintraege auskommentieren, damit es keine Doppelungen gibt
-      # (die letzte Zuweisung gewinnt zwar, aber doppelte Zeilen verwirren
-      # beim spaeteren Nachsehen).
-      ${SUDO} sed -i -E 's~^(LIBRECHAT_CODE_BASEURL=|CODEAPI_)~#&~' "${LIBRECHAT_DIR}/.env" 2>/dev/null || true
-      ${SUDO} tee -a "${LIBRECHAT_DIR}/.env" >/dev/null < "${LIBRECHAT_BLOCK_FILE}"
-      success "In LibreChats .env eingetragen (Sicherung: $(basename "${LC_BACKUP}"))."
-      # Die Vorlagendatei enthaelt den privaten Signierschluessel. Nach dem
-      # Eintragen steht er bereits in LibreChats .env - eine zweite Kopie
-      # bringt keinen Nutzen mehr und koennte beim Aufraeumen uebersehen
-      # werden (z.B. in einem Backup des Interpreter-Verzeichnisses).
-      ${SUDO} rm -f "${LIBRECHAT_BLOCK_FILE}"
-      LIBRECHAT_BLOCK_FILE=""
-      info "Vorlagendatei mit dem privaten Schluessel wurde entfernt."
-      LC_ENV_WRITTEN="true"
+      LC_WRITE_WANTED="true"
+      info "Wird eingetragen, sobald der Stack laeuft (vorher bleibt die .env unberuehrt)."
     else
-      info "Nicht eingetragen - der Block liegt in ${LIBRECHAT_BLOCK_FILE}."
-      LC_ENV_WRITTEN="false"
+      info "Wird nicht eingetragen - der Block liegt in ${LIBRECHAT_BLOCK_FILE}."
     fi
   fi
 fi
@@ -522,42 +581,18 @@ echo "------------------------------------------------------------"
 # freigegebenes AppArmor-Profil, um Cgroups und Namespaces fuer die Sandbox
 # einzurichten - ohne KVM uebernimmt NsJail diese Aufgabe direkt am Host.
 #
-# Drei bekannte, voneinander unabhaengige Upstream-Bugs im NsJail-only-
-# Start-Skript (docker/start-direct-sandbox.sh):
-#
-# Bug 1 (fehlender Export): Das Skript setzt vor dem "exec unshare --mount
-# bash -c '...'"-Block nur "export SANDBOX_ROOTFS=...", nicht aber ROOTFS
-# selbst. Da "unshare" einen komplett neuen Bash-Prozess startet, der nur
-# exportierte Umgebungsvariablen erbt (keine gewoehnlichen Shell-Variablen
-# des Elternskripts), ist $ROOTFS innerhalb dieses Blocks leer.
-# Fix: zusaetzlich "export ROOTFS=..." vor dem unshare-Aufruf ergaenzen.
-#
-# Bug 2 (Symlink-Bind-Falle, die eigentliche Ursache des "mount: command not
-# found"-Fehlers): Im Basis-Image ist /usr/sbin nur ein Symlink auf
-# /usr/bin ("merged-usr"-Layout). Ein "mount --bind ... /usr/sbin" mountet
-# dabei nicht auf den Symlink selbst, sondern auf dessen AUFGELOESTES Ziel -
-# also /usr/bin. Dadurch wird das komplette /usr/bin (inkl. "mount", "ls",
-# "which", ...) sofort durch den Inhalt von $ROOTFS/usr/sbin ersetzt, der
-# diese Programme nicht enthaelt (z.B. liegt "mount" im Sandbox-Rootfs nur
-# unter usr/bin, nicht unter usr/sbin - dafuer aber der fuer die Sandbox
-# unverzichtbare "nsjail"-Binary nur unter usr/sbin). Jeder folgende
-# mount-Aufruf schlaegt darum mit "command not found" fehl.
-# Fix: unmittelbar vor diesem einen Bind den Symlink /usr/sbin entfernen und
-# durch ein echtes, leeres Verzeichnis ersetzen - dann bekommt der Bind sein
-# eigenes Ziel, statt versehentlich /usr/bin zu ueberschreiben. Betrifft nur
-# diesen Mount-Namespace des Sandbox-Runners, nicht den Host.
-#
-# Bug 3 (Bash-Pfad-Cache, Restrisiko): Selbst mit korrektem Bind-Ziel koennte
-# Bashs interner Befehls-Cache theoretisch noch auf einen veralteten Pfad
-# zeigen. Fix: "hash -r" nach dem sbin-Bind, leert den Cache zur Sicherheit.
-#
-# Alle drei Fixes werden ausschliesslich per schreibgeschuetztem Volume-Mount
-# eingespielt, das geklonte Repo bleibt unveraendert. Bei einem spaeteren
-# Update des Upstream-Images bleibt diese lokale Kopie wirkungslos-aber-
-# harmlos, falls die Bugs dort inzwischen behoben wurden - es aendert sich
-# nichts an ihrem Verhalten zum Schlechteren.
+# Hinweis zur Geschichte: Fruehere Fassungen dieses Skripts haben den Upstream-
+# Starter docker/start-direct-sandbox.sh durch eine gepatchte Kopie ersetzt
+# (fehlender ROOTFS-Export, /usr/sbin-Symlink-Falle, Bash-Pfad-Cache). Seit
+# upstream-Commit da8775f (01.09.2026) - und damit in JEDER veroeffentlichten
+# Version ab v1.0.0 - erledigt das ein statisch gelinkter Helfer
+# (/sandbox-rootfs-setup, Quelle docker/rootfs-setup.c), der ROOTFS als
+# Argument bekommt, das komplette /usr in einem Schritt einbindet und keine
+# Shell mehr startet. Alle drei Fehler sind damit upstream behoben; der Patch
+# entfaellt ersatzlos.
 SANDBOX_DEVICES_OVERRIDE=""
 SANDBOX_VOLUMES_OVERRIDE=""
+SANDBOX_HEALTHCHECK_OVERRIDE=""
 if [[ "${KVM_ENABLED}" == "false" ]]; then
   SANDBOX_DEVICES_OVERRIDE='    devices: !reset []
     cap_add:
@@ -565,37 +600,23 @@ if [[ "${KVM_ENABLED}" == "false" ]]; then
     security_opt:
       - apparmor:unconfined
 '
+  # Healthcheck im NsJail-Modus: Der Starter bindet das komplette /usr des
+  # Sandbox-Rootfs ueber das /usr des Containers. Auch "docker exec" (und
+  # damit Dockers Healthcheck) sieht danach dieses /usr - das vom Image
+  # mitgelieferte /usr/local/bin/sandbox-runner-healthcheck.sh liegt dort
+  # nicht, der Health-Status bliebe dauerhaft auf "starting", und
+  # service-worker (wartet auf "healthy") startet nie.
+  # Abhilfe: ein eigenes Skript an einem Pfad ausserhalb von /usr, das nur
+  # Bash-Bordmittel nutzt (/dev/tcp statt curl). Es fragt denselben Endpunkt
+  # ab wie das Original (/api/v2/health - prueft auch den Arbeitsbereich der
+  # Sandbox, nicht nur ob der Prozess lebt). Zeitwerte wie im Original.
   ${SUDO} mkdir -p ./nsjail-fix
-  ${SUDO} sed \
-    -e '/mount -o bind,ro "\$ROOTFS\/usr\/sbin"/i\    rm -f /usr/sbin \&\& mkdir -p /usr/sbin' \
-    -e '/mount -o bind,ro "\$ROOTFS\/usr\/sbin"/a\    hash -r' \
-    -e '/^export SANDBOX_ROOTFS="\$ROOTFS"$/a\export ROOTFS="$ROOTFS"' \
-    docker/start-direct-sandbox.sh | ${SUDO} tee ./nsjail-fix/start-direct-sandbox.sh >/dev/null
-  ${SUDO} chmod +x ./nsjail-fix/start-direct-sandbox.sh
-  if ! grep -q '^    rm -f /usr/sbin && mkdir -p /usr/sbin$' ./nsjail-fix/start-direct-sandbox.sh; then
-    die "Patch fuer start-direct-sandbox.sh (sbin-Symlink-Fix) konnte nicht angewendet werden - hat sich das Upstream-Skript geaendert?"
-  fi
-  if ! grep -q '^    hash -r$' ./nsjail-fix/start-direct-sandbox.sh; then
-    die "Patch fuer start-direct-sandbox.sh (hash -r) konnte nicht angewendet werden - hat sich das Upstream-Skript geaendert?"
-  fi
-  if ! grep -q '^export ROOTFS="\$ROOTFS"$' ./nsjail-fix/start-direct-sandbox.sh; then
-    die "Patch fuer start-direct-sandbox.sh (ROOTFS-Export) konnte nicht angewendet werden - hat sich das Upstream-Skript geaendert?"
-  fi
-  success "Korrigierte Kopie von start-direct-sandbox.sh erzeugt (sbin-Symlink-Fix + hash -r + ROOTFS-Export)."
- 
-  # Eigenes Healthcheck-Skript (siehe Bug 4 weiter unten): bewusst nur mit
-  # Bash-Bordmitteln (/dev/tcp, read, printf) geschrieben, ohne curl/wget/
-  # grep - denn nach den Bind-Mounts zeigt /usr/bin auf das Sandbox-Rootfs,
-  # in dem diese Programme nicht enthalten sind.
   ${SUDO} tee ./nsjail-fix/avila-healthcheck.sh >/dev/null <<'HEALTHEOF'
 #!/bin/bash
-# Prueft die Sandbox-API auf 127.0.0.1:2000 - ausschliesslich mit
-# Bash-Builtins, damit der Check auch nach den Bind-Mounts funktioniert.
-# Bewusst der Wurzelpfad "/": auf diesem Port beantwortet der Sandbox-Runner
-# ausschliesslich "/" mit 200; /health, /healthz, /ready und /v1/health
-# liefern hier 404 (live gegen den laufenden Container verifiziert).
+# Healthcheck des Sandbox-Runners im NsJail-Modus (erzeugt vom Installer).
+# Nur Bash-Builtins: nach dem Einbinden des Sandbox-/usr fehlen curl & Co.
 exec 3<>/dev/tcp/127.0.0.1/2000 || exit 1
-printf 'GET / HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 || exit 1
+printf 'GET /api/v2/health HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 || exit 1
 read -r statuszeile <&3 || exit 1
 exec 3<&-
 case "$statuszeile" in
@@ -605,28 +626,10 @@ esac
 HEALTHEOF
   ${SUDO} chmod +x ./nsjail-fix/avila-healthcheck.sh
   success "Eigenes Healthcheck-Skript erzeugt (ohne curl-Abhaengigkeit)."
- 
+
   SANDBOX_VOLUMES_OVERRIDE='    volumes:
-      - ./nsjail-fix/start-direct-sandbox.sh:/usr/local/bin/start-direct-sandbox.sh:ro
       - ./nsjail-fix/avila-healthcheck.sh:/avila-healthcheck.sh:ro
 '
-fi
- 
-# Bug 4 (Healthcheck laeuft ins Leere): Die Bind-Mounts ersetzen /usr/local
-# und /usr/bin durch die Verzeichnisse des Sandbox-Rootfs. Damit verschwinden
-# aus Sicht des Containers sowohl das vom Image mitgelieferte Skript
-# /usr/local/bin/sandbox-runner-healthcheck.sh als auch die von ihm benutzten
-# Programme (curl). Der Sandbox-Betrieb selbst ist davon NICHT betroffen (die
-# API laeuft einwandfrei auf Port 2000) - aber Dockers Health-Status bleibt
-# dauerhaft auf "starting" haengen, weshalb abhaengige Dienste wie
-# service-worker ewig warten.
-# Fix: Ein eigenes, minimales Healthcheck-Skript (oben erzeugt) wird an einen
-# Pfad im Wurzelverzeichnis gemountet, den keiner der Binds beruehrt, und
-# fragt die API ausschliesslich mit Bash-Bordmitteln ab (/dev/tcp statt
-# curl). Zeitwerte identisch zum Original-Image (Interval 5s, Timeout 3s,
-# Start-Period 20s, 60 Versuche).
-SANDBOX_HEALTHCHECK_OVERRIDE=""
-if [[ "${KVM_ENABLED}" == "false" ]]; then
   SANDBOX_HEALTHCHECK_OVERRIDE='    healthcheck:
       test: ["CMD", "/bin/bash", "/avila-healthcheck.sh"]
       interval: 5s
@@ -774,6 +777,32 @@ for c in avila-api avila-egress-gateway avila-sandbox-runner avila-file-server a
   fi
 done
 (( PUBLIC_PORT_FOUND == 0 )) && success "Kein Container hat einen oeffentlich gebundenen Port."
+
+# -----------------------------------------------------------------------------
+# LibreChat-.env ergaenzen (nur lokal + JWT + gewuenscht) - erst jetzt, da der
+# Stack nachweislich laeuft. Vorher wird die bestehende .env gesichert.
+# -----------------------------------------------------------------------------
+LC_ENV_WRITTEN="false"
+if [[ "${LC_WRITE_WANTED:-false}" == "true" ]]; then
+  printf '%b\n' "\n${BOLD}LibreChat-Anbindung eintragen${RESET}"
+  echo "------------------------------------------------------------"
+  LC_BACKUP="${LIBRECHAT_DIR}/.env.vor-code-interpreter-$(date +%Y%m%d-%H%M%S)"
+  ${SUDO} cp -p "${LIBRECHAT_DIR}/.env" "${LC_BACKUP}"
+  # Vorhandene Eintraege auskommentieren, damit es keine Doppelungen gibt
+  # (die letzte Zuweisung gewinnt zwar, aber doppelte Zeilen verwirren
+  # beim spaeteren Nachsehen).
+  ${SUDO} sed -i -E 's~^(LIBRECHAT_CODE_BASEURL=|CODEAPI_)~#&~' "${LIBRECHAT_DIR}/.env" 2>/dev/null || true
+  ${SUDO} tee -a "${LIBRECHAT_DIR}/.env" >/dev/null < "${LIBRECHAT_BLOCK_FILE}"
+  success "In LibreChats .env eingetragen (Sicherung: $(basename "${LC_BACKUP}"))."
+  # Die Vorlagendatei enthaelt den privaten Signierschluessel. Nach dem
+  # Eintragen steht er bereits in LibreChats .env - eine zweite Kopie
+  # bringt keinen Nutzen mehr und koennte beim Aufraeumen uebersehen
+  # werden (z.B. in einem Backup des Interpreter-Verzeichnisses).
+  ${SUDO} rm -f "${LIBRECHAT_BLOCK_FILE}"
+  LIBRECHAT_BLOCK_FILE=""
+  info "Vorlagendatei mit dem privaten Schluessel wurde entfernt."
+  LC_ENV_WRITTEN="true"
+fi
  
 # -----------------------------------------------------------------------------
 # Schritt 10: Abschluss
@@ -789,7 +818,7 @@ if [[ "${MODE}" == "lokal" ]]; then
   info "Container-Namen im gemeinsamen Docker-Netzwerk '${DEFAULT_NPM_NETWORK}' -"
   info "es ist keine Domain und kein NPM-Proxy-Host noetig."
   echo ""
-  if [[ "${JWT_AUTH}" == "true" && "${LC_ENV_WRITTEN:-false}" == "true" ]]; then
+  if [[ "${JWT_AUTH}" == "true" && "${LC_ENV_WRITTEN}" == "true" ]]; then
     success "Die Anbindung wurde bereits in LibreChats .env eingetragen."
     echo ""
     echo "Es fehlt nur noch ein echter Stop+Start von LibreChat, damit die neuen"
@@ -926,4 +955,5 @@ echo ""
 info "Wichtige Befehle:"
 echo "  Logs:    cd ${INSTALL_DIR} && ${COMPOSE_CMD} logs -f"
 echo "  Status:  cd ${INSTALL_DIR} && ${COMPOSE_CMD} ps"
-echo "  Update:  cd ${INSTALL_DIR} && git pull && ${COMPOSE_CMD} build && ${COMPOSE_CMD} up -d"
+echo "  Update:  update-avila-code-interpreter.sh (siehe README im Ordner update/)"
+echo "  Version: ${CODEAPI_VERSION}"

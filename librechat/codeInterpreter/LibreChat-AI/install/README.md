@@ -27,6 +27,12 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/
 The script walks you through everything else and aborts with a clear message if
 something is missing. It never overwrites anything that already exists.
 
+> **Published versions only.** The script installs a published upstream version
+> (a tag such as `v1.10.4`), never the moving `main` branch — as the project itself
+> recommends. It suggests the newest one; press Enter to take it or type another,
+> just like the n8n installer. Later versions come through the
+> [update script](../update/README.md).
+
 > **Use `tmux` or `screen`.** The build takes 10–30+ minutes. If the SSH connection
 > drops, the installation dies halfway through otherwise.
 
@@ -62,6 +68,7 @@ go here. (The articles are in German; any equivalent guide will do just as well.
 | **Path to LibreChat** | only in "local" mode, default `/opt/librechat` |
 | **Domain** | only in "external" mode |
 | **Secure jobs with JWT?** | strongly recommended, default: yes |
+| **Code Interpreter version** | default: the newest published version; any other published version can be entered |
 | **Create a swap file?** | only if no swap exists |
 | **Continue without KVM?** | only if `/dev/kvm` is missing |
 
@@ -82,8 +89,9 @@ the matching public key. The script generates the key pair (Ed25519 / EdDSA)
 automatically.
 
 The **private key belongs exclusively on the LibreChat side**. In "local" mode the
-script writes it straight into LibreChat's `.env` if you want, then deletes its own
-copy. In "external" mode it leaves a ready-made text block at
+script writes it straight into LibreChat's `.env` if you want — but only **after** the
+stack is up and healthy, so an aborted installation leaves LibreChat untouched — then
+deletes its own copy. In "external" mode it leaves a ready-made text block at
 `librechat-jwt-block.txt` for you to transfer to the LibreChat server — and to delete
 there afterwards.
 
@@ -102,15 +110,17 @@ explicitly before continuing.
 
 ## What the script sets up
 
-- clones the repository to `/opt/avila-code-interpreter`
+- clones the chosen upstream version to `/opt/avila-code-interpreter`
 - generates all secrets plus an Ed25519 key pair for signed execution manifests
-- writes a `.env` with `chmod 600`
+- writes a `.env` with `chmod 600` (the unused remote-bridge interface is switched off
+  explicitly — otherwise the hardened API refuses to start without a bridge token)
 - creates a `docker-compose.override.yml`: fixed container names (`avila-*`),
   attachment to `shared_proxy`, **all host ports removed**
 - builds the images locally and starts the stack
 - in NsJail mode additionally: builds the runtimes (Python, Node, Bun, Bash) under
-  `data/pkgs` and applies three fixes for known upstream bugs via a read-only volume
-  mount — the cloned repo itself stays untouched
+  `data/pkgs` and mounts its own health check (`nsjail-fix/avila-healthcheck.sh`),
+  because the image's health check script is hidden once the sandbox's `/usr` is
+  mounted — the cloned repo itself stays untouched
 - verifies at the end that no container has a public port
 
 ---
@@ -181,9 +191,11 @@ docker compose ps          # status
 docker compose logs -f     # logs, quit with Ctrl+C
 docker compose logs -f api # logs of the API only
 
-# update
-git pull && docker compose build && docker compose up -d
+git describe --tags        # installed upstream version
 ```
+
+Updates go through the [update script](../update/README.md) — not `git pull`: the
+installation sits on a version tag, not on a branch.
 
 ---
 

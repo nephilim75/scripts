@@ -417,7 +417,7 @@ item() { printf '     %b+- %-29s%b%b\n' "$1" "$2" "${RESET}" "$3"; }
 [[ -f "${INSTALL_DIR}/${MARKER_FILE}" ]] && \
   item "${YELLOW}" "${MARKER_FILE}" "- Container-Namen, geschlossene Host-Ports"
 [[ -d "${INSTALL_DIR}/nsjail-fix" ]] && \
-  item "${YELLOW}" "nsjail-fix/" "- gepatchter Sandbox-Starter + Healthcheck"
+  item "${YELLOW}" "nsjail-fix/" "- eigener Healthcheck (ggf. alter Sandbox-Starter)"
 [[ -d "${INSTALL_DIR}/data/pkgs" ]] && \
   item "${YELLOW}" "data/pkgs/" "- Laufzeiten python/node/bun/bash ($(dirsize data/pkgs))"
 if [[ -d "${INSTALL_DIR}/data" ]]; then

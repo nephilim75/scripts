@@ -31,7 +31,7 @@ Checks every prerequisite first, asks a handful of questions, then installs. Not
 5. **Isolation** — MicroVM mode if `/dev/kvm` is usable; otherwise it shows the upstream security disclaimer and asks before falling back to NsJail-only.
 6. **Fetches the configuration** of exactly the chosen version (`git clone --branch <version> --depth 1`).
 7. **Writes `.env`** (`chmod 600`) — fresh service secrets, an Ed25519 key pair for signed execution manifests, the JWT verifier, the version and image tag. The unused remote-bridge interface is switched off explicitly; otherwise the hardened API refuses to start without a bridge token.
-8. **Writes `docker-compose.override.yml`** — fixed container names (`avila-*`), the prebuilt image for every service, all host ports removed, attachment to `shared_proxy`.
+8. **Writes `docker-compose.override.yml`** — fixed container names (`avila-*`), the prebuilt image for every service, a working MinIO image (see below), all host ports removed, attachment to `shared_proxy`.
 9. **Pulls the images and starts the stack**, then waits until every service reports healthy. In NsJail mode it first builds the sandbox runtimes under `data/pkgs`.
 10. **Verifies** that no container publishes a port.
 11. **Connects LibreChat** — in local mode with JWT, and only if you agreed: appends the connection block to LibreChat's `.env`. This happens **after** the stack is up, so an aborted installation leaves LibreChat untouched.
@@ -89,6 +89,10 @@ Without KVM only **NsJail mode** remains, which shares the kernel with the host.
 
 - the sandbox reads its runtimes (Python, Node, Bun, Bash) from `data/pkgs` on the host. No prebuilt package exists for them, so the script builds them once with the project's own `Dockerfile.package-init`;
 - the image's health check script is hidden once the sandbox mounts its own `/usr`, so the script installs a curl-free replacement (`nsjail-fix/avila-healthcheck.sh`) that queries the same endpoint.
+
+### MinIO image
+
+The developers' Compose file still references `quay.io/minio/minio`, which no longer works: MinIO now distributes its community edition as source code only, Docker Hub deleted the images in September 2026 and quay.io has refused anonymous pulls (`401 UNAUTHORIZED`) since 24 September 2026. The script therefore uses `cgr.dev/chainguard/minio:latest` instead — the same MinIO, built from source and maintained by Chainguard, with the same start command and credentials variables. It runs as a non-root user and was tested with the stack's fresh Docker volume. Chainguard's free tier only offers the `latest` tag; the [update script](../update/README.md) checks it on every run like the other base images.
 
 ---
 

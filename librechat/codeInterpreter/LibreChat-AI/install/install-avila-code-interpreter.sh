@@ -68,6 +68,14 @@ readonly NPM_NETWORK="shared_proxy"
 readonly API_CONTAINER="avila-api"
 readonly API_PORT="3112"
 readonly PKG_INIT_IMAGE="avila-package-init"
+# Ersatz fuer quay.io/minio/minio aus der Compose-Datei der Entwickler: MinIO
+# verteilt seine Community-Fassung nur noch als Quellcode; Docker Hub hat die
+# Images im September 2026 geloescht, quay.io verweigert seit dem 24.09.2026
+# den anonymen Zugriff (401). Chainguard baut MinIO aus dem Quellcode und
+# pflegt das Image weiter - gleiche Software, gleicher Startbefehl, gleiche
+# Zugangsvariablen. Laeuft als Nicht-root-Benutzer (65532); mit dem frischen
+# Docker-Volume des Stacks getestet. Im kostenlosen Angebot nur als "latest".
+readonly MINIO_IMAGE="cgr.dev/chainguard/minio:latest"
 # "build: !reset null" in der Override-Datei braucht Docker Compose >= 2.24.4.
 readonly MIN_COMPOSE_VERSION="2.24.4"
 # Platzbedarf: Die sechs Images sind komprimiert rund 0,9 GB gross (gemessen
@@ -721,6 +729,7 @@ img() {
   echo ""
   echo "  minio:"
   echo "    container_name: avila-minio"
+  echo "    image: ${MINIO_IMAGE}"
   echo "    ports: !reset []"
   echo ""
   echo "networks:"

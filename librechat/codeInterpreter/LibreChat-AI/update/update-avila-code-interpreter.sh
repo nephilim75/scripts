@@ -68,6 +68,7 @@ RESET='\033[0m'
 
 # -- Konstanten ----------------------------------------------------------------
 readonly GUIDE_URL="https://github.com/nephilim75/scripts/tree/main/librechat/codeInterpreter/LibreChat-AI"
+readonly UPDATE_SCRIPT_URL="https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/LibreChat-AI/update/update-avila-code-interpreter.sh"
 readonly TAGS_URL="https://github.com/LibreChat-AI/code-interpreter/tags"
 readonly DEFAULT_DIR="/opt/avila-code-interpreter"
 # Marker der eigenen Installation: die docker-compose.override.yml schreibt
@@ -1055,10 +1056,26 @@ docker image prune -f >/dev/null
 success "Aufgeraeumt."
 
 # -- Abschluss -----------------------------------------------------------------
+# Erfolgsmeldung im selben Kasten wie beim Installer, mit dem Ergebnis darin.
+box_line() {
+  local text="$1" width=43 left right
+  left=$(( (width - ${#text}) / 2 ))
+  right=$(( width - ${#text} - left ))
+  printf '%b\n' "${GREEN}${BOLD}#$(printf '%*s' "${left}" '')${text}$(printf '%*s' "${right}" '')#${RESET}"
+}
+if [[ "${VERSION_CHANGED}" -eq 1 ]]; then
+  RESULT_LINE="${CURRENT_VERSION} -> ${TARGET_VERSION}"
+else
+  RESULT_LINE="${TARGET_VERSION} neu gestartet"
+fi
 echo ""
-echo "------------------------------------------------------------"
-echo -e "${GREEN}${BOLD} Update abgeschlossen.${RESET}  $(date '+%F %T')"
-echo "------------------------------------------------------------"
+printf '%b\n' "${GREEN}${BOLD}#############################################${RESET}"
+box_line ""
+box_line "Update erfolgreich"
+box_line "${RESULT_LINE}"
+box_line ""
+printf '%b\n' "${GREEN}${BOLD}#############################################${RESET}"
+echo -e " $(date '+%F %T')"
 echo ""
 if [[ "${NSJAIL_MODE}" -eq 1 ]]; then
   warn "Isolation: NsJail-only-Modus (teilt sich den Host-Kernel, laut Projekt-Doku"
@@ -1073,10 +1090,10 @@ echo -e " Backup: ${CYAN}${BACKUP_FILE}${RESET}"
 if [[ "${VERSION_CHANGED}" -eq 1 && "${CURRENT_VERSION}" =~ ^v ]]; then
   echo ""
   echo -e " Zurueck zur vorherigen Version, falls spaeter Probleme auftauchen:"
-  echo -e "   ${CYAN}update-avila-code-interpreter.sh --version ${CURRENT_VERSION}${RESET}"
+  echo -e "   ${CYAN}sudo bash -c \"\$(curl -fsSL ${UPDATE_SCRIPT_URL})\" -- --version ${CURRENT_VERSION}${RESET}"
 fi
 echo ""
-echo -e " Wichtige Befehle:"
+echo -e " Nuetzliche Befehle:"
 echo -e "   Logs:   ${CYAN}cd ${INSTALL_DIR} && ${COMPOSE_CMD} logs -f${RESET}"
 echo -e "   Status: ${CYAN}cd ${INSTALL_DIR} && ${COMPOSE_CMD} ps${RESET}"
 echo ""

@@ -704,13 +704,19 @@ fi
 
 # -- Abschluss -----------------------------------------------------------------
 echo ""
-echo "------------------------------------------------------------"
 if [[ "${DRY_RUN}" -eq 1 ]]; then
+  echo "------------------------------------------------------------"
   echo -e "${YELLOW}${BOLD} DRY-RUN beendet - es wurde NICHTS geloescht.${RESET}"
+  echo "------------------------------------------------------------"
 else
-  echo -e "${GREEN}${BOLD} Code Interpreter vollstaendig entfernt.${RESET}"
+  # Erfolgsmeldung im selben Kasten wie bei Installer und Update-Script.
+  printf '%b\n' "${GREEN}${BOLD}#############################################${RESET}"
+  printf '%b\n' "${GREEN}${BOLD}#                                           #${RESET}"
+  printf '%b\n' "${GREEN}${BOLD}#        Deinstallation erfolgreich         #${RESET}"
+  printf '%b\n' "${GREEN}${BOLD}#         Code Interpreter entfernt         #${RESET}"
+  printf '%b\n' "${GREEN}${BOLD}#                                           #${RESET}"
+  printf '%b\n' "${GREEN}${BOLD}#############################################${RESET}"
 fi
-echo "------------------------------------------------------------"
 echo ""
 [[ -n "${KEEP_DIR}" ]] && { echo -e " Aufbewahrte Backups: ${CYAN}${KEEP_DIR}${RESET}"; echo -e " ${YELLOW}Sie enthalten alte .env-Staende mit Secrets - sicher aufbewahren oder loeschen.${RESET}"; echo ""; }
 echo -e " Unangetastet geblieben: Netzwerk ${CYAN}${PROXY_NETWORK}${RESET}, LibreChat und alle"

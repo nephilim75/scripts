@@ -958,7 +958,7 @@ fi
 
 cat <<NEXT
 
-Wichtige Befehle:
+Nuetzliche Befehle:
   Logs:    cd ${INSTALL_DIR} && ${COMPOSE_CMD} logs -f
   Status:  cd ${INSTALL_DIR} && ${COMPOSE_CMD} ps
   Version: ${CODEAPI_VERSION}

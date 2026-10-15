@@ -109,7 +109,7 @@ As with n8n, a failed update rolls back on its own. The images of the previous v
 
 When `data/pkgs` is rebuilt, the old runtimes are kept as `data/pkgs.rollback-<timestamp>` until the new version is healthy. After a rollback the images of the failed version are removed again.
 
-The summary of a successful run also shows how to return to the previous version later: `update-avila-code-interpreter.sh --version <previous>`.
+The summary of a successful run also shows how to return to the previous version later — as a one-liner with `-- --version <previous>` appended.
 
 ---
 

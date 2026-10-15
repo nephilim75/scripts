@@ -7,10 +7,12 @@
 # rueckgaengig: die acht Container (avila-api, avila-service-worker,
 # avila-egress-gateway, avila-tool-call-server, avila-sandbox-runner,
 # avila-file-server, avila-redis, avila-minio), die Docker-Volumes des
-# Projekts, das Installationsverzeichnis (geklontes Repository, .env mit allen
+# Projekts, das Installationsverzeichnis (Repository-Stand, .env mit allen
 # Secrets, docker-compose.override.yml, nsjail-fix/, data/pkgs/ mit den
-# Laufzeitumgebungen) und auf Wunsch die Backups, die lokal gebauten Images
-# sowie die vom Installer angelegte Swap-Datei.
+# Laufzeitumgebungen) und - jeweils nach eigener Rueckfrage - die Backups, die
+# Images des Stacks (fertige Images von ghcr.io, lokal erzeugtes package-init-
+# Image), die Basis-Images (redis, minio) und die vom Installer angelegte
+# Swap-Datei.
 #
 # WICHTIG - was dieses Script grundsaetzlich NICHT anfasst:
 #   * LibreChat selbst. Die Eintraege LIBRECHAT_CODE_BASEURL= und CODEAPI_* in
@@ -63,7 +65,12 @@ readonly MARKER_FILE="docker-compose.override.yml"
 readonly MARKER_STRING="container_name: avila-api"
 readonly API_CONTAINER="avila-api"
 readonly PKG_INIT_IMAGE="avila-package-init"
-# Vom Installer optional angelegt (Schritt 3) - inklusive fstab-Eintrag.
+# Fertige Images des Stacks und der Tag, unter dem das Update-Script vor einem
+# Versionswechsel die Basis-Images sichert (bleibt nur nach einem
+# unterbrochenen Update liegen).
+readonly STACK_IMAGE_PREFIX="ghcr.io/librechat-ai/code-interpreter-"
+readonly ROLLBACK_TAG="avila-rollback"
+# Vom Installer optional angelegt (Schritt 2) - inklusive fstab-Eintrag.
 readonly SWAP_FILE="/swapfile-avila-code-interpreter"
 readonly LIBRECHAT_IMAGE_MARKER="(danny-avila|librechat-ai)/librechat"
 readonly LIBRECHAT_DEFAULT_DIR="/opt/librechat"
@@ -85,8 +92,8 @@ avila-code-interpreter Uninstall Script - powered by pc-fee.com
 Entfernt eine mit install-avila-code-interpreter.sh installierte Instanz des
 LibreChat Code Interpreters: Container, Docker-Volumes, das Installations-
 verzeichnis (Repository, .env mit allen Secrets, Override, nsjail-fix/,
-data/pkgs/), auf Wunsch Backups, lokal gebaute Images und die vom Installer
-angelegte Swap-Datei.
+data/pkgs/), auf Wunsch Backups, die Images des Stacks und die vom
+Installer angelegte Swap-Datei.
 
 Nicht angetastet werden LibreChat selbst, das Netzwerk 'shared_proxy', der
 Proxy Host im Nginx Proxy Manager und jedes Verzeichnis ausserhalb der
@@ -417,14 +424,14 @@ item() { printf '     %b+- %-29s%b%b\n' "$1" "$2" "${RESET}" "$3"; }
 [[ -f "${INSTALL_DIR}/${MARKER_FILE}" ]] && \
   item "${YELLOW}" "${MARKER_FILE}" "- Container-Namen, geschlossene Host-Ports"
 [[ -d "${INSTALL_DIR}/nsjail-fix" ]] && \
-  item "${YELLOW}" "nsjail-fix/" "- eigener Healthcheck (ggf. alter Sandbox-Starter)"
+  item "${YELLOW}" "nsjail-fix/" "- Healthcheck der Sandbox (NsJail-Modus)"
 [[ -d "${INSTALL_DIR}/data/pkgs" ]] && \
   item "${YELLOW}" "data/pkgs/" "- Laufzeiten python/node/bun/bash ($(dirsize data/pkgs))"
 if [[ -d "${INSTALL_DIR}/data" ]]; then
   item "${YELLOW}" "data/" "- Arbeitsdaten der Sandbox ($(dirsize data))"
 fi
 [[ -d "${INSTALL_DIR}/.git" ]] && \
-  item "${YELLOW}" ".git/" "- geklontes code-interpreter-Repository ($(dirsize .git))"
+  item "${YELLOW}" ".git/" "- Repository-Stand der installierten Version ($(dirsize .git))"
 
 BACKUP_COUNT=0
 BACKUP_SIZE="0"
@@ -485,34 +492,40 @@ if [[ -n "${LIBRECHAT_LINES}" ]]; then
   warn "und meldet Fehler, weil der Dienst dann nicht mehr existiert."
 fi
 
+# Modus merken, solange die .env noch existiert (fuer den Hinweis am Ende).
+WAS_NSJAIL=0
+grep -qE '^KVM_ENABLED=false' "${INSTALL_DIR}/.env" 2>/dev/null && WAS_NSJAIL=1
+
 # -- Images ermitteln ----------------------------------------------------------
-# Lokal gebaute Images haben keinen RepoDigest - so lassen sie sich von den aus
-# einer Registry gezogenen Basis-Images (redis, minio) unterscheiden, ohne die
-# Compose-Datei zu interpretieren. Die Trennung ist wichtig: Basis-Images
-# koennen von anderen Stacks mitbenutzt werden.
-declare -a LOCAL_IMAGES=() BASE_IMAGES=()
+# Drei Gruppen mit getrennter Rueckfrage:
+#   STACK_IMAGES - gehoeren ausschliesslich zu diesem Stack: die fertigen
+#                  Images von ghcr.io (auch die aelterer Versionen), das lokal
+#                  erzeugte package-init-Image und liegengebliebene Rollback-
+#                  Sicherungen eines unterbrochenen Updates.
+#   BASE_IMAGES  - redis, minio: koennen von anderen Stacks mitgenutzt werden.
+declare -a STACK_IMAGES=() BASE_IMAGES=()
+while IFS= read -r img; do
+  [[ -n "${img}" ]] || continue
+  case "${img}" in
+    "${STACK_IMAGE_PREFIX}"*|*":${ROLLBACK_TAG}") STACK_IMAGES+=("${img}") ;;
+  esac
+done < <(docker images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -v ':<none>$' | sort -u || true)
+if docker image inspect "${PKG_INIT_IMAGE}" >/dev/null 2>&1; then
+  STACK_IMAGES+=("${PKG_INIT_IMAGE}")
+fi
 if [[ -n "${COMPOSE_FILE}" ]]; then
   while IFS= read -r img; do
     [[ -n "${img}" ]] || continue
-    docker image inspect "${img}" >/dev/null 2>&1 || continue
-    if [[ "$(docker image inspect "${img}" -f '{{len .RepoDigests}}' 2>/dev/null || echo 0)" == "0" ]]; then
-      LOCAL_IMAGES+=("${img}")
-    else
-      BASE_IMAGES+=("${img}")
-    fi
+    [[ "${img}" == "${STACK_IMAGE_PREFIX}"* ]] && continue
+    docker image inspect "${img}" >/dev/null 2>&1 && BASE_IMAGES+=("${img}")
   done < <(dc config --images 2>/dev/null | sort -u || true)
 fi
-# Vom Installer im NsJail-Modus gebaut und ausserhalb der Compose-Datei
-# gestartet - taucht in 'config --images' deshalb nicht auf.
-if docker image inspect "${PKG_INIT_IMAGE}" >/dev/null 2>&1; then
-  LOCAL_IMAGES+=("${PKG_INIT_IMAGE}")
-fi
 
-if [[ "${#LOCAL_IMAGES[@]}" -gt 0 || "${#BASE_IMAGES[@]}" -gt 0 ]]; then
+if [[ "${#STACK_IMAGES[@]}" -gt 0 || "${#BASE_IMAGES[@]}" -gt 0 ]]; then
   echo ""
-  info "Lokal vorhandene Images dieses Stacks (werden nur nach expliziter Bestaetigung geloescht):"
-  for img in ${LOCAL_IMAGES[@]+"${LOCAL_IMAGES[@]}"}; do
-    echo -e "   - ${CYAN}${img}${RESET} (aus dem Quellcode gebaut, $(docker image inspect "${img}" -f '{{.Size}}' 2>/dev/null | awk '{printf "%.1f GB", $1/1024/1024/1024}'))"
+  info "Images (werden nur nach eigener Bestaetigung geloescht):"
+  for img in ${STACK_IMAGES[@]+"${STACK_IMAGES[@]}"}; do
+    echo -e "   - ${CYAN}${img}${RESET} (Image dieses Stacks, $(docker image inspect "${img}" -f '{{.Size}}' 2>/dev/null | awk '{printf "%.1f GB", $1/1024/1024/1024}'))"
   done
   for img in ${BASE_IMAGES[@]+"${BASE_IMAGES[@]}"}; do
     echo -e "   - ${YELLOW}${img}${RESET} (Basis-Image, moeglicherweise von anderen Stacks mitgenutzt)"
@@ -528,8 +541,8 @@ if [[ -f "${SWAP_FILE}" ]]; then
   echo ""
   warn "Vom Installer angelegte Swap-Datei gefunden: ${SWAP_FILE}"
   echo -e "   Groesse: ${CYAN}$(du -h "${SWAP_FILE}" 2>/dev/null | cut -f1)${RESET}, aktiv: ${CYAN}$( ((SWAP_ACTIVE)) && echo ja || echo nein )${RESET}"
-  warn "Sie wurde nur als Sicherheitsnetz fuer den Image-Build angelegt - kann"
-  warn "inzwischen aber von anderen Diensten mitgenutzt werden. Eigene Abfrage."
+  warn "Sie wurde als Sicherheitsnetz fuer den Arbeitsspeicher angelegt - kann"
+  warn "inzwischen aber auch anderen Diensten helfen. Eigene Abfrage."
 fi
 
 # -- Bestaetigung --------------------------------------------------------------
@@ -554,13 +567,13 @@ if [[ "${BACKUP_COUNT}" -gt 0 ]]; then
   fi
 fi
 
-REMOVE_LOCAL_IMAGES=false
-if [[ "${#LOCAL_IMAGES[@]}" -gt 0 ]]; then
+REMOVE_STACK_IMAGES=false
+if [[ "${#STACK_IMAGES[@]}" -gt 0 ]]; then
   echo ""
-  info "Hinweis: Diese Images sind lokal aus dem Quellcode gebaut. Nach dem"
-  info "Loeschen dauert eine Neuinstallation wieder 10-30+ Minuten."
-  if ask_yesno "Die selbst gebauten Images loeschen (${#LOCAL_IMAGES[@]} Stueck)?" "n"; then
-    REMOVE_LOCAL_IMAGES=true
+  info "Eine Neuinstallation laedt die Images bei Bedarf neu (im NsJail-Modus"
+  info "wird das package-init-Image dann erneut gebaut)."
+  if ask_yesno "Die Images dieses Stacks loeschen (${#STACK_IMAGES[@]} Stueck)?" "n"; then
+    REMOVE_STACK_IMAGES=true
   fi
 fi
 
@@ -636,10 +649,10 @@ elif ${REMOVE_BACKUPS}; then
   info "Backups werden zusammen mit dem Verzeichnis geloescht."
 fi
 
-if ${REMOVE_LOCAL_IMAGES}; then
-  info "Entferne die selbst gebauten Images..."
-  for img in "${LOCAL_IMAGES[@]}"; do
-    run docker rmi "${img}" || warn "Image ${img} konnte nicht entfernt werden (evtl. noch referenziert)."
+if ${REMOVE_STACK_IMAGES}; then
+  info "Entferne die Images dieses Stacks..."
+  for img in "${STACK_IMAGES[@]}"; do
+    run docker rmi "${img}" >/dev/null || warn "Image ${img} konnte nicht entfernt werden (evtl. noch referenziert)."
   done
 fi
 if ${REMOVE_BASE_IMAGES}; then
@@ -648,7 +661,7 @@ if ${REMOVE_BASE_IMAGES}; then
     run docker rmi "${img}" || warn "Image ${img} konnte nicht entfernt werden (evtl. noch referenziert)."
   done
 fi
-if ! ${REMOVE_LOCAL_IMAGES} && ! ${REMOVE_BASE_IMAGES}; then
+if ! ${REMOVE_STACK_IMAGES} && ! ${REMOVE_BASE_IMAGES}; then
   info "Images bleiben erhalten (uebersprungen)."
 else
   success "Image-Bereinigung abgeschlossen."
@@ -740,17 +753,18 @@ else
 fi
 echo ""
 
-if ! ${REMOVE_LOCAL_IMAGES}; then
-  echo -e " Die selbst gebauten Images sind noch vorhanden - eine Neuinstallation"
-  echo -e " wird dadurch deutlich schneller. Spaeter aufraeumen mit:"
-  echo -e "   ${CYAN}docker image ls${RESET}   und   ${CYAN}docker image prune -a${RESET}"
+if ! ${REMOVE_STACK_IMAGES} && [[ "${#STACK_IMAGES[@]}" -gt 0 ]]; then
+  echo -e " Die Images dieses Stacks sind noch vorhanden. Spaeter aufraeumen mit:"
+  echo -e "   ${CYAN}docker image ls${RESET}   und   ${CYAN}docker image rm <image>${RESET}"
   echo ""
 fi
-echo -e " Der Docker-Build-Cache dieses Stacks kann mehrere GB belegen und wird"
-echo -e " hier bewusst nicht angefasst (er ist hostweit geteilt). Groesse pruefen"
-echo -e " und bei Bedarf freigeben:"
-echo -e "   ${CYAN}docker system df${RESET}   und   ${CYAN}docker builder prune${RESET}"
-echo ""
+if [[ "${WAS_NSJAIL}" -eq 1 ]]; then
+  echo -e " Im NsJail-Modus hat das Erzeugen der Laufzeitumgebungen Docker-Build-"
+  echo -e " Cache hinterlassen. Er ist hostweit geteilt und wird hier nicht"
+  echo -e " angefasst. Groesse pruefen und bei Bedarf freigeben:"
+  echo -e "   ${CYAN}docker system df${RESET}   und   ${CYAN}docker builder prune${RESET}"
+  echo ""
+fi
 
 if crontab -l 2>/dev/null | grep -q 'update-avila-code-interpreter'; then
   warn "In der root-Crontab steht noch ein Eintrag fuer update-avila-code-interpreter.sh."

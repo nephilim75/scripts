@@ -2,9 +2,9 @@
 
 [🏠 Overview](../../../) → [💬 LibreChat](../../) → [🧩 Code Interpreter](../) → LibreChat-AI
 
-[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/) [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs) [![GitHub](https://img.shields.io/badge/GitHub-code--interpreter-181717?style=for-the-badge&logo=github)](https://github.com/LibreChat-AI/code-interpreter) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/) [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs) [![GitHub](https://img.shields.io/badge/GitHub-LibreChat-181717?style=for-the-badge&logo=github)](https://github.com/danny-avila/LibreChat) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../LICENSE)
 
-Installs, updates and removes `LibreChat-AI/code-interpreter` — a fork of `ClickHouse/code-interpreter` maintained by the LibreChat team — in a fully hardened configuration (MicroVM + NsJail, signed execution manifests) behind an Nginx Proxy Manager. Covers the complete life cycle: **install**, **update** and **uninstall**.
+Installs, updates and removes [`LibreChat-AI/code-interpreter`](https://github.com/LibreChat-AI/code-interpreter) — the sandboxed code execution service maintained by the LibreChat team — behind an Nginx Proxy Manager. The scripts use the **prebuilt images** the developers publish, install only **published versions**, and cover the whole life cycle: **install**, **update** with automatic rollback, and **uninstall**.
 
 > **Don't get confused:** the folder name "LibreChat-AI" refers to the GitHub organisation this interpreter project lives under. It is **not** LibreChat itself, but an extension for it.
 
@@ -16,7 +16,7 @@ Installs, updates and removes `LibreChat-AI/code-interpreter` — a fork of `Cli
 sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/LibreChat-AI/install/install-avila-code-interpreter.sh)"
 ```
 
-The installer walks you through everything and aborts with a clear message if something is missing. Updating and removing it again are one-liners too — see [update](update/README.md) and [uninstall](uninstall/README.md).
+The installer suggests the newest published version, walks you through everything else and aborts with a clear message if something is missing. Updating and removing are one-liners too — see [update](update/README.md) and [uninstall](uninstall/README.md).
 
 ---
 
@@ -24,30 +24,30 @@ The installer walks you through everything and aborts with a clear message if so
 
 | Folder | Description |
 |--------|-------------|
-| [install](install/README.md) | Sets up the interpreter: MicroVM or NsJail, JWT-signed jobs, local or external mode |
+| [install](install/README.md) | Sets up the interpreter from prebuilt images: version choice, MicroVM or NsJail, JWT-signed jobs, local or external mode |
 | [uninstall](uninstall/README.md) | Removes an installation completely, with a dry-run mode and separate confirmations |
-| [update](update/README.md) | Rebuilds from the current upstream source, with backup and confirmation |
+| [update](update/README.md) | Switches to another published version like the n8n update script: backup, health check, automatic rollback |
 
 ---
 
 ## ✨ What You Get
 
+- ✅ Prebuilt images from the developers (`ghcr.io/librechat-ai/code-interpreter-*`) — no 10–30 minute build of the stack
+- ✅ Published versions only (tags such as `v1.10.4`), never the moving `main` branch
 - ✅ MicroVM isolation (own guest kernel) when `/dev/kvm` is available, NsJail sandboxing as a fallback
-- ✅ Execution manifests signed with Ed25519, and optional JWT-signed jobs from LibreChat
+- ✅ Execution manifests signed with Ed25519, egress gateway, hardened mode — and optional JWT-signed jobs from LibreChat
 - ✅ No host port ever published — all access via Docker networks or the Nginx Proxy Manager
 - ✅ Local mode (same server as LibreChat) or external mode (own domain)
-- ✅ An update path with a current-vs-future summary, config backup, and confirmation before anything rebuilds
+- ✅ Updates with version choice, backup, health check and automatic rollback — cron-ready
 - ✅ A removal path with a full inventory first and separate confirmations for data, backups and images
 
 ---
 
 ## 🔗 References
 
-- [Install script](install/README.md) · [Update script](update/README.md) · [Uninstall script](uninstall/README.md)
-- [code-interpreter (GitHub)](https://github.com/LibreChat-AI/code-interpreter)
-- [Security Disclaimer](https://github.com/LibreChat-AI/code-interpreter#security-disclaimer)
-- [LibreChat Docs](https://www.librechat.ai/docs)
-- [Nginx Proxy Manager](https://nginxproxymanager.com/)
+- [LibreChat](https://www.librechat.ai/) · [Docs](https://www.librechat.ai/docs) · [GitHub](https://github.com/danny-avila/LibreChat)
+- Code Interpreter, Variante LibreChat-AI: [code-interpreter](https://github.com/LibreChat-AI/code-interpreter)
+- [Nginx Proxy Manager](https://nginxproxymanager.com/) · [Docker Compose Docs](https://docs.docker.com/compose/)
 - [pc-fee.com Blog](https://pc-fee.com/blog)
 
 ---

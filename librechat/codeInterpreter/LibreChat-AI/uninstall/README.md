@@ -1,12 +1,12 @@
 # 🧹 Code Interpreter Uninstall Script
 
-[🏠 Overview](../../../../) → [💬 LibreChat](../../../) → [🧩 Code Interpreter](../../) → [LibreChat-AI](../) → Uninstall
+[🏠 Overview](../../../../) → [💬 LibreChat](../../../) → [🧩 Code Interpreter](../../) → [🚀 LibreChat-AI](../) → Uninstall
 
-[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/) [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs) [![GitHub](https://img.shields.io/badge/GitHub-code--interpreter-181717?style=for-the-badge&logo=github)](https://github.com/LibreChat-AI/code-interpreter) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../../LICENSE)
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/) [![Docs](https://img.shields.io/badge/Docs-LibreChat-00B8D9?style=for-the-badge)](https://www.librechat.ai/docs) [![GitHub](https://img.shields.io/badge/GitHub-LibreChat-181717?style=for-the-badge&logo=github)](https://github.com/danny-avila/LibreChat) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../../../LICENSE)
 
-[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#) [![Ports](https://img.shields.io/badge/Host--ports-none%20opened-2E7D32?style=flat-square)](#security) [![Dry-run](https://img.shields.io/badge/Dry--run-supported-2E7D32?style=flat-square)](#options)
+[![Shell](https://img.shields.io/badge/Shell-Bash-4EAA25?style=flat-square&logo=gnubash&logoColor=white)](#) [![Host-ports](https://img.shields.io/badge/Host--ports-none%20opened-2E7D32?style=flat-square)](#security) [![Dry-run](https://img.shields.io/badge/Dry--run-supported-2E7D32?style=flat-square)](#options)
 
-Reverses the [Code Interpreter install script](../install/README.md): the eight `avila-*` containers, the project's Docker volumes, the installation directory — and on request the backups, the locally built images and the swap file the installer created. **LibreChat itself, the `shared_proxy` network and the Nginx Proxy Manager are never touched** without a separate, explicit question.
+Reverses the [Code Interpreter install script](../install/README.md): the eight `avila-*` containers, the project's Docker volumes, the installation directory — and on request the backups, the stack's images and the swap file the installer created. **LibreChat itself, the `shared_proxy` network and the Nginx Proxy Manager are never touched** without a separate, explicit question.
 
 > Irreversible. The `.env` holds the service tokens and the Ed25519 execution-manifest key pair; `librechat-jwt-block.txt`, if still present, holds the **private** JWT signing key. A reinstall generates new keys, so LibreChat's `.env` has to be refilled either way. Run `--dry-run` first.
 
@@ -28,10 +28,10 @@ Detects the installation, prints a full inventory with sizes, and asks separatel
 |---|---|
 | Containers | `avila-api`, `avila-service-worker`, `avila-egress-gateway`, `avila-tool-call-server`, `avila-sandbox-runner`, `avila-file-server`, `avila-redis`, `avila-minio` |
 | Docker volumes | Only volumes carrying this project's `com.docker.compose.project` label — MinIO object storage and the Redis queue |
-| Installation directory | Cloned repository, `.env`, `docker-compose.override.yml`, `nsjail-fix/`, `data/` including the multi-GB `data/pkgs` runtimes |
+| Installation directory | Configuration of the installed version (Git checkout), `.env`, `docker-compose.override.yml`, `nsjail-fix/`, `data/` including the multi-GB `data/pkgs` runtimes |
 | `librechat-jwt-block.txt` | Only present if the JWT block was never transferred to LibreChat |
 | Backups | **Separate question.** Declining moves `backups/` next to the installation directory instead of deleting it |
-| Locally built images | **Separate question.** Rebuilding them later takes 10–30+ minutes again |
+| Images of this stack | **Separate question.** The prebuilt `ghcr.io/librechat-ai/code-interpreter-*` images (including those of older versions), the locally built `avila-package-init` image and `:avila-rollback` tags left behind by an interrupted update. A reinstall pulls them again |
 | Base images | **Separate question.** `redis`, `minio` and friends may be shared with other stacks |
 | Swap file | **Separate question.** Only the installer's own `/swapfile-avila-code-interpreter`, including its `/etc/fstab` line |
 
@@ -49,7 +49,7 @@ Detection never relies on a name substring. The marker is the installer's own `d
 
 **Anything outside the detected installation.** A path handed in via `--dir` is resolved, rejected if it is a system directory (`/`, `/opt`, `/srv`, …) and rejected if it sits fewer than two levels deep.
 
-**The Docker build cache.** It is host-wide and shared with other builds; the script only prints `docker system df` and `docker builder prune` as a hint.
+**The Docker build cache.** In NsJail mode, building the sandbox runtimes leaves build cache behind. It is host-wide and shared with other builds; the script only prints `docker system df` and `docker builder prune` as a hint.
 
 ---
 
@@ -101,7 +101,7 @@ A plain `docker restart` does **not** re-read `.env`. This is the single most co
 ## Security
 
 - **Nothing outside the installation is deleted** — the path is canonicalised and checked against a system-directory deny list before any `rm -rf`.
-- **Every destructive step is confirmed separately**: main removal, backups, locally built images, base images, swap file, LibreChat's `.env`. There is no single "delete everything" prompt.
+- **Every destructive step is confirmed separately**: main removal, backups, the stack's images, base images, swap file, LibreChat's `.env`. There is no single "delete everything" prompt.
 - **Secrets are never echoed.** When listing LibreChat's leftover lines, the value of `CODEAPI_JWT_PRIVATE_JWK_JSON` is replaced with a placeholder so it does not end up in a terminal scrollback or log.
 - **No host port was ever published**, so there is nothing to close afterwards — only the NPM proxy host and the DNS record need cleaning up.
 
@@ -109,12 +109,9 @@ A plain `docker restart` does **not** re-read `.env`. This is the single most co
 
 ## References
 
-- [Code Interpreter install script](../install/README.md)
-- [Code Interpreter update script](../update/README.md)
-- [code-interpreter (GitHub)](https://github.com/LibreChat-AI/code-interpreter)
-- [LibreChat Docs](https://www.librechat.ai/docs)
-- [Nginx Proxy Manager](https://nginxproxymanager.com/)
-- [Docker Compose Docs](https://docs.docker.com/compose/)
+- [LibreChat](https://www.librechat.ai/) · [Docs](https://www.librechat.ai/docs) · [GitHub](https://github.com/danny-avila/LibreChat)
+- Code Interpreter, Variante LibreChat-AI: [code-interpreter](https://github.com/LibreChat-AI/code-interpreter)
+- [Nginx Proxy Manager](https://nginxproxymanager.com/) · [Docker Compose Docs](https://docs.docker.com/compose/)
 - [pc-fee.com Blog](https://pc-fee.com/blog)
 
 ---

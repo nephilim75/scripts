@@ -4,39 +4,25 @@
 # https://pc-fee.com | https://github.com/nephilim75/scripts
 #
 # Aktualisiert eine mit install-avila-code-interpreter.sh installierte Instanz
-# des LibreChat Code Interpreters (Fork LibreChat-AI/code-interpreter).
+# des LibreChat Code Interpreters - im Ablauf wie das n8n-Update-Script.
 #
 # Ablauf auf dem Bildschirm:
-#   1. Zusammenfassung - wo liegt die Installation, in welchem Modus laeuft sie
-#   2. Version waehlen - wie beim n8n-Update: installierte und neueste
-#      Version anzeigen, dann "Auf welche Version updaten? [neueste]".
-#      Jede veroeffentlichte Version ist waehlbar, auch eine aeltere.
-#   3. Pruefung auf Neuerungen (Zielversion per git fetch holen, compose
-#      pull); der laufende Stack bleibt dabei unberuehrt
+#   1. Zusammenfassung - wo liegt die Installation, welche Version laeuft
+#   2. Version waehlen - installierte und neueste Version nebeneinander, dann
+#      "Auf welche Version updaten? [neueste]". Jede veroeffentlichte Version
+#      mit fertigen Images ist waehlbar, auch eine aeltere (Rueckstufung).
+#   3. Pruefung auf Neuerungen (Zielversion holen, Basis-Images pruefen); der
+#      laufende Stack bleibt dabei unberuehrt
 #   4. Aktueller Stand und zukuenftiger Stand je Komponente
-#   5. Rueckfragen (Backup-Rotation, Laufzeitumgebungen), dann die Bestaetigung
-#   6. Durchfuehrung: Backup, laufende Images als Rollback-Stand sichern,
-#      Wechsel auf die Zielversion (git checkout), Altlasten bereinigen,
-#      Compose-Validierung, compose build, Stack hochfahren, Health Check
-#   7. Schlaegt etwas fehl: automatisches Rollback auf den alten Stand - ohne
-#      Neubau, die gesicherten Images werden direkt wieder gestartet
+#   5. Rueckfragen (Laufzeitumgebungen, Backup-Rotation), dann die Bestaetigung
+#   6. Durchfuehrung: Backup, Rollback-Stand sichern, Version umstellen,
+#      Compose-Validierung, Images laden, Stack hochfahren, Health Check
+#   7. Schlaegt etwas fehl: automatisches Rollback auf den vorherigen Stand
 #
-# Versionen: Es werden ausschliesslich veroeffentlichte Versionen (Tags wie
-# v1.10.4) installiert, nie der laufend wechselnde Entwicklungsstand "main".
-# Ohne Terminal (Cron) bzw. mit --yes geht es ohne Rueckfrage auf die
-# neueste Version; --version legt eine bestimmte fest.
-#
-# Altlasten aelterer Installationen werden dabei automatisch bereinigt:
-#   - der frueher eingehaengte, gepatchte NsJail-Starter (nsjail-fix/start-
-#     direct-sandbox.sh) wird aus der Override-Datei entfernt - jede ver-
-#     oeffentlichte Version bringt einen eigenen, korrigierten Starter mit
-#   - fehlt in der .env die Abschaltung der Remote-Bridge, wird sie ergaenzt -
-#     ohne sie verweigert die gehaertete API den Start
-#
-# Besonderheit gegenueber dem LibreChat-Update: dieser Stack zieht KEIN
-# fertiges Image aus einer Registry, sondern baut seine Images lokal aus dem
-# Quellcode. Ein Update bedeutet deshalb immer einen Neubau (10-30+ Minuten)
-# und braucht entsprechend Plattenplatz.
+# Versionen: Installiert wird ausschliesslich eine veroeffentlichte Version
+# (Tag wie v1.10.4) mit den fertigen Images der Entwickler von ghcr.io - nie
+# der Entwicklungsstand "main". Ohne Terminal (Cron) bzw. mit --yes geht es
+# ohne Rueckfrage auf die neueste Version; --version legt eine bestimmte fest.
 #
 # Ohne Bestaetigung wird nichts veraendert. Fuer Cron: --yes bzw. ASSUME_YES=1.
 #
@@ -44,28 +30,26 @@
 #   sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/LibreChat-AI/update/update-avila-code-interpreter.sh)"
 #
 # Optionen:
-#   --dir <pfad>   Installationspfad fest vorgeben (ueberspringt die Erkennung)
-#   --version <v>  Zielversion vorgeben statt Abfrage (Default: neueste)
-#   --keep <n>     Anzahl aufzubewahrender Backups - ohne Angabe wird gefragt
-#   --force-build  Auch ohne neuen Quellstand neu bauen und neu starten
-#   --pull         Beim Bauen auch die Basis-Images der Dockerfiles erneuern
-#   --no-cache     Ohne Docker-Build-Cache bauen (dauert deutlich laenger)
-#   --pkgs         Laufzeitumgebungen (data/pkgs) neu erzeugen - nur NsJail
-#   --no-pkgs      Laufzeitumgebungen nie neu erzeugen - nur NsJail
-#   --dry-run      Zeigt nur, was passieren wuerde - aendert nichts
-#   --yes          Ueberspringt die Rueckfragen (wie ASSUME_YES=1, fuer Cron)
-#   --help         Diese Hilfe anzeigen
+#   --dir <pfad>     Installationspfad fest vorgeben (ueberspringt die Erkennung)
+#   --version <v>    Zielversion vorgeben statt Abfrage (z.B. v1.10.4)
+#   --keep <n>       Anzahl aufzubewahrender Backups - ohne Angabe wird gefragt
+#   --force          Auch ohne Neuerung neu laden und neu starten
+#   --pkgs           Laufzeitumgebungen (data/pkgs) neu erzeugen - nur NsJail
+#   --no-pkgs        Laufzeitumgebungen nie neu erzeugen - nur NsJail
+#   --dry-run        Zeigt nur, was passieren wuerde - aendert nichts
+#   --yes            Ueberspringt die Rueckfragen (wie ASSUME_YES=1, fuer Cron)
+#   --help           Diese Hilfe anzeigen
 #
 # Umgebungsvariablen (fuer unbeaufsichtigten Betrieb, z.B. Cron):
-#   INSTALL_DIR    wie --dir
-#   CODEAPI_VERSION wie --version
-#   KEEP_BACKUPS   wie --keep
-#   ASSUME_YES=1   wie --yes
-#   LOG_FILE       Logdatei (Default: /var/log/avila-code-interpreter-update.log)
+#   INSTALL_DIR      wie --dir
+#   CODEAPI_VERSION  wie --version
+#   KEEP_BACKUPS     wie --keep
+#   ASSUME_YES=1     wie --yes
+#   LOG_FILE         Logdatei (Default: /var/log/avila-code-interpreter-update.log)
 #
 # Der Installationspfad wird automatisch ermittelt (Container-Label des
-# avila-api-Containers -> Marker-Datei docker-compose.override.yml ->
-# /opt/avila-code-interpreter). Nur bei mehreren Treffern wird gefragt.
+# avila-api-Containers -> /opt/avila-code-interpreter). Nur bei mehreren
+# Treffern wird gefragt.
 #
 # Voraussetzungen: root (bzw. sudo), Docker + Docker Compose, git, tar.
 #
@@ -83,38 +67,34 @@ BOLD='\033[1m'
 RESET='\033[0m'
 
 # -- Konstanten ----------------------------------------------------------------
-readonly GUIDE_URL="https://github.com/nephilim75/scripts/tree/main/librechat/codeInterpreter"
+readonly GUIDE_URL="https://github.com/nephilim75/scripts/tree/main/librechat/codeInterpreter/LibreChat-AI"
+readonly TAGS_URL="https://github.com/LibreChat-AI/code-interpreter/tags"
 readonly DEFAULT_DIR="/opt/avila-code-interpreter"
-# Tag, unter dem die laufenden Images vor dem Neubau gesichert werden. Ein
-# Rollback startet sie direkt wieder - ohne 10-30 Minuten Neubau.
-readonly ROLLBACK_TAG="avila-rollback"
-# Starter-Patch frueherer Installer-Fassungen (siehe Kopfkommentar).
-readonly OLD_STARTER_COPY="nsjail-fix/start-direct-sandbox.sh"
-readonly OLD_STARTER_MOUNT_RE='nsjail-fix/start-direct-sandbox\.sh:/usr/local/bin/start-direct-sandbox\.sh'
-# Marker der eigenen Installation: die docker-compose.override.yml wird
-# ausschliesslich vom Installer geschrieben und benennt den API-Container.
-# Ein Grep auf "code-interpreter" waere zu unscharf - der Ordnername ist frei
-# waehlbar und fremde Stacks tragen aehnliche Namen.
+# Marker der eigenen Installation: die docker-compose.override.yml schreibt
+# ausschliesslich der Installer; sie benennt den API-Container und verweist
+# auf die fertigen Images.
 readonly MARKER_FILE="docker-compose.override.yml"
 readonly MARKER_STRING="container_name: avila-api"
+readonly IMAGE_MARKER="ghcr.io/librechat-ai/code-interpreter-"
 readonly API_CONTAINER="avila-api"
 readonly PKG_INIT_IMAGE="avila-package-init"
 readonly BACKUP_PREFIX="avila-code-interpreter"
 readonly DEFAULT_KEEP=5
+# Tag, unter dem die laufenden Basis-Images (redis, minio) vor dem Update
+# gesichert werden - ihr Tag kann sich beim Laden aendern.
+readonly ROLLBACK_TAG="avila-rollback"
 # Reihenfolge wie im Installer: Abhaengigkeiten zuerst.
 readonly SERVICES=(redis minio tool_call_server egress_gateway sandbox-runner file_server api service-worker)
-# Plattenbedarf fuer den Neubau. Alte und neue Images liegen waehrend des
-# Builds parallel vor, deshalb deutlich mehr als die reine Image-Groesse.
-readonly MIN_FREE_MB=10000
+# Platzbedarf: neue Images (komprimiert rund 0,9 GB, dazu entpackt) neben den
+# alten, die fuer ein Rollback bis zum Erfolg liegen bleiben.
+readonly MIN_FREE_MB=4000
 # Beim Neubau von data/pkgs bleiben die alten Laufzeitumgebungen (~3 GB) fuer
 # ein Rollback liegen, dazu kommen die neuen (~3 GB) und das Init-Image.
 readonly MIN_FREE_PKGS_MB=8000
 
 # -- Optionen ------------------------------------------------------------------
 DRY_RUN=0
-FORCE_BUILD=0
-BUILD_PULL=0
-BUILD_NO_CACHE=0
+FORCE=0
 PKGS_MODE="auto"   # auto | always | never
 KEEP=""
 KEEP_EXPLICIT=0
@@ -131,37 +111,29 @@ usage() {
 avila-code-interpreter Update Script - powered by pc-fee.com
 
 Aktualisiert eine mit install-avila-code-interpreter.sh installierte Instanz
-des LibreChat Code Interpreters. Zeigt erst eine Zusammenfassung, danach den
-aktuellen und den zukuenftigen Stand je Komponente, und fragt dann nach -
-vorher wird nichts veraendert.
-
-Die Images dieses Stacks werden lokal aus dem Quellcode gebaut. Ein Update
-bedeutet deshalb immer einen Neubau (10-30+ Minuten).
-
-Wie beim n8n-Update wird nach der Zielversion gefragt (Vorschlag: neueste
-veroeffentlichte). Ohne Terminal (Cron) bzw. mit --yes: automatisch die
-neueste. Schlaegt das Update fehl, wird automatisch auf den alten Stand
-zurueckgerollt.
+des LibreChat Code Interpreters. Wie beim n8n-Update wird nach der Zielversion
+gefragt (Vorschlag: neueste veroeffentlichte Version mit fertigen Images).
+Vor der Bestaetigung wird nichts veraendert; schlaegt das Update fehl, wird
+automatisch auf den vorherigen Stand zurueckgerollt.
 
 Optionen:
-  --dir <pfad>   Installationspfad fest vorgeben (ueberspringt die Erkennung)
-  --version <v>  Zielversion vorgeben statt Abfrage (z.B. v1.10.4)
-  --keep <n>     Anzahl aufzubewahrender Backups - ohne Angabe wird gefragt
-  --force-build  Auch ohne neuen Quellstand neu bauen und neu starten
-  --pull         Beim Bauen auch die Basis-Images der Dockerfiles erneuern
-  --no-cache     Ohne Docker-Build-Cache bauen (dauert deutlich laenger)
-  --pkgs         Laufzeitumgebungen (data/pkgs) neu erzeugen - nur NsJail
-  --no-pkgs      Laufzeitumgebungen nie neu erzeugen - nur NsJail
-  --dry-run      Zeigt nur, was passieren wuerde - aendert nichts
-  --yes          Ueberspringt die Rueckfragen (wie ASSUME_YES=1, fuer Cron)
-  --help         Diese Hilfe anzeigen
+  --dir <pfad>     Installationspfad fest vorgeben (ueberspringt die Erkennung)
+  --version <v>    Zielversion vorgeben statt Abfrage (z.B. v1.10.4)
+  --keep <n>       Anzahl aufzubewahrender Backups - ohne Angabe wird gefragt
+  --force          Auch ohne Neuerung neu laden und neu starten
+  --pkgs           Laufzeitumgebungen (data/pkgs) neu erzeugen - nur NsJail
+  --no-pkgs        Laufzeitumgebungen nie neu erzeugen - nur NsJail
+  --dry-run        Zeigt nur, was passieren wuerde - aendert nichts
+  --yes            Ueberspringt die Rueckfragen (wie ASSUME_YES=1, fuer Cron)
+  --help           Diese Hilfe anzeigen
 
 Umgebungsvariablen: INSTALL_DIR, CODEAPI_VERSION, KEEP_BACKUPS, ASSUME_YES, LOG_FILE
 
 Beispiele:
   sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/librechat/codeInterpreter/LibreChat-AI/update/update-avila-code-interpreter.sh)"
   sudo ./update-avila-code-interpreter.sh --dry-run
-  sudo ./update-avila-code-interpreter.sh --dir /srv/code-interpreter --keep 10
+  sudo ./update-avila-code-interpreter.sh --version v1.10.3
+  sudo ./update-avila-code-interpreter.sh --yes --keep 5      (Cron)
 USAGE
 }
 
@@ -173,9 +145,7 @@ while [[ $# -gt 0 ]]; do
     --version=*)    TARGET_VERSION="${1#*=}"; shift ;;
     --keep)         KEEP="${2:-}"; KEEP_EXPLICIT=1; shift 2 || true ;;
     --keep=*)       KEEP="${1#*=}"; KEEP_EXPLICIT=1; shift ;;
-    --force-build)  FORCE_BUILD=1; shift ;;
-    --pull)         BUILD_PULL=1; shift ;;
-    --no-cache)     BUILD_NO_CACHE=1; shift ;;
+    --force)        FORCE=1; shift ;;
     --pkgs)         PKGS_MODE="always"; shift ;;
     --no-pkgs)      PKGS_MODE="never"; shift ;;
     --dry-run)      DRY_RUN=1; shift ;;
@@ -184,16 +154,21 @@ while [[ $# -gt 0 ]]; do
     *)              echo "Unbekannte Option: $1 (siehe --help)" >&2; exit 1 ;;
   esac
 done
-# FORCE_BUILD bleibt veraenderbar: "Trotzdem fortfahren?" setzt es spaeter.
-readonly DRY_RUN BUILD_PULL BUILD_NO_CACHE PKGS_MODE KEEP_EXPLICIT
+# FORCE bleibt veraenderbar: "Trotzdem fortfahren?" setzt es spaeter.
+readonly DRY_RUN PKGS_MODE KEEP_EXPLICIT
 
 # "1.10.4" ohne fuehrendes v ebenfalls akzeptieren.
 normalize_version() { local v="$1"; [[ "${v}" =~ ^[0-9] ]] && v="v${v}"; printf '%s' "${v}"; }
 is_version_format() { [[ "$1" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; }
 
-# Eine vorgegebene Version sofort pruefen - ein Tippfehler im Cron-Eintrag
-# soll nicht erst nach dem Backup auffallen. Ob es sie upstream gibt, wird
-# spaeter geprueft (braucht den Installationspfad fuer git).
+# Ausdruecklich gesetzte Werte sofort pruefen - ein Tippfehler im Cron-Eintrag
+# soll nicht erst nach dem Backup auffallen.
+if [[ "${KEEP_EXPLICIT}" -eq 1 ]]; then
+  if ! [[ "${KEEP}" =~ ^[0-9]+$ ]] || [[ "${KEEP}" -lt 1 ]]; then
+    echo "--keep erwartet eine positive Ganzzahl (erhalten: '${KEEP}')." >&2
+    exit 1
+  fi
+fi
 if [[ -n "${TARGET_VERSION}" ]]; then
   TARGET_VERSION="$(normalize_version "${TARGET_VERSION}")"
   if ! is_version_format "${TARGET_VERSION}"; then
@@ -202,19 +177,10 @@ if [[ -n "${TARGET_VERSION}" ]]; then
   fi
 fi
 
-# Ein ausdruecklich gesetzter Wert wird sofort geprueft - ein Tippfehler im
-# Cron-Eintrag soll nicht erst nach dem Backup auffallen.
-if [[ "${KEEP_EXPLICIT}" -eq 1 ]]; then
-  if ! [[ "${KEEP}" =~ ^[0-9]+$ ]] || [[ "${KEEP}" -lt 1 ]]; then
-    echo "--keep erwartet eine positive Ganzzahl (erhalten: '${KEEP}')." >&2
-    exit 1
-  fi
-fi
-
 # -- Eingabequelle -------------------------------------------------------------
 # Wird das Script per 'curl ... | bash' gestartet, liegt auf stdin der Script-
 # Text selbst - ein 'read' wuerde ihn verschlucken. Deshalb immer vom Terminal
-# lesen. Ohne Terminal (z.B. Cron) wird nie gefragt, sondern abgebrochen.
+# lesen. Ohne Terminal (z.B. Cron) wird nie gefragt.
 # Achtung: '[[ -r /dev/tty ]]' prueft nur die Rechtebits und ist auch dann wahr,
 # wenn es gar kein steuerndes Terminal gibt. Deshalb wirklich oeffnen.
 if { : </dev/tty; } 2>/dev/null; then
@@ -273,7 +239,7 @@ ask_number() {
   done
 }
 
-# ask_text <prompt> <default> -> gibt die Eingabe (oder den Default) auf stdout aus.
+# ask_text <prompt> <default> -> gibt die Eingabe (oder den Default) aus.
 ask_text() {
   local prompt="$1" default="$2" input=""
   if [[ "${INTERACTIVE}" -eq 0 || "${ASSUME_YES:-0}" == "1" ]]; then
@@ -295,6 +261,11 @@ run() {
   fi
 }
 
+# version_lt A B -> wahr, wenn A aelter als B ist.
+version_lt() {
+  [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" == "$1" ]]
+}
+
 # -- Banner --------------------------------------------------------------------
 # 'clear' scheitert ohne brauchbares TERM (z.B. im Cron) - das darf das Script
 # nicht abbrechen, deshalb der Fallback.
@@ -312,9 +283,8 @@ printf '%b\n' "${RESET}"
 printf '%b\n' "${BOLD} Code Interpreter Update - powered by pc-fee.com${RESET}"
 printf '%b\n' " ${CYAN}https://pc-fee.com${RESET} | ${CYAN}https://github.com/nephilim75/scripts${RESET}"
 echo ""
-echo -e " Aktualisiert den LibreChat Code Interpreter (MicroVM/NsJail, Egress-"
-echo -e " Gateway, signierte Manifeste) hinter dem Nginx Proxy Manager."
-echo -e " ${YELLOW}Die Images werden lokal gebaut${RESET} - rechne mit 10-30+ Minuten."
+echo -e " Aktualisiert den LibreChat Code Interpreter (LibreChat-AI) auf eine"
+echo -e " neue Version - mit Backup, Health Check und automatischem Rollback."
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo ""
   echo -e " ${YELLOW}${BOLD}DRY-RUN aktiv:${RESET} es wird nichts veraendert, nur angezeigt."
@@ -322,9 +292,7 @@ fi
 echo "------------------------------------------------------------"
 
 # -- Root-Check ----------------------------------------------------------------
-if [[ "${EUID}" -ne 0 ]]; then
-  die "Bitte als root oder mit sudo ausfuehren."
-fi
+[[ "${EUID}" -eq 0 ]] || die "Bitte als root oder mit sudo ausfuehren."
 
 # In ein garantiert existierendes Verzeichnis wechseln. Wurde die CWD der
 # aufrufenden Shell zwischenzeitlich geloescht, scheitern spaetere Aufrufe
@@ -334,54 +302,28 @@ cd / 2>/dev/null || die "Konnte nicht nach / wechseln."
 # -- Voraussetzungen pruefen ---------------------------------------------------
 command -v docker &>/dev/null || die "Docker ist nicht installiert."
 docker info &>/dev/null || die "Docker-Daemon laeuft nicht. Bitte starten: systemctl start docker"
-
-if docker compose version &>/dev/null 2>&1; then
-  COMPOSE_CMD="docker compose"
-elif command -v docker-compose &>/dev/null; then
-  COMPOSE_CMD="docker-compose"
-else
-  die "Docker Compose nicht gefunden."
-fi
-readonly COMPOSE_CMD
-
+docker compose version &>/dev/null || die "Docker Compose Plugin nicht gefunden."
+readonly COMPOSE_CMD="docker compose"
+command -v git &>/dev/null || die "'git' nicht gefunden - wird fuer den Versionswechsel gebraucht."
 command -v tar &>/dev/null || die "'tar' nicht gefunden - wird fuer das Backup gebraucht."
 
-HAVE_GIT=1
-command -v git &>/dev/null || HAVE_GIT=0
-
 # -- Installationspfad ermitteln -----------------------------------------------
-# Ein Verzeichnis gilt als Installation dieses Stacks, wenn dort die vom
-# Installer geschriebene Override-Datei mit dem avila-api-Container liegt.
 is_install_dir() {
   local d="$1"
   [[ -f "${d}/${MARKER_FILE}" ]] && grep -q "${MARKER_STRING}" "${d}/${MARKER_FILE}" 2>/dev/null
 }
 
-# Compose-Datei des Repositorys. Der Fork liefert docker-compose.yaml (nicht
-# .yml) - beide Varianten werden geprueft, damit ein Umbenennen upstream nicht
-# sofort zum Abbruch fuehrt.
-compose_file_of() {
-  local d="$1" f
-  for f in docker-compose.yaml docker-compose.yml compose.yaml compose.yml; do
-    [[ -f "${d}/${f}" ]] && { echo "${d}/${f}"; return 0; }
-  done
-  return 1
-}
-
 detect_dirs() {
   local -a raw=() out=()
   local cid d existing seen
-
-  # 1. Laufender/gestoppter API-Container: Compose-Working-Dir aus dem Label.
+  # 1. API-Container (laufend oder gestoppt): Compose-Working-Dir aus dem Label.
   while IFS= read -r cid; do
     [[ -n "${cid}" ]] || continue
     d=$(docker inspect --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}' "${cid}" 2>/dev/null || true)
     [[ -n "${d}" && "${d}" == /* ]] && raw+=("${d}")
   done < <(docker ps -a --format '{{.ID}} {{.Names}}' | awk -v n="${API_CONTAINER}" '$2==n {print $1}')
-
   # 2. Standardpfad des Installers.
   raw+=("${DEFAULT_DIR}")
-
   for d in "${raw[@]}"; do
     is_install_dir "${d}" || continue
     seen=0
@@ -390,7 +332,6 @@ detect_dirs() {
     done
     [[ "${seen}" -eq 0 ]] && out+=("${d}")
   done
-
   [[ "${#out[@]}" -gt 0 ]] && printf '%s\n' "${out[@]}"
   return 0
 }
@@ -403,7 +344,7 @@ else
   mapfile -t FOUND < <(detect_dirs)
   case "${#FOUND[@]}" in
     0)
-      die "Keine Code-Interpreter-Installation gefunden.\n  Erwartet wurde eine ${MARKER_FILE} mit '${MARKER_STRING}',\n  z.B. unter ${DEFAULT_DIR}.\n  Pfad ggf. direkt angeben: --dir /pfad/zur/installation"
+      die "Keine Code-Interpreter-Installation gefunden.\n  Erwartet wurde eine ${MARKER_FILE} mit '${MARKER_STRING}',\n  z.B. unter ${DEFAULT_DIR}. Pfad ggf. direkt angeben: --dir /pfad/zur/installation"
       ;;
     1)
       INSTALL_DIR="${FOUND[0]}"
@@ -429,18 +370,25 @@ else
 fi
 INSTALL_DIR="$(cd "${INSTALL_DIR}" && pwd -P)" || die "Installationspfad nicht lesbar."
 readonly INSTALL_DIR
+readonly ENV_FILE="${INSTALL_DIR}/.env"
+readonly BACKUP_DIR="${INSTALL_DIR}/backups"
 
-COMPOSE_FILE="$(compose_file_of "${INSTALL_DIR}")" \
-  || die "Keine Compose-Datei in ${INSTALL_DIR} gefunden - unvollstaendige Installation?"
-readonly COMPOSE_FILE
-BACKUP_DIR="${INSTALL_DIR}/backups"
-readonly BACKUP_DIR
+# Diese Fassung arbeitet ausschliesslich mit fertigen Images. Installationen
+# frueherer Installer-Fassungen (lokal gebaut) werden nicht umgestellt.
+if ! grep -q "${IMAGE_MARKER}" "${INSTALL_DIR}/${MARKER_FILE}" || ! grep -q '^CODEAPI_IMAGE_TAG=' "${ENV_FILE}" 2>/dev/null; then
+  error "${INSTALL_DIR} stammt von einer frueheren Fassung des Installers"
+  error "(Images lokal gebaut). Diese Fassung des Update-Scripts stellt solche"
+  error "Installationen nicht um."
+  echo -e " Bitte entfernen und neu installieren:"
+  echo -e "   ${CYAN}uninstall-avila-code-interpreter.sh${RESET}, danach ${CYAN}install-avila-code-interpreter.sh${RESET}"
+  echo -e "   (${GUIDE_URL})"
+  die "Abbruch - es wurde nichts veraendert."
+fi
+[[ -d "${INSTALL_DIR}/.git" ]] || die "In ${INSTALL_DIR} fehlt das Repository (.git) - unvollstaendige Installation?"
 
 # Compose immer aus dem Installationsverzeichnis heraus aufrufen: nur so zieht
-# Docker Compose die docker-compose.override.yml (Container-Namen, geschlossene
-# Ports, shared_proxy) und die .env automatisch mit. Ein blosses
-# '-f docker-compose.yaml' wuerde das Override ignorieren und beim 'up' die
-# Host-Ports wieder oeffnen.
+# Docker Compose die Override-Datei (Images, Namen, geschlossene Ports,
+# shared_proxy) und die .env automatisch mit.
 dc() { ( cd "${INSTALL_DIR}" && ${COMPOSE_CMD} "$@" ); }
 dc_run() {
   if [[ "${DRY_RUN}" -eq 1 ]]; then
@@ -449,6 +397,7 @@ dc_run() {
     dc "$@"
   fi
 }
+env_get() { grep -E "^$1=" "${ENV_FILE}" 2>/dev/null | tail -n1 | cut -d= -f2- || true; }
 
 # -- Logging -------------------------------------------------------------------
 LOG_ACTIVE=0
@@ -462,24 +411,28 @@ if [[ "${DRY_RUN}" -eq 0 ]]; then
 fi
 readonly LOG_ACTIVE
 
-# -- Betriebsmodus aus der .env lesen ------------------------------------------
-# KVM_ENABLED=false bedeutet NsJail-only. Nur dann existieren der gepatchte
-# Sandbox-Starter unter nsjail-fix/ und die Laufzeitumgebungen unter data/pkgs.
+# -- Stand der Installation lesen ----------------------------------------------
 NSJAIL_MODE=0
-JWT_MODE="unbekannt"
-if [[ -f "${INSTALL_DIR}/.env" ]]; then
-  grep -qE '^KVM_ENABLED=false[[:space:]]*$' "${INSTALL_DIR}/.env" && NSJAIL_MODE=1
-  if grep -qE '^CODEAPI_AUTH_PROVIDER=librechat-jwt[[:space:]]*$' "${INSTALL_DIR}/.env"; then
-    JWT_MODE="JWT (EdDSA)"
-  elif grep -qE '^CODEAPI_AUTH_PROVIDER=none[[:space:]]*$' "${INSTALL_DIR}/.env"; then
-    JWT_MODE="keine (offener Zugriff im Docker-Netz)"
-  fi
-else
-  warn "In ${INSTALL_DIR} fehlt die .env - der Stack kann so nicht starten."
-fi
+grep -qE '^KVM_ENABLED=false[[:space:]]*$' "${ENV_FILE}" && NSJAIL_MODE=1
 readonly NSJAIL_MODE
+JWT_MODE="unbekannt"
+case "$(env_get CODEAPI_AUTH_PROVIDER)" in
+  librechat-jwt) JWT_MODE="JWT (EdDSA)" ;;
+  none)          JWT_MODE="keine (offener Zugriff im Docker-Netz)" ;;
+esac
 
-# -- Daten fuer die Zusammenfassung sammeln ------------------------------------
+CURRENT_TAG="$(env_get CODEAPI_IMAGE_TAG)"
+CURRENT_VERSION="$(env_get CODEAPI_VERSION)"
+GIT_OLD="$(git -C "${INSTALL_DIR}" rev-parse HEAD 2>/dev/null || true)"
+[[ -n "${CURRENT_VERSION}" ]] || CURRENT_VERSION="$(git -C "${INSTALL_DIR}" describe --tags --exact-match HEAD 2>/dev/null || echo unbekannt)"
+readonly CURRENT_TAG CURRENT_VERSION GIT_OLD
+GIT_DIRTY="$(git -C "${INSTALL_DIR}" status --porcelain --untracked-files=no 2>/dev/null || true)"
+
+# Welche fertigen Images diese Installation nutzt (Sandbox-Variante je nach
+# Modus) - direkt aus der Override-Datei des Installers gelesen.
+mapfile -t STACK_IMAGES < <(grep -oE "${IMAGE_MARKER}[a-z-]+" "${INSTALL_DIR}/${MARKER_FILE}" | sed "s#${IMAGE_MARKER}##" | sort -u)
+[[ "${#STACK_IMAGES[@]}" -gt 0 ]] || die "Keine fertigen Images in ${MARKER_FILE} gefunden."
+
 CONTAINERS_TOTAL=0
 CONTAINERS_RUNNING=0
 while IFS= read -r line; do
@@ -488,43 +441,16 @@ while IFS= read -r line; do
   [[ "${line}" == *running* ]] && CONTAINERS_RUNNING=$((CONTAINERS_RUNNING + 1))
 done < <(dc ps -a --format '{{.Service}} {{.State}}' 2>/dev/null || true)
 
-# Gesichert wird alles, was der Installer selbst erzeugt hat und was bei einem
-# Verlust nicht wiederherstellbar ist: Secrets und Schluessel (.env), die
-# Override-Datei sowie die gepatchten Sandbox-Skripte. data/pkgs bleibt aussen
-# vor - mehrere GB, jederzeit neu baubar.
+# Gesichert wird, was der Installer erzeugt hat und nicht wiederherstellbar
+# ist: Secrets und Schluessel (.env), die Override-Datei, der Healthcheck.
+# data/pkgs bleibt aussen vor - mehrere GB, jederzeit neu erzeugbar.
 declare -a CONFIG_ITEMS=()
 for item in .env "${MARKER_FILE}" nsjail-fix librechat-jwt-block.txt; do
   [[ -e "${INSTALL_DIR}/${item}" ]] && CONFIG_ITEMS+=("${item}")
 done
-
 BACKUP_COUNT=0
 if [[ -d "${BACKUP_DIR}" ]]; then
   BACKUP_COUNT=$(find "${BACKUP_DIR}" -maxdepth 1 -name "${BACKUP_PREFIX}_*.tar.gz" -type f 2>/dev/null | wc -l | tr -d ' ')
-fi
-
-# Git-Stand. Der Installer legt die Installation als flachen Clone an (--depth=1),
-# deshalb spaeter '--depth=1' beim Fetch - sonst wuerde aus dem flachen Clone
-# still ein vollstaendiger und der Plattenbedarf vervielfacht sich.
-# Installierte Version: der Tag, auf dem HEAD exakt steht. Aeltere
-# Installationen (vor der Umstellung auf feste Versionen) stehen auf einem
-# beliebigen Stand von "main" - dann gibt es keinen Tag.
-GIT_OK=0
-GIT_OLD=""
-GIT_OLD_DATE=""
-GIT_OLD_TAG=""
-GIT_DIRTY=""
-if [[ "${HAVE_GIT}" -eq 1 && -d "${INSTALL_DIR}/.git" ]]; then
-  GIT_OK=1
-  GIT_OLD="$(git -C "${INSTALL_DIR}" rev-parse HEAD 2>/dev/null || true)"
-  GIT_OLD_DATE="$(git -C "${INSTALL_DIR}" log -1 --format=%cd --date=short 2>/dev/null || true)"
-  GIT_OLD_TAG="$(git -C "${INSTALL_DIR}" describe --tags --exact-match HEAD 2>/dev/null || true)"
-  GIT_DIRTY="$(git -C "${INSTALL_DIR}" status --porcelain --untracked-files=no 2>/dev/null || true)"
-fi
-# Lesbare Bezeichnung des installierten Stands fuer alle Ausgaben.
-if [[ -n "${GIT_OLD_TAG}" ]]; then
-  GIT_OLD_LABEL="${GIT_OLD_TAG}"
-else
-  GIT_OLD_LABEL="main-Stand ${GIT_OLD:0:7}"
 fi
 
 # Plattenplatz dort messen, wo Docker seine Images ablegt - nicht auf "/".
@@ -539,7 +465,7 @@ echo "============================================================"
 echo -e "${BOLD} ZUSAMMENFASSUNG${RESET}   $(date '+%F %T')"
 echo "============================================================"
 printf ' %-18s %s\n' "Installation:" "${INSTALL_DIR}"
-printf ' %-18s %s\n' "Compose-Datei:" "$(basename "${COMPOSE_FILE}") + ${MARKER_FILE}"
+printf ' %-18s %s\n' "Version:" "${CURRENT_VERSION} (Images ${CURRENT_TAG:0:11})"
 if [[ "${CONTAINERS_TOTAL}" -gt 0 ]]; then
   printf ' %-18s %s\n' "Container:" "${CONTAINERS_TOTAL} (davon ${CONTAINERS_RUNNING} laufend)"
 else
@@ -547,21 +473,19 @@ else
 fi
 printf ' %-18s %s\n' "Isolation:" "$( [[ "${NSJAIL_MODE}" -eq 1 ]] && echo "NsJail-only (KVM_ENABLED=false)" || echo "MicroVM (KVM_ENABLED=true)" )"
 printf ' %-18s %s\n' "Authentifizierung:" "${JWT_MODE}"
-if [[ "${GIT_OK}" -eq 1 ]]; then
-  if [[ -n "${GIT_OLD_TAG}" ]]; then
-    printf ' %-18s %s\n' "Quellcode:" "Version ${GIT_OLD_TAG} (${GIT_OLD:0:7} vom ${GIT_OLD_DATE:-unbekannt})"
-  else
-    printf ' %-18s %s\n' "Quellcode:" "Entwicklungsstand main, ${GIT_OLD:0:7} vom ${GIT_OLD_DATE:-unbekannt} (keine feste Version)"
-  fi
-elif [[ "${HAVE_GIT}" -eq 0 ]]; then
-  printf ' %-18s %s\n' "Quellcode:" "git nicht installiert - kein Quell-Update moeglich"
-else
-  printf ' %-18s %s\n' "Quellcode:" "kein Git-Repository - kein Quell-Update moeglich"
-fi
 printf ' %-18s %s\n' "Sicherung von:" "${CONFIG_ITEMS[*]:-keine der erwarteten Dateien gefunden}"
 printf ' %-18s %s\n' "Backups:" "${BACKUP_COUNT} vorhanden in ${BACKUP_DIR}"
 printf ' %-18s %s\n' "Plattenplatz:" "${FREE_MB} MB frei auf ${DOCKER_ROOT}"
 [[ "${LOG_ACTIVE}" -eq 1 ]] && printf ' %-18s %s\n' "Logdatei:" "${LOG}"
+
+if [[ -n "${GIT_DIRTY}" ]]; then
+  echo ""
+  warn "Im Repository wurden versionierte Dateien von Hand geaendert:"
+  while IFS= read -r l; do [[ -n "$l" ]] && echo -e "   ${YELLOW}${l}${RESET}"; done <<<"${GIT_DIRTY}"
+  echo -e " Ein Versionswechsel wuerde diese Aenderungen verwerfen oder scheitern."
+  echo -e " Zuruecksetzen mit: ${CYAN}git -C ${INSTALL_DIR} checkout -- .${RESET}"
+  die "Abbruch - es wurde nichts veraendert."
+fi
 
 # Schritte durchzaehlen statt feste Nummern: einzelne Schritte entfallen je
 # nach Modus, eine Luecke in der Numerierung wuerde nur verunsichern.
@@ -570,292 +494,196 @@ step() { STEP_NO=$((STEP_NO + 1)); echo -e "   ${STEP_NO}. $*"; }
 
 echo ""
 echo -e " ${BOLD}Geplante Schritte${RESET}"
-step "Auf Neuerungen pruefen (Quellcode und Basis-Images) - ohne Eingriff"
-step "Backup der Konfiguration (Secrets, Schluessel, Override, nsjail-fix)"
-step "Zielversion waehlen (Vorschlag: neueste) und den Quellcode umstellen"
-step "Altlasten frueherer Installer-Fassungen bereinigen (nur falls vorhanden)"
-step "Compose-Konfiguration pruefen, Images bauen, Stack hochfahren, Health Check"
-step "Bei einem Fehler: automatisches Rollback auf den alten Stand (ohne Neubau)"
-step "Alte Backups entfernen, dangling Images aufraeumen"
-
-if [[ -n "${GIT_DIRTY}" ]]; then
-  echo ""
-  warn "Lokal geaenderte, versionierte Dateien im Repository:"
-  while IFS= read -r l; do [[ -n "$l" ]] && echo -e "   ${YELLOW}${l}${RESET}"; done <<<"${GIT_DIRTY}"
-  warn "Das Quell-Update entfaellt deshalb - es wird nur neu gebaut/gestartet."
-  warn "Aufloesen mit: git -C ${INSTALL_DIR} checkout -- <datei>   (verwirft die Aenderung)"
-fi
-
+step "Zielversion waehlen (Vorschlag: neueste mit fertigen Images)"
+step "Auf Neuerungen pruefen - ohne Eingriff"
+step "Backup der Konfiguration (Secrets, Schluessel, Override)"
+step "Version umstellen, Images laden, Stack neu starten, Health Check"
+step "Bei einem Fehler: automatisches Rollback auf ${CURRENT_VERSION}"
+step "Alte Images und Backups aufraeumen"
 echo ""
 echo -e " ${BOLD}Bis zur Rueckfrage wird nichts veraendert.${RESET}"
 
-# -- 2. Auf Neuerungen pruefen -------------------------------------------------
-# Beides veraendert den laufenden Stack nicht: der Fetch schreibt nur in .git/,
-# der Pull laedt hoechstens Image-Layer.
-# -- 2. Version waehlen (wie beim n8n-Update) ----------------------------------
-# Installierte und neueste veroeffentlichte Version anzeigen, dann fragen,
-# wohin es gehen soll. Vorschlag ist die neueste; jede andere veroeffent-
-# lichte Version ist waehlbar, auch eine aeltere (Rueckstufung).
-# Ohne Terminal (Cron) bzw. mit --yes: ohne Rueckfrage die neueste.
-remote_version_exists() {
-  git -C "${INSTALL_DIR}" ls-remote --exit-code --tags origin "refs/tags/$1" >/dev/null 2>&1
-}
-# version_lt A B -> wahr, wenn A aelter als B ist.
-version_lt() {
-  [[ "$1" != "$2" && "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" == "$1" ]]
+# -- 2. Version waehlen --------------------------------------------------------
+echo ""
+echo "------------------------------------------------------------"
+echo -e "${BOLD} Version waehlen${RESET}"
+echo "------------------------------------------------------------"
+
+# Alle Versionen samt Commit mit einem Aufruf holen (ls-remote liest nur). Bei
+# annotierten Tags zeigt der Eintrag mit "^{}" auf den eigentlichen Commit.
+declare -A TAG_COMMIT=()
+while read -r sha ref; do
+  [[ -n "${ref:-}" ]] || continue
+  ref="${ref#refs/tags/}"
+  if [[ "${ref}" == *'^{}' ]]; then
+    TAG_COMMIT["${ref%'^{}'}"]="${sha}"
+  elif [[ -z "${TAG_COMMIT[${ref}]:-}" ]]; then
+    TAG_COMMIT["${ref}"]="${sha}"
+  fi
+done < <(git -C "${INSTALL_DIR}" ls-remote --tags origin 'v*' 2>/dev/null || true)
+[[ "${#TAG_COMMIT[@]}" -gt 0 ]] || die "Die Versionen sind nicht abrufbar (GitHub erreichbar?). Es wurde nichts veraendert."
+
+# Gibt es zu dieser Version alle fertigen Images dieser Installation?
+# 'docker manifest inspect' liest nur, es wird nichts heruntergeladen.
+images_available() {
+  local sha="${TAG_COMMIT[$1]:-}" img
+  [[ -n "${sha}" ]] || return 1
+  for img in "${STACK_IMAGES[@]}"; do
+    docker manifest inspect "${IMAGE_MARKER}${img}:sha-${sha}" >/dev/null 2>&1 || return 1
+  done
 }
 
+# Neueste stabile Version (vX.Y.Z, keine -rcN) mit vollstaendigen Images. Zu
+# einer brandneuen Version erscheinen die Images womoeglich mit Verzoegerung -
+# dann ist die vorige die neueste verfuegbare.
 LATEST_VERSION=""
-if [[ "${GIT_OK}" -eq 1 && -z "${GIT_DIRTY}" ]]; then
-  echo ""
-  echo "------------------------------------------------------------"
-  echo -e "${BOLD} Version waehlen${RESET}"
-  echo "------------------------------------------------------------"
-  # Nur stabile Versionen (vX.Y.Z), keine Vorabversionen. ls-remote liest
-  # nur, es schreibt nichts ins Repository.
-  LATEST_VERSION="$(git -C "${INSTALL_DIR}" ls-remote --tags --refs origin 'v*' 2>/dev/null \
-    | awk -F/ '{print $NF}' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1 || true)"
-  if [[ -z "${LATEST_VERSION}" && -z "${TARGET_VERSION}" ]]; then
-    die "Konnte die neueste Version nicht ermitteln (GitHub erreichbar?).\n  Es wurde nichts veraendert. Eine bestimmte Version laesst sich mit --version vorgeben."
-  fi
-  printf ' %-30s %b\n' "Aktuell installierte Version:" "${BOLD}${GIT_OLD_LABEL}${RESET}"
-  printf ' %-30s %b\n' "Neueste verfuegbare Version:" "${BOLD}${LATEST_VERSION:-unbekannt}${RESET}"
+while read -r v; do
+  [[ -n "${v}" ]] || continue
+  if images_available "${v}"; then LATEST_VERSION="${v}"; break; fi
+done < <(printf '%s\n' "${!TAG_COMMIT[@]}" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -Vr | head -n 10)
+if [[ -z "${LATEST_VERSION}" && -z "${TARGET_VERSION}" ]]; then
+  die "Keine Version mit fertigen Images ermittelbar (ghcr.io erreichbar?).\n  Es wurde nichts veraendert. Eine bestimmte Version laesst sich mit --version vorgeben."
+fi
+printf ' %-30s %b\n' "Aktuell installierte Version:" "${BOLD}${CURRENT_VERSION}${RESET}"
+printf ' %-30s %b\n' "Neueste verfuegbare Version:" "${BOLD}${LATEST_VERSION:-unbekannt}${RESET}"
 
-  if [[ -n "${TARGET_VERSION}" ]]; then
-    # Per --version / CODEAPI_VERSION vorgegeben.
-    remote_version_exists "${TARGET_VERSION}" \
-      || die "Version ${TARGET_VERSION} gibt es upstream nicht (oder GitHub ist nicht erreichbar).\n  Es wurde nichts veraendert."
-    info "Zielversion per --version vorgegeben: ${TARGET_VERSION}"
-  elif [[ "${INTERACTIVE}" -eq 0 || "${ASSUME_YES:-0}" == "1" || "${DRY_RUN}" -eq 1 ]]; then
-    TARGET_VERSION="${LATEST_VERSION}"
-    info "Ohne Rueckfrage: Ziel ist die neueste Version ${TARGET_VERSION}."
-  else
-    if [[ "${GIT_OLD_TAG}" == "${LATEST_VERSION}" && "${FORCE_BUILD}" -eq 0 ]]; then
-      echo ""
-      warn "Du bist bereits auf der neuesten Version (${LATEST_VERSION})."
-      if ! ask_yesno "Trotzdem fortfahren (neu bauen und neu starten)?" "n"; then
-        info "Abgebrochen. Es wurde nichts veraendert."
-        exit 0
-      fi
-      FORCE_BUILD=1
+target_ok() {
+  [[ -n "${TAG_COMMIT[$1]:-}" ]] || { warn "Version '$1' gibt es nicht. Verfuegbare Versionen: ${TAGS_URL}"; return 1; }
+  images_available "$1" || { warn "Zu $1 gibt es keine vollstaendigen fertigen Images (erst ab v1.10.0)."; return 1; }
+}
+
+if [[ -n "${TARGET_VERSION}" ]]; then
+  # Per --version / CODEAPI_VERSION vorgegeben.
+  target_ok "${TARGET_VERSION}" || die "Es wurde nichts veraendert."
+  info "Zielversion per --version vorgegeben: ${TARGET_VERSION}"
+elif [[ "${INTERACTIVE}" -eq 0 || "${ASSUME_YES:-0}" == "1" || "${DRY_RUN}" -eq 1 ]]; then
+  TARGET_VERSION="${LATEST_VERSION}"
+  info "Ohne Rueckfrage: Ziel ist die neueste Version ${TARGET_VERSION}."
+else
+  if [[ "${CURRENT_VERSION}" == "${LATEST_VERSION}" && "${FORCE}" -eq 0 ]]; then
+    echo ""
+    warn "Du bist bereits auf der neuesten Version (${LATEST_VERSION})."
+    if ! ask_yesno "Trotzdem fortfahren (neu laden und neu starten)?" "n"; then
+      info "Abgebrochen. Es wurde nichts veraendert."
+      exit 0
     fi
-    while :; do
-      TARGET_VERSION="$(normalize_version "$(ask_text "Auf welche Version updaten?" "${LATEST_VERSION}")")"
-      if is_version_format "${TARGET_VERSION}" && remote_version_exists "${TARGET_VERSION}"; then
-        break
-      fi
-      warn "Version '${TARGET_VERSION}' gibt es upstream nicht."
-      warn "Verfuegbare Versionen: https://github.com/LibreChat-AI/code-interpreter/tags"
-    done
+    FORCE=1
   fi
-  if [[ -n "${GIT_OLD_TAG}" ]] && version_lt "${TARGET_VERSION}" "${GIT_OLD_TAG}"; then
-    warn "Rueckstufung: ${GIT_OLD_TAG} -> ${TARGET_VERSION} (aeltere Version)."
-  fi
-  success "Zielversion: ${TARGET_VERSION}"
+  while :; do
+    TARGET_VERSION="$(normalize_version "$(ask_text "Auf welche Version updaten?" "${LATEST_VERSION}")")"
+    target_ok "${TARGET_VERSION}" && break
+  done
 fi
 readonly TARGET_VERSION
+readonly TARGET_TAG="sha-${TAG_COMMIT[${TARGET_VERSION}]}"
+if [[ "${CURRENT_VERSION}" =~ ^v ]] && version_lt "${TARGET_VERSION}" "${CURRENT_VERSION}"; then
+  warn "Rueckstufung: ${CURRENT_VERSION} -> ${TARGET_VERSION} (aeltere Version)."
+fi
+success "Zielversion: ${TARGET_VERSION}"
+VERSION_CHANGED=0
+[[ "${TARGET_TAG}" != "${CURRENT_TAG}" ]] && VERSION_CHANGED=1
+readonly VERSION_CHANGED
 
+# -- 3. Auf Neuerungen pruefen -------------------------------------------------
+# Veraendert den laufenden Stack nicht: der Fetch schreibt nur in .git/, der
+# Pull laedt hoechstens Image-Layer der Basis-Images.
 echo ""
 echo "------------------------------------------------------------"
 echo -e "${BOLD} Pruefe auf Neuerungen${RESET}"
 echo "------------------------------------------------------------"
 
-mapfile -t IMAGES_NOW < <(dc config --images 2>/dev/null | sort -u || true)
-[[ "${#IMAGES_NOW[@]}" -gt 0 ]] || die "Konnte die Image-Liste nicht aus der Compose-Config lesen. Stimmen .env und Override-Datei?"
-
-# Lokal gebaute Images haben keinen RepoDigest - so lassen sie sich von den
-# aus einer Registry gezogenen Basis-Images (redis, minio) unterscheiden,
-# ohne die Compose-Datei zu interpretieren.
-is_local_build() {
-  local n
-  n="$(docker image inspect "$1" -f '{{len .RepoDigests}}' 2>/dev/null || echo 0)"
-  [[ "${n}" == "0" ]]
-}
-
-declare -A OLD_IDS=()
-declare -A IS_LOCAL=()
-for img in "${IMAGES_NOW[@]}"; do
-  OLD_IDS["${img}"]="$(docker image inspect "${img}" -f '{{.Id}}' 2>/dev/null || true)"
-  if [[ -z "${OLD_IDS[${img}]}" ]]; then
-    IS_LOCAL["${img}"]=1   # noch nie gebaut -> zaehlt als lokal zu bauen
-  elif is_local_build "${img}"; then
-    IS_LOCAL["${img}"]=1
-  else
-    IS_LOCAL["${img}"]=0
-  fi
-done
-
 GIT_NEW=""
 GIT_NEW_DATE=""
-GIT_CHANGED=0
 CHANGED_FILES=""
-if [[ "${GIT_OK}" -eq 1 && -z "${GIT_DIRTY}" ]]; then
-  info "Quellcode (git fetch der Version ${TARGET_VERSION})..."
-  # Genau dieser eine Tag wird geholt - nicht der Branch "main".
-  declare -a FETCH_ARGS=(fetch --no-tags)
-  if [[ "$(git -C "${INSTALL_DIR}" rev-parse --is-shallow-repository 2>/dev/null || echo false)" == "true" ]]; then
-    FETCH_ARGS+=(--depth=1)
-  fi
-  FETCH_ARGS+=(origin "+refs/tags/${TARGET_VERSION}:refs/tags/${TARGET_VERSION}")
-  if ! run git -C "${INSTALL_DIR}" "${FETCH_ARGS[@]}"; then
-    die "Version ${TARGET_VERSION} konnte nicht geladen werden - gibt es sie upstream, ist GitHub erreichbar?\n  Es wurde nichts veraendert."
-  fi
+if [[ "${VERSION_CHANGED}" -eq 1 ]]; then
+  info "Hole die Konfiguration der Version ${TARGET_VERSION} (git fetch)..."
+  # Genau dieser eine Tag, ohne Verlauf - nicht der Branch "main".
+  run git -C "${INSTALL_DIR}" fetch -q --no-tags --depth=1 origin "+refs/tags/${TARGET_VERSION}:refs/tags/${TARGET_VERSION}" \
+    || die "Version ${TARGET_VERSION} konnte nicht geladen werden (GitHub erreichbar?). Es wurde nichts veraendert."
   if [[ "${DRY_RUN}" -eq 0 ]]; then
     GIT_NEW="$(git -C "${INSTALL_DIR}" rev-parse "refs/tags/${TARGET_VERSION}^{commit}" 2>/dev/null || true)"
     [[ -n "${GIT_NEW}" ]] || die "Version ${TARGET_VERSION} wurde geladen, ist aber lokal nicht aufloesbar. Es wurde nichts veraendert."
     GIT_NEW_DATE="$(git -C "${INSTALL_DIR}" log -1 --format=%cd --date=short "${GIT_NEW}" 2>/dev/null || true)"
-    if [[ "${GIT_NEW}" != "${GIT_OLD}" ]]; then
-      GIT_CHANGED=1
-      # Bei flachen Clones fehlt der gemeinsame Vorfahre; ein Vergleich der
-      # beiden Baeume funktioniert trotzdem, weil beide Commits lokal liegen.
-      CHANGED_FILES="$(git -C "${INSTALL_DIR}" diff --name-only "${GIT_OLD}" "${GIT_NEW}" 2>/dev/null || true)"
-    fi
+    # Bei flachen Clones fehlt der gemeinsame Vorfahre; ein Vergleich der
+    # beiden Baeume funktioniert trotzdem, weil beide Commits lokal liegen.
+    CHANGED_FILES="$(git -C "${INSTALL_DIR}" diff --name-only "${GIT_OLD}" "${GIT_NEW}" 2>/dev/null || true)"
   fi
 fi
 
-info "Basis-Images (${COMPOSE_CMD} pull) - lokal gebaute Images werden dabei uebersprungen..."
-# --ignore-pull-failures: fuer die selbst gebauten Images existiert kein
-# Registry-Eintrag, der Fehlschlag ist hier erwartbar und harmlos.
-dc_run pull --ignore-pull-failures || warn "Der Pull meldete Fehler - lokal gebaute Images bleiben unveraendert."
+# Basis-Images (redis, minio) kommen von Docker Hub bzw. quay.io und koennen
+# sich auch ohne Versionswechsel aendern. Ihre jetzigen Image-IDs werden
+# gemerkt - fuer die Anzeige und fuer ein Rollback.
+mapfile -t BASE_IMAGES < <(dc config --images 2>/dev/null | grep -v "^${IMAGE_MARKER}" | sort -u || true)
+declare -A OLD_IDS=() NEW_IDS=()
+for img in ${BASE_IMAGES[@]+"${BASE_IMAGES[@]}"}; do
+  OLD_IDS["${img}"]="$(docker image inspect "${img}" -f '{{.Id}}' 2>/dev/null || true)"
+done
+info "Basis-Images (redis, minio) pruefen..."
+for img in ${BASE_IMAGES[@]+"${BASE_IMAGES[@]}"}; do
+  run docker pull -q "${img}" >/dev/null || warn "Basis-Image ${img} konnte nicht geprueft werden."
+done
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
   echo ""
   echo "------------------------------------------------------------"
   echo -e "${YELLOW}${BOLD} DRY-RUN beendet - es wurde nichts veraendert.${RESET}"
   echo "------------------------------------------------------------"
-  echo " Ob es Neuerungen gibt, laesst sich ohne Fetch und Pull nicht"
-  echo " feststellen - beides wurde uebersprungen, deshalb entfaellt hier"
-  echo " auch die Gegenueberstellung der Versionen."
-  echo ""
-  echo -e " Installiert: ${BOLD}${GIT_OLD_LABEL}${RESET}   Ziel: ${BOLD}${TARGET_VERSION:-unveraendert}${RESET}"
-  if [[ "${NSJAIL_MODE}" -eq 1 ]] && grep -qE "${OLD_STARTER_MOUNT_RE}" "${INSTALL_DIR}/${MARKER_FILE}" 2>/dev/null; then
-    echo -e " Altlast: gepatchter NsJail-Starter ist eingehaengt - wuerde entfernt."
-  fi
-  if [[ -f "${INSTALL_DIR}/.env" ]] && ! grep -qE '^CODEAPI_BRIDGE_(AUTH_MODE|DYNAMIC_WORKERS|TOKEN)=' "${INSTALL_DIR}/.env"; then
-    echo -e " Altlast: Abschaltung der Remote-Bridge fehlt in der .env - wuerde ergaenzt."
-  fi
+  echo -e " Installiert: ${BOLD}${CURRENT_VERSION}${RESET}   Ziel: ${BOLD}${TARGET_VERSION}${RESET}"
+  [[ "${VERSION_CHANGED}" -eq 0 ]] && echo -e " Die Zielversion ist bereits installiert."
   echo ""
   exit 0
 fi
 
-declare -A NEW_IDS=()
-IMAGES_CHANGED=0
-for img in "${IMAGES_NOW[@]}"; do
+BASE_CHANGED=0
+for img in ${BASE_IMAGES[@]+"${BASE_IMAGES[@]}"}; do
   NEW_IDS["${img}"]="$(docker image inspect "${img}" -f '{{.Id}}' 2>/dev/null || true)"
-  if [[ "${IS_LOCAL[${img}]}" == "0" ]]; then
-    [[ -n "${NEW_IDS[${img}]}" ]] || die "Basis-Image ${img} ist nach dem Pull nicht lokal vorhanden."
-    [[ "${OLD_IDS[${img}]}" != "${NEW_IDS[${img}]}" ]] && IMAGES_CHANGED=1
-  fi
+  [[ "${OLD_IDS[${img}]}" != "${NEW_IDS[${img}]}" ]] && BASE_CHANGED=1
 done
 
-# -- Altlasten frueherer Installer-Fassungen erkennen --------------------------
-# Massgeblich ist der Stand, auf dem der Stack NACH dem Update laeuft: die
-# Zielversion, oder - wenn der Quellcode nicht angefasst wird - der jetzige.
-# Geprueft wird bewusst VOR jeder Aenderung; passt etwas nicht, bricht das
-# Script ab, ohne den laufenden Stack angefasst zu haben.
-EFFECTIVE_REF="${GIT_NEW:-HEAD}"
-ref_file() { git -C "${INSTALL_DIR}" show "${EFFECTIVE_REF}:$1" 2>/dev/null; }
-
-# 1) Gepatchter NsJail-Starter: Fruehere Installer haben eine korrigierte
-#    Kopie von docker/start-direct-sandbox.sh ueber das Original gemountet.
-#    Seit upstream-Commit da8775f (in jeder Version ab v1.0.0) bringt der
-#    Starter einen eigenen Helfer (/sandbox-rootfs-setup) mit, der die alten
-#    Fehler nicht mehr hat. Bleibt die alte Kopie eingehaengt, ueberdeckt sie
-#    diesen neuen Starter - also wird der Mount entfernt.
-STARTER_MOUNT_OBSOLETE=0
-if [[ "${NSJAIL_MODE}" -eq 1 ]] && grep -qE "${OLD_STARTER_MOUNT_RE}" "${INSTALL_DIR}/${MARKER_FILE}" 2>/dev/null; then
-  if [[ "${GIT_OK}" -eq 1 ]] && ref_file docker/start-direct-sandbox.sh | grep -q '/sandbox-rootfs-setup'; then
-    STARTER_MOUNT_OBSOLETE=1
-    info "Alter, gepatchter NsJail-Starter ist eingehaengt - wird entfernt (upstream behoben)."
-  else
-    die "Der Quellstand ${EFFECTIVE_REF:0:12} hat noch den alten Sandbox-Starter (oder ist nicht lesbar).\n  Dieses Script unterstuetzt nur Versionen ab v1.0.0. Es wurde nichts veraendert."
-  fi
-fi
-
-# 2) Remote-Bridge: Die Compose-Datei schaltet sie per Standardwert ein; im
-#    gehaerteten Modus startet die API dann nur mit CODEAPI_BRIDGE_TOKEN.
-#    Installationen von vor dieser Upstream-Aenderung haben die Abschaltung
-#    nicht in der .env - sie wird ergaenzt, wenn die Ziel-Compose-Datei die
-#    Bridge kennt und die .env noch nichts dazu festlegt.
-ENV_BRIDGE_MISSING=0
-if [[ -f "${INSTALL_DIR}/.env" ]] \
-   && ! grep -qE '^CODEAPI_BRIDGE_(AUTH_MODE|DYNAMIC_WORKERS|TOKEN)=' "${INSTALL_DIR}/.env"; then
-  if ref_file "$(basename "${COMPOSE_FILE}")" | grep -q 'CODEAPI_BRIDGE_AUTH_MODE'; then
-    ENV_BRIDGE_MISSING=1
-    info "In der .env fehlt die Abschaltung der Remote-Bridge - wird ergaenzt."
-  fi
-fi
-
-MIGRATION_NEEDED=0
-[[ "${STARTER_MOUNT_OBSOLETE}" -eq 1 || "${ENV_BRIDGE_MISSING}" -eq 1 ]] && MIGRATION_NEEDED=1
-
-# Aenderungen am Erzeuger der Laufzeitumgebungen erkennen: nur dann ist ein
-# Neubau von data/pkgs wirklich noetig (mehrere Minuten, ~3 GB).
+# Aenderungen am Erzeuger der Laufzeitumgebungen erkennen - alles, was
+# docker/Dockerfile.package-init in sein Image kopiert. Nur dann ist ein
+# Neubau von data/pkgs (mehrere Minuten, ~3 GB) wirklich noetig.
 PKGS_RECOMMENDED=0
-if [[ "${NSJAIL_MODE}" -eq 1 && "${GIT_CHANGED}" -eq 1 && -n "${CHANGED_FILES}" ]]; then
-  # Alles, was docker/Dockerfile.package-init in das Image kopiert.
+if [[ "${NSJAIL_MODE}" -eq 1 && -n "${CHANGED_FILES}" ]]; then
   if grep -qE '^docker/Dockerfile\.package-init$|^docker/package-init\.sh$|^docker/apt-install\.sh$|^docker/python-runtime/|^javascript-packages\.txt$' <<<"${CHANGED_FILES}"; then
     PKGS_RECOMMENDED=1
   fi
 fi
 
-# -- 3. Aktueller und zukuenftiger Stand ---------------------------------------
-tag_of() {
-  local ref="$1" tail="${1##*:}"
-  [[ "${ref}" == *:* && "${tail}" != */* ]] && printf '%s' "${tail}" || printf 'latest'
-}
-
+# -- 4. Aktueller und zukuenftiger Stand ---------------------------------------
 echo ""
 echo "============================================================"
 echo -e "${BOLD} AKTUELLER STAND  ->  ZUKUENFTIGER STAND${RESET}"
 echo "============================================================"
-printf ' %-26s %-22s %-22s\n' "Komponente" "JETZT" "NACHHER"
-printf ' %-26s %-22s %-22s\n' "--------------------------" "----------------------" "----------------------"
+printf ' %-24s %-24s %-24s\n' "Komponente" "JETZT" "NACHHER"
+printf ' %-24s %-24s %-24s\n' "------------------------" "------------------------" "------------------------"
+neu() { printf ' %-24s %-24s %b%-24s%b %b\n' "$1" "$2" "${GREEN}" "$3" "${RESET}" "${GREEN}<- neu${RESET}"; }
+gleich() { printf ' %-24s %-24s %-24s\n' "$1" "$2" "unveraendert"; }
 
-if [[ "${GIT_OK}" -eq 1 ]]; then
-  if [[ "${GIT_CHANGED}" -eq 1 ]]; then
-    printf ' %-26s %-22s %b%-22s%b %b\n' "Code Interpreter" \
-      "${GIT_OLD_LABEL}" "${GREEN}" "${TARGET_VERSION} (${GIT_NEW_DATE:-})" "${RESET}" "${GREEN}<- neu${RESET}"
-  else
-    printf ' %-26s %-22s %-22s\n' "Code Interpreter" "${GIT_OLD_LABEL}" "unveraendert"
-  fi
+if [[ "${VERSION_CHANGED}" -eq 1 ]]; then
+  neu "Code Interpreter" "${CURRENT_VERSION}" "${TARGET_VERSION} (${GIT_NEW_DATE})"
+  for img in "${STACK_IMAGES[@]}"; do
+    neu "${img}" "${CURRENT_TAG:0:11}" "${TARGET_TAG:0:11}"
+  done
+else
+  gleich "Code Interpreter" "${CURRENT_VERSION}"
+  for img in "${STACK_IMAGES[@]}"; do
+    gleich "${img}" "${CURRENT_TAG:0:11}"
+  done
 fi
-
-for img in "${IMAGES_NOW[@]}"; do
+for img in ${BASE_IMAGES[@]+"${BASE_IMAGES[@]}"}; do
   name="${img##*/}"; name="${name%%:*}"
-  if [[ "${IS_LOCAL[${img}]}" == "1" ]]; then
-    now="${OLD_IDS[${img}]:7:10}"
-    [[ -n "${now}" ]] || now="nicht gebaut"
-    if [[ "${GIT_CHANGED}" -eq 1 || "${FORCE_BUILD}" -eq 1 || -z "${OLD_IDS[${img}]}" ]]; then
-      printf ' %-26s %-22s %b%-22s%b %b\n' "${name} (lokal gebaut)" "${now}" "${GREEN}" "wird neu gebaut" "${RESET}" "${GREEN}<- neu${RESET}"
-    else
-      printf ' %-26s %-22s %-22s\n' "${name} (lokal gebaut)" "${now}" "unveraendert"
-    fi
+  if [[ "${OLD_IDS[${img}]}" != "${NEW_IDS[${img}]}" ]]; then
+    neu "${name}" "${OLD_IDS[${img}]:7:12}" "${NEW_IDS[${img}]:7:12}"
   else
-    now="$(tag_of "${img}") (${OLD_IDS[${img}]:7:8})"
-    next="$(tag_of "${img}") (${NEW_IDS[${img}]:7:8})"
-    if [[ "${OLD_IDS[${img}]}" != "${NEW_IDS[${img}]}" ]]; then
-      printf ' %-26s %-22s %b%-22s%b %b\n' "${name} (Registry)" "${now}" "${GREEN}" "${next}" "${RESET}" "${GREEN}<- neu${RESET}"
-    else
-      printf ' %-26s %-22s %-22s\n' "${name} (Registry)" "${now}" "unveraendert"
-    fi
+    gleich "${name}" "${OLD_IDS[${img}]:7:12}"
   fi
 done
 
-# Bewusst eine aeltere als die neueste Version gewaehlt? Kurz erwaehnen.
-if [[ -n "${LATEST_VERSION}" && -n "${TARGET_VERSION}" ]] && version_lt "${TARGET_VERSION}" "${LATEST_VERSION}"; then
+if [[ -n "${LATEST_VERSION}" ]] && version_lt "${TARGET_VERSION}" "${LATEST_VERSION}"; then
   echo ""
   info "Hinweis: Neuer als ${TARGET_VERSION} ist bereits ${LATEST_VERSION}."
 fi
-
-if [[ "${MIGRATION_NEEDED}" -eq 1 ]]; then
-  echo ""
-  [[ "${STARTER_MOUNT_OBSOLETE}" -eq 1 ]] && \
-    echo -e " NsJail-Starter: ${YELLOW}alter Patch wird ausgehaengt${RESET} (Upstream-Starter uebernimmt)"
-  [[ "${ENV_BRIDGE_MISSING}" -eq 1 ]] && \
-    echo -e " .env:           ${YELLOW}Abschaltung der Remote-Bridge wird ergaenzt${RESET}"
-fi
-
 if [[ "${NSJAIL_MODE}" -eq 1 ]]; then
   echo ""
   if [[ "${PKGS_RECOMMENDED}" -eq 1 ]]; then
@@ -866,18 +694,17 @@ if [[ "${NSJAIL_MODE}" -eq 1 ]]; then
 fi
 
 # -- Nichts Neues: hier ist Schluss, ohne irgendetwas anzufassen ---------------
-if [[ "${GIT_CHANGED}" -eq 0 && "${IMAGES_CHANGED}" -eq 0 && "${FORCE_BUILD}" -eq 0 && "${MIGRATION_NEEDED}" -eq 0 ]]; then
+if [[ "${VERSION_CHANGED}" -eq 0 && "${BASE_CHANGED}" -eq 0 && "${FORCE}" -eq 0 && "${PKGS_MODE}" != "always" ]]; then
   echo ""
   echo "------------------------------------------------------------"
-  success "NOCHANGE: bereits aktuell - kein Backup, kein Neubau, keine Aenderung."
+  success "NOCHANGE: bereits aktuell - kein Backup, kein Neustart, keine Aenderung."
   echo "------------------------------------------------------------"
-  echo -e " Trotzdem neu bauen (z.B. fuer neue Basis-Images oder nach einer"
-  echo -e " Aenderung an der .env): ${CYAN}--force-build${RESET}, bei Bedarf mit ${CYAN}--pull${RESET}."
+  echo -e " Trotzdem neu laden und neu starten: ${CYAN}--force${RESET}"
   echo ""
   exit 0
 fi
 
-# -- 4. Rueckfragen ------------------------------------------------------------
+# -- 5. Rueckfragen ------------------------------------------------------------
 echo ""
 echo "------------------------------------------------------------"
 echo -e "${BOLD} Rueckfragen${RESET}"
@@ -888,7 +715,7 @@ DO_PKGS=0
 if [[ "${NSJAIL_MODE}" -eq 1 ]]; then
   case "${PKGS_MODE}" in
     always) DO_PKGS=1; info "Laufzeitumgebungen werden neu erzeugt (--pkgs)." ;;
-    never)  DO_PKGS=0; info "Laufzeitumgebungen bleiben unveraendert (--no-pkgs)." ;;
+    never)  info "Laufzeitumgebungen bleiben unveraendert (--no-pkgs)." ;;
     auto)
       if [[ "${PKGS_RECOMMENDED}" -eq 1 ]]; then
         warn "Upstream hat den Erzeuger der Laufzeitumgebungen geaendert."
@@ -905,7 +732,7 @@ readonly DO_PKGS
 
 if (( FREE_MB < REQUIRED_FREE_MB )); then
   error "Nur ${FREE_MB} MB frei auf ${DOCKER_ROOT}, benoetigt werden etwa ${REQUIRED_FREE_MB} MB."
-  die "Der Neubau wuerde vermutlich mitten drin abbrechen. Bitte zuerst Platz schaffen (z.B. 'docker image prune -a')."
+  die "Bitte zuerst Platz schaffen - es wurde nichts veraendert."
 fi
 
 if [[ "${KEEP_EXPLICIT}" -eq 1 ]]; then
@@ -919,115 +746,94 @@ fi
 readonly KEEP
 
 TS=$(date +%F_%H-%M-%S)
+readonly TS
 # Wie beim n8n-Update steht die Version vor dem Update im Namen des Backups.
-BACKUP_VERSION="${GIT_OLD_TAG:-main-${GIT_OLD:0:7}}"
-[[ "${GIT_OK}" -eq 1 ]] || BACKUP_VERSION="unbekannt"
-BACKUP_FILE="${BACKUP_DIR}/${BACKUP_PREFIX}_${BACKUP_VERSION}_${TS}.tar.gz"
+readonly BACKUP_FILE="${BACKUP_DIR}/${BACKUP_PREFIX}_${CURRENT_VERSION}_${TS}.tar.gz"
 mapfile -t DROP_BACKUPS < <(ls -1t "${BACKUP_DIR}"/${BACKUP_PREFIX}_*.tar.gz 2>/dev/null | tail -n "+${KEEP}" || true)
 
 echo ""
 echo -e " ${BOLD}Es wird jetzt:${RESET}"
 STEP_NO=0
-if [[ "${#CONFIG_ITEMS[@]}" -gt 0 ]]; then
-  step "gesichert nach ${CYAN}$(basename "${BACKUP_FILE}")${RESET}: ${CONFIG_ITEMS[*]}"
+step "gesichert nach ${CYAN}$(basename "${BACKUP_FILE}")${RESET}: ${CONFIG_ITEMS[*]}"
+if [[ "${VERSION_CHANGED}" -eq 1 ]]; then
+  step "von ${CURRENT_VERSION} auf ${CYAN}${TARGET_VERSION}${RESET} umgestellt (Konfiguration + Images)"
 else
-  step "${YELLOW}kein Backup erstellt${RESET} (keine Konfigurationsdateien gefunden)"
+  step "die Version ${CURRENT_VERSION} beibehalten"
 fi
-if [[ "${GIT_CHANGED}" -eq 1 ]]; then
-  step "der Quellcode von ${GIT_OLD_LABEL} auf Version ${CYAN}${TARGET_VERSION}${RESET} umgestellt"
-else
-  step "der Quellcode nicht angefasst"
-fi
-[[ "${STARTER_MOUNT_OBSOLETE}" -eq 1 ]] && \
-step "der Mount des alten ${CYAN}${OLD_STARTER_COPY}${RESET} aus ${MARKER_FILE} entfernt"
-[[ "${ENV_BRIDGE_MISSING}" -eq 1 ]] && \
-step "die ${CYAN}.env${RESET} um ${CYAN}CODEAPI_BRIDGE_AUTH_MODE=static${RESET} und ${CYAN}CODEAPI_BRIDGE_DYNAMIC_WORKERS=false${RESET} ergaenzt"
-step "die Compose-Konfiguration validiert und ${CYAN}${COMPOSE_CMD} build${RESET} ausgefuehrt"
-echo -e "      ${YELLOW}- das kann 10-30+ Minuten dauern, der Stack laeuft dabei weiter${RESET}"
+step "die Images geladen - der Stack laeuft dabei weiter"
 [[ "${DO_PKGS}" -eq 1 ]] && \
-step "${CYAN}data/pkgs${RESET} neu erzeugt (Python wird aus dem Quellcode kompiliert)"
-step "der Stack neu hochgefahren - kurze Downtime, meist unter einer Minute"
-step "bei einem Fehler automatisch auf ${GIT_OLD_LABEL} zurueckgerollt (gesicherte Images, kein Neubau)"
+step "${CYAN}data/pkgs${RESET} neu erzeugt (Python wird kompiliert, 10-20 Minuten)"
+step "der Stack neu gestartet - kurze Downtime, meist unter einer Minute"
+step "bei einem Fehler automatisch auf ${CURRENT_VERSION} zurueckgerollt"
 if [[ "${#DROP_BACKUPS[@]}" -gt 0 ]]; then
   step "${#DROP_BACKUPS[@]} alte(s) Backup(s) entfernt, aeltestes: ${CYAN}$(basename "${DROP_BACKUPS[-1]}")${RESET}"
 else
   step "kein altes Backup entfernt (${BACKUP_COUNT} von ${KEEP} belegt)"
 fi
 echo ""
-echo -e " ${BOLD}Unveraendert bleibt:${RESET} alle Secrets und Schluessel in der .env, die"
-echo -e " geschlossenen Host-Ports in der Override-Datei, das Docker-Netzwerk"
-echo -e " ${CYAN}shared_proxy${RESET} samt aller anderen Stacks - und die LibreChat-Seite:"
-echo -e " weder .env noch Proxy Host in NPM werden angefasst."
+echo -e " ${BOLD}Unveraendert bleibt:${RESET} alle Secrets und Schluessel, die geschlossenen"
+echo -e " Host-Ports, das Docker-Netzwerk ${CYAN}shared_proxy${RESET} samt aller anderen Stacks"
+echo -e " - und die LibreChat-Seite: weder .env noch Proxy Host werden angefasst."
 
 if ! ask_yesno "${BOLD}Update jetzt durchfuehren?${RESET}" "n"; then
   warn "Abgebrochen. Es wurde nichts veraendert."
-  echo -e " Geladene Layer und Commits liegen lokal und werden beim naechsten Lauf verwendet."
   exit 0
 fi
 
-# -- 5. Durchfuehrung ----------------------------------------------------------
+# -- 6. Durchfuehrung ----------------------------------------------------------
 echo ""
 echo "------------------------------------------------------------"
 echo -e "${BOLD} Durchfuehrung${RESET}"
 echo "------------------------------------------------------------"
 
-if [[ "${#CONFIG_ITEMS[@]}" -gt 0 ]]; then
-  info "Erstelle Backup..."
-  mkdir -p "${BACKUP_DIR}"
-  chmod 700 "${BACKUP_DIR}"
-  STAGE="$(mktemp -d "${BACKUP_DIR}/.tmp-backup-XXXXXX")" || die "Konnte kein temporaeres Verzeichnis anlegen."
-  trap 'rm -rf "${STAGE}"' EXIT
-
-  mkdir -p "${STAGE}/config"
-  for item in "${CONFIG_ITEMS[@]}"; do
-    cp -a "${INSTALL_DIR}/${item}" "${STAGE}/config/"
-  done
-
-  {
-    echo "ERSTELLT=${TS}"
-    echo "HOST=$(hostname 2>/dev/null || echo unbekannt)"
-    echo "INSTALL_DIR=${INSTALL_DIR}"
-    echo "GIT_COMMIT_VOR_UPDATE=${GIT_OLD:-unbekannt}"
-    echo "VERSION_VOR_UPDATE=${GIT_OLD_LABEL:-unbekannt}"
-    echo "ZIELVERSION=${TARGET_VERSION}"
-    echo "ISOLATION=$( [[ "${NSJAIL_MODE}" -eq 1 ]] && echo nsjail || echo microvm )"
-    echo "KONFIGURATION=${CONFIG_ITEMS[*]}"
-    echo "HINWEIS=data/pkgs und die Session-Daten in Redis/MinIO sind NICHT enthalten"
-  } > "${STAGE}/manifest.txt"
-
-  # -C: relative Pfade im Archiv, unabhaengig vom Arbeitsverzeichnis.
-  tar czf "${BACKUP_FILE}" -C "${STAGE}" .
-  # Das Archiv enthaelt die .env mit allen Secrets und - bei nicht
-  # uebertragenem JWT-Block - den privaten Signierschluessel.
-  chmod 600 "${BACKUP_FILE}"
-  rm -rf "${STAGE}"
-  trap - EXIT
-  success "Backup erstellt: $(basename "${BACKUP_FILE}") ($(du -h "${BACKUP_FILE}" | cut -f1))"
-fi
+info "Erstelle Backup..."
+mkdir -p "${BACKUP_DIR}"
+chmod 700 "${BACKUP_DIR}"
+STAGE="$(mktemp -d "${BACKUP_DIR}/.tmp-backup-XXXXXX")" || die "Konnte kein temporaeres Verzeichnis anlegen."
+trap 'rm -rf "${STAGE}"' EXIT
+mkdir -p "${STAGE}/config"
+for item in "${CONFIG_ITEMS[@]}"; do
+  cp -a "${INSTALL_DIR}/${item}" "${STAGE}/config/"
+done
+{
+  echo "ERSTELLT=${TS}"
+  echo "HOST=$(hostname 2>/dev/null || echo unbekannt)"
+  echo "INSTALL_DIR=${INSTALL_DIR}"
+  echo "VERSION_VOR_UPDATE=${CURRENT_VERSION}"
+  echo "IMAGES_VOR_UPDATE=${CURRENT_TAG}"
+  echo "GIT_COMMIT_VOR_UPDATE=${GIT_OLD}"
+  echo "ZIELVERSION=${TARGET_VERSION}"
+  echo "ISOLATION=$( [[ "${NSJAIL_MODE}" -eq 1 ]] && echo nsjail || echo microvm )"
+  echo "KONFIGURATION=${CONFIG_ITEMS[*]}"
+  echo "HINWEIS=data/pkgs und die Session-Daten in Redis/MinIO sind NICHT enthalten"
+} > "${STAGE}/manifest.txt"
+tar czf "${BACKUP_FILE}" -C "${STAGE}" .
+# Das Archiv enthaelt die .env mit allen Secrets.
+chmod 600 "${BACKUP_FILE}"
+rm -rf "${STAGE}"
+trap - EXIT
+success "Backup erstellt: $(basename "${BACKUP_FILE}") ($(du -h "${BACKUP_FILE}" | cut -f1))"
 
 # -- Rollback-Vorbereitung -----------------------------------------------------
-# Wie beim n8n-Update wird bei einem Fehler automatisch auf den alten Stand
-# zurueckgerollt. Weil dieser Stack seine Images selbst baut (10-30 Minuten),
-# werden die laufenden Images vor dem Neubau unter einem eigenen Tag
-# gesichert - ein Rollback startet sie direkt wieder, ohne Neubau.
-# Zustandsmerker: was wurde bereits veraendert und muss zurueck?
+# Wie beim n8n-Update wird bei einem Fehler automatisch zurueckgerollt. Die
+# alten Images der Dienste bleiben unter ihrem sha-Tag liegen, bis das Update
+# erfolgreich war; die Basis-Images werden ueber ihre ID gesichert, weil ihr
+# Tag beim Laden auf eine neue Fassung wandern kann.
 SRC_SWITCHED=0      # Quellcode auf die Zielversion umgestellt
+ENV_CHANGED=0       # .env auf die Zielversion umgestellt
 STACK_RESTARTED=0   # Container mit dem neuen Stand gestartet
 PKGS_MOVED=0        # alte data/pkgs zur Seite gelegt
-RESTORE_FILES=()    # Dateien mit einer .vor-${TS}-Kopie
-ROLLBACK_IMAGES=()  # Images mit gesichertem Rollback-Tag
-PKGS_ROLLBACK_DIR="${INSTALL_DIR}/data/pkgs.rollback-${TS}"
+ROLLBACK_IMAGES=()  # Basis-Images mit gesichertem Rollback-Tag
+readonly PKGS_ROLLBACK_DIR="${INSTALL_DIR}/data/pkgs.rollback-${TS}"
 
-# Rollback-Referenz eines Images: gleicher Name, Tag ${ROLLBACK_TAG}.
 rollback_ref() {
   local img="$1" repo="$1"
   [[ "${img##*/}" == *:* ]] && repo="${img%:*}"
   printf '%s:%s' "${repo}" "${ROLLBACK_TAG}"
 }
 
-# Wartet, bis ein Service laeuft (bzw. "healthy" meldet).
-# Reihenfolge wie im Installer. sandbox-runner braucht im NsJail-Modus am
-# laengsten, deshalb grosszuegiges Zeitfenster.
+# Wartet, bis ein Service laeuft bzw. "healthy" meldet. sandbox-runner braucht
+# im NsJail-Modus am laengsten, deshalb grosszuegiges Zeitfenster.
 wait_ready() {
   local service="$1" cid state health
   for _ in {1..80}; do
@@ -1046,8 +852,6 @@ wait_ready() {
   return 1
 }
 
-# Entfernt nur die Rollback-Tags (die Images selbst raeumt der spaetere
-# 'docker image prune' auf, sobald sie nicht mehr gebraucht werden).
 drop_rollback_tags() {
   local img
   for img in ${ROLLBACK_IMAGES[@]+"${ROLLBACK_IMAGES[@]}"}; do
@@ -1056,158 +860,116 @@ drop_rollback_tags() {
 }
 
 # rollback <grund> <neustart: 0|1>
-# Setzt Quellcode, Konfiguration, Images und data/pkgs auf den Stand vor dem
-# Update zurueck. Mit Neustart (nur wenn der neue Stand schon lief) werden
-# die alten Images direkt wieder gestartet - ohne Neubau.
+# Setzt Konfiguration, Quellcode, Basis-Images und data/pkgs auf den Stand vor
+# dem Update zurueck. Mit Neustart (nur wenn der neue Stand schon lief) wird
+# die vorherige Version direkt wieder gestartet - ihre Images liegen noch vor.
 rollback() {
-  local reason="$1" restart="$2" img f
+  local reason="$1" restart="$2" img ok=1
   trap - ERR
   set +e
   echo ""
   echo "------------------------------------------------------------"
   error "${reason}"
-  warn "Starte automatisches Rollback auf ${GIT_OLD_LABEL:-den vorherigen Stand}..."
+  warn "Starte automatisches Rollback auf ${CURRENT_VERSION}..."
   echo "------------------------------------------------------------"
-
+  if [[ "${ENV_CHANGED}" -eq 1 ]]; then
+    if cp -a "${ENV_FILE}.vor-${TS}" "${ENV_FILE}"; then
+      success ".env zurueck auf ${CURRENT_VERSION}."
+    else
+      error ".env konnte nicht zurueckgesetzt werden - Vorher-Stand: .env.vor-${TS}"
+    fi
+  fi
   if [[ "${SRC_SWITCHED}" -eq 1 ]]; then
     if git -C "${INSTALL_DIR}" -c advice.detachedHead=false checkout -q --detach "${GIT_OLD}" >/dev/null 2>&1; then
-      success "Quellcode zurueck auf ${GIT_OLD_LABEL}."
+      success "Konfiguration (Repository) zurueck auf ${CURRENT_VERSION}."
     else
-      error "Quellcode konnte nicht zurueckgesetzt werden: git -C ${INSTALL_DIR} checkout --detach ${GIT_OLD:0:7}"
+      error "Repository konnte nicht zurueckgesetzt werden: git -C ${INSTALL_DIR} checkout --detach ${GIT_OLD:0:7}"
     fi
   fi
-  for f in ${RESTORE_FILES[@]+"${RESTORE_FILES[@]}"}; do
-    if cp -a "${INSTALL_DIR}/${f}.vor-${TS}" "${INSTALL_DIR}/${f}"; then
-      success "${f} auf den Stand vor dem Update zurueckgesetzt."
-    else
-      error "${f} konnte nicht zurueckgesetzt werden - Vorher-Stand: ${f}.vor-${TS}"
-    fi
-  done
   for img in ${ROLLBACK_IMAGES[@]+"${ROLLBACK_IMAGES[@]}"}; do
-    if docker tag "$(rollback_ref "${img}")" "${img}"; then
-      success "Image ${img} zurueck auf den alten Stand."
-    else
-      error "Image ${img} konnte nicht zurueckgesetzt werden."
-    fi
+    docker tag "$(rollback_ref "${img}")" "${img}" || error "Basis-Image ${img} konnte nicht zurueckgesetzt werden."
   done
   if [[ "${PKGS_MOVED}" -eq 1 ]]; then
-    rm -rf "${INSTALL_DIR}/data/pkgs" \
-      && mv "${PKGS_ROLLBACK_DIR}" "${INSTALL_DIR}/data/pkgs" \
-      && success "Laufzeitumgebungen (data/pkgs) zurueck auf den alten Stand." \
-      || error "data/pkgs konnte nicht zurueckgesetzt werden - alter Stand: ${PKGS_ROLLBACK_DIR}"
+    if rm -rf "${INSTALL_DIR}/data/pkgs" && mv "${PKGS_ROLLBACK_DIR}" "${INSTALL_DIR}/data/pkgs"; then
+      success "Laufzeitumgebungen (data/pkgs) zurueck auf den alten Stand."
+    else
+      error "data/pkgs konnte nicht zurueckgesetzt werden - alter Stand: ${PKGS_ROLLBACK_DIR}"
+    fi
   fi
-
-  local ok=1
   if [[ "${restart}" -eq 1 ]]; then
-    info "Starte den alten Stand neu (ohne Neubau)..."
-    dc up -d --no-build
+    info "Starte ${CURRENT_VERSION} neu (die Images liegen noch vor)..."
+    dc up -d
     for svc in "${SERVICES[@]}"; do
       wait_ready "${svc}" || ok=0
     done
-  else
-    info "Die Container wurden nicht neu gestartet - der alte Stack lief durchgehend weiter."
   fi
-  [[ "${ok}" -eq 1 ]] && drop_rollback_tags
-
+  if [[ "${ok}" -eq 1 ]]; then
+    drop_rollback_tags
+    # Die Images der fehlgeschlagenen Version belegen nur Platz.
+    if [[ "${VERSION_CHANGED}" -eq 1 ]]; then
+      for img in "${STACK_IMAGES[@]}"; do
+        docker rmi "${IMAGE_MARKER}${img}:${TARGET_TAG}" >/dev/null 2>&1 || true
+      done
+    fi
+  fi
   echo ""
   if [[ "${ok}" -eq 1 && "${restart}" -eq 1 ]]; then
-    error "ROLLBACK: Update auf ${TARGET_VERSION:-die Zielversion} fehlgeschlagen, ${GIT_OLD_LABEL} laeuft wieder."
+    error "ROLLBACK: Update auf ${TARGET_VERSION} fehlgeschlagen, ${CURRENT_VERSION} laeuft wieder."
   elif [[ "${ok}" -eq 1 ]]; then
-    error "ROLLBACK: Update auf ${TARGET_VERSION:-die Zielversion} fehlgeschlagen, ${GIT_OLD_LABEL} laeuft unveraendert weiter."
+    error "ROLLBACK: Update auf ${TARGET_VERSION} fehlgeschlagen, ${CURRENT_VERSION} laeuft unveraendert weiter."
   else
-    error "ROLLBACK unvollstaendig: Der alte Stand kam nicht vollstaendig hoch."
+    error "ROLLBACK unvollstaendig: ${CURRENT_VERSION} kam nicht vollstaendig hoch."
     echo -e " Bitte pruefen: ${CYAN}cd ${INSTALL_DIR} && ${COMPOSE_CMD} ps${RESET} und ${CYAN}${COMPOSE_CMD} logs${RESET}"
-    echo -e " Die gesicherten Images tragen den Tag ${CYAN}:${ROLLBACK_TAG}${RESET}."
   fi
-  echo -e " Backup der Konfiguration: ${CYAN}${BACKUP_FILE:-<keines>}${RESET}"
+  echo -e " Backup der Konfiguration: ${CYAN}${BACKUP_FILE}${RESET}"
   [[ "${LOG_ACTIVE}" -eq 1 ]] && echo -e " Log: ${CYAN}${LOG}${RESET}"
   exit 1
 }
+# Unerwartete Fehler (set -e) loesen ebenfalls ein Rollback aus, statt das
+# Script mitten im Umbau stehen zu lassen.
+trap 'rollback "Unerwarteter Fehler in Zeile ${LINENO}." "${STACK_RESTARTED}"' ERR
 
-# Unerwartete Fehler (set -e) im Durchfuehrungsteil loesen ebenfalls ein
-# Rollback aus, statt das Script mitten im Umbau stehen zu lassen.
-on_unexpected_error() {
-  rollback "Unerwarteter Fehler in Zeile $1." "${STACK_RESTARTED}"
-}
-trap 'on_unexpected_error ${LINENO}' ERR
+for img in ${BASE_IMAGES[@]+"${BASE_IMAGES[@]}"}; do
+  [[ -n "${OLD_IDS[${img}]}" ]] || continue
+  docker tag "${OLD_IDS[${img}]}" "$(rollback_ref "${img}")" && ROLLBACK_IMAGES+=("${img}")
+done
 
-if [[ "${GIT_CHANGED}" -eq 1 ]]; then
-  info "Stelle den Quellcode auf Version ${TARGET_VERSION} um..."
-  # checkout --detach statt merge/pull: ein fester Versionsstand ist kein
-  # Branch, auf dem weiterentwickelt wird. Das schliesst auch den Wechsel
-  # einer aelteren main-Installation auf eine Version ein. Lokal geaenderte
-  # Dateien wuerden hier zu einem Fehler fuehren statt ueberschrieben zu
-  # werden - deshalb wurde das Quell-Update bei GIT_DIRTY schon oben
-  # ausgelassen.
-  if ! git -C "${INSTALL_DIR}" -c advice.detachedHead=false checkout -q --detach "${GIT_NEW}"; then
-    rollback "Wechsel auf ${TARGET_VERSION} nicht moeglich (git checkout)." 0
-  fi
+if [[ "${VERSION_CHANGED}" -eq 1 ]]; then
+  info "Stelle auf Version ${TARGET_VERSION} um..."
+  # checkout --detach statt merge/pull: eine Version ist kein Branch, auf dem
+  # weiterentwickelt wird. Funktioniert auch fuer eine Rueckstufung.
+  git -C "${INSTALL_DIR}" -c advice.detachedHead=false checkout -q --detach "${GIT_NEW}" \
+    || rollback "Wechsel der Konfiguration auf ${TARGET_VERSION} nicht moeglich (git checkout)." 0
   SRC_SWITCHED=1
-  success "Quellcode steht auf ${TARGET_VERSION} ($(git -C "${INSTALL_DIR}" rev-parse --short HEAD))."
-fi
-
-# Altlasten bereinigen. Vorher jeweils eine Kopie neben die Datei legen - so
-# kann ein Rollback alles zuruecknehmen (zusaetzlich zum Backup-Archiv).
-if [[ "${STARTER_MOUNT_OBSOLETE}" -eq 1 ]]; then
-  info "Haenge den alten NsJail-Starter aus..."
-  cp -a "${INSTALL_DIR}/${MARKER_FILE}" "${INSTALL_DIR}/${MARKER_FILE}.vor-${TS}"
-  RESTORE_FILES+=("${MARKER_FILE}")
-  sed -i "\\#${OLD_STARTER_MOUNT_RE}#d" "${INSTALL_DIR}/${MARKER_FILE}"
-  if grep -qE "${OLD_STARTER_MOUNT_RE}" "${INSTALL_DIR}/${MARKER_FILE}"; then
-    rollback "Konnte den Mount des alten Starters nicht aus ${MARKER_FILE} entfernen." 0
-  fi
-  success "Alter Starter ausgehaengt (Vorher-Stand: ${MARKER_FILE}.vor-${TS})."
-fi
-if [[ "${ENV_BRIDGE_MISSING}" -eq 1 ]]; then
-  info "Ergaenze die Abschaltung der Remote-Bridge in der .env..."
-  cp -a "${INSTALL_DIR}/.env" "${INSTALL_DIR}/.env.vor-${TS}"
-  chmod 600 "${INSTALL_DIR}/.env.vor-${TS}"
-  RESTORE_FILES+=(".env")
-  {
-    echo ""
-    echo "# Ergaenzt von update-avila-code-interpreter.sh am $(date '+%F %T'):"
-    echo "# Remote-Bridge wird nicht genutzt - ohne diese Abschaltung verweigert"
-    echo "# die gehaertete API den Start (fehlender CODEAPI_BRIDGE_TOKEN)."
-    echo "CODEAPI_BRIDGE_AUTH_MODE=static"
-    echo "CODEAPI_BRIDGE_DYNAMIC_WORKERS=false"
-  } >>"${INSTALL_DIR}/.env"
-  success "Remote-Bridge in der .env abgeschaltet (Vorher-Stand: .env.vor-${TS})."
+  # Version und Image-Tag in der .env umstellen - wie beim n8n-Update die
+  # Version in der Compose-Datei. Eine Kopie bleibt fuer das Rollback liegen.
+  cp -a "${ENV_FILE}" "${ENV_FILE}.vor-${TS}"
+  chmod 600 "${ENV_FILE}.vor-${TS}"
+  ENV_CHANGED=1
+  sed -i -e "s|^CODEAPI_IMAGE_TAG=.*|CODEAPI_IMAGE_TAG=${TARGET_TAG}|" \
+         -e "s|^CODEAPI_VERSION=.*|CODEAPI_VERSION=${TARGET_VERSION}|" "${ENV_FILE}"
+  grep -q "^CODEAPI_VERSION=" "${ENV_FILE}" || echo "CODEAPI_VERSION=${TARGET_VERSION}" >>"${ENV_FILE}"
+  [[ "$(env_get CODEAPI_IMAGE_TAG)" == "${TARGET_TAG}" ]] \
+    || rollback "CODEAPI_IMAGE_TAG konnte in der .env nicht umgestellt werden." 0
+  success "Version ${TARGET_VERSION} eingestellt (Images ${TARGET_TAG:0:11})."
 fi
 
 info "Validiere die Compose-Konfiguration..."
-# Nach einem Quell-Update kann sich die Basis-Compose-Datei geaendert haben
-# (neue oder umbenannte Services). Passt das Override nicht mehr dazu, faellt
-# das hier auf - vor dem Build, nicht mittendrin.
-if ! dc config --quiet; then
-  rollback "Die Compose-Konfiguration ist nach dem Update ungueltig (haeufigste Ursache: ${MARKER_FILE} verweist auf einen Service, den es in der neuen $(basename "${COMPOSE_FILE}") nicht mehr gibt)." 0
-fi
+# Nach einem Versionswechsel kann sich die Basis-Compose-Datei geaendert haben
+# (neue oder umbenannte Services). Passt die Override-Datei nicht mehr dazu,
+# faellt das hier auf - bevor irgendein Container angefasst wird.
+dc config --quiet \
+  || rollback "Die Compose-Konfiguration passt nicht zu ${TARGET_VERSION} (haeufigste Ursache: ein Service der Override-Datei existiert in der neuen docker-compose.yaml nicht mehr)." 0
 success "Compose-Konfiguration ist gueltig."
 
-# Laufende Images sichern - ueber die Image-ID, damit auch die bereits beim
-# Pull erneuerten Registry-Images (redis, minio) auf ihren alten Stand
-# zurueckkoennen.
-info "Sichere die laufenden Images fuer ein moegliches Rollback..."
-for img in "${IMAGES_NOW[@]}"; do
-  [[ -n "${OLD_IDS[${img}]}" ]] || continue
-  if docker tag "${OLD_IDS[${img}]}" "$(rollback_ref "${img}")"; then
-    ROLLBACK_IMAGES+=("${img}")
-  fi
-done
-success "${#ROLLBACK_IMAGES[@]} Image(s) als Rollback-Stand gesichert (Tag :${ROLLBACK_TAG})."
-
-declare -a BUILD_ARGS=()
-[[ "${BUILD_PULL}" -eq 1 ]] && BUILD_ARGS+=(--pull)
-[[ "${BUILD_NO_CACHE}" -eq 1 ]] && BUILD_ARGS+=(--no-cache)
-info "Baue die Images neu - das dauert, bitte nicht abbrechen..."
-if ! dc build ${BUILD_ARGS[@]+"${BUILD_ARGS[@]}"}; then
-  rollback "Der Build ist fehlgeschlagen (haeufige Ursachen: kein Plattenplatz, kein Netz zur Registry, Aenderung im Quellcode)." 0
-fi
-success "Images gebaut."
+info "Lade die Images..."
+dc pull || rollback "Die Images konnten nicht geladen werden (Netz zu ghcr.io / Docker Hub?)." 0
+success "Images geladen."
 
 if [[ "${DO_PKGS}" -eq 1 ]]; then
   info "Erzeuge die Laufzeitumgebungen neu (Python wird kompiliert)..."
-  # Alte Laufzeitumgebungen fuer ein Rollback aufheben, statt sie zu
-  # ueberschreiben - die alte Version laeuft womoeglich nicht mit den neuen.
+  # Alte Laufzeitumgebungen fuer ein Rollback aufheben statt ueberschreiben -
+  # die vorherige Version laeuft womoeglich nicht mit den neuen.
   if [[ -d "${INSTALL_DIR}/data/pkgs" ]]; then
     mv "${INSTALL_DIR}/data/pkgs" "${PKGS_ROLLBACK_DIR}"
     PKGS_MOVED=1
@@ -1217,9 +979,8 @@ if [[ "${DO_PKGS}" -eq 1 ]]; then
     || rollback "Image fuer die Laufzeitumgebungen konnte nicht gebaut werden." 0
   docker run --rm -v "${INSTALL_DIR}/data/pkgs:/pkgs" "${PKG_INIT_IMAGE}" \
     || rollback "Laufzeitumgebungen konnten nicht erzeugt werden." 0
-  # Gegenpruefung: fehlt eine der vier Laufzeiten, scheitert spaeter JEDE
-  # Codeausfuehrung mit "<runtime> is unknown" - das faellt sonst erst beim
-  # ersten echten Nutzer-Aufruf auf.
+  # Fehlt eine der vier Laufzeiten, scheitert spaeter JEDE Codeausfuehrung mit
+  # "<runtime> is unknown" - das faellt sonst erst beim ersten Nutzer auf.
   for runtime in python node bun bash; do
     [[ -e "${INSTALL_DIR}/data/pkgs/${runtime}" ]] \
       || rollback "Laufzeitumgebung '${runtime}' fehlt unter ${INSTALL_DIR}/data/pkgs." 0
@@ -1227,7 +988,7 @@ if [[ "${DO_PKGS}" -eq 1 ]]; then
   success "Laufzeitumgebungen bereit: python, node, bun, bash."
 fi
 
-info "Fahre den Stack neu hoch..."
+info "Starte den Stack neu..."
 STACK_RESTARTED=1
 dc up -d
 
@@ -1236,7 +997,6 @@ FAILED_SERVICES=()
 for svc in "${SERVICES[@]}"; do
   wait_ready "${svc}" || FAILED_SERVICES+=("${svc}")
 done
-
 if [[ "${#FAILED_SERVICES[@]}" -gt 0 ]]; then
   echo ""
   dc ps || true
@@ -1245,35 +1005,34 @@ if [[ "${#FAILED_SERVICES[@]}" -gt 0 ]]; then
     warn "Logs von ${svc}:"
     dc logs --tail=40 "${svc}" || true
   done
-  rollback "Diese Services wurden mit ${TARGET_VERSION:-dem neuen Stand} nicht bereit: ${FAILED_SERVICES[*]}" 1
+  rollback "Diese Services wurden mit ${TARGET_VERSION} nicht bereit: ${FAILED_SERVICES[*]}" 1
 fi
 trap - ERR
 
-# Erfolg: Rollback-Sicherungen werden nicht mehr gebraucht.
+# -- Aufraeumen ----------------------------------------------------------------
+# Erst jetzt, da der neue Stand nachweislich laeuft.
 drop_rollback_tags
 [[ "${PKGS_MOVED}" -eq 1 ]] && rm -rf "${PKGS_ROLLBACK_DIR}"
+rm -f "${ENV_FILE}.vor-${TS}"
 
-# Die ausgehaengte Starter-Kopie wird erst jetzt umbenannt, da der Stack
-# nachweislich laeuft - bei einem Abbruch davor verweist die zurueck-
-# gesetzte Override-Datei noch auf sie. Sie bleibt zur Nachvollziehbarkeit
-# liegen (und steckt ohnehin im Backup-Archiv).
-if [[ "${STARTER_MOUNT_OBSOLETE}" -eq 1 && -f "${INSTALL_DIR}/${OLD_STARTER_COPY}" ]]; then
-  mv "${INSTALL_DIR}/${OLD_STARTER_COPY}" "${INSTALL_DIR}/${OLD_STARTER_COPY}.veraltet-${TS}"
-fi
-
-if [[ "${GIT_CHANGED}" -eq 1 ]]; then
-  success "UPDATED: ${GIT_OLD_LABEL} -> ${TARGET_VERSION}, Images neu gebaut."
+if [[ "${VERSION_CHANGED}" -eq 1 ]]; then
+  success "UPDATED: ${CURRENT_VERSION} -> ${TARGET_VERSION}."
+  # Die Images der vorherigen Version werden nicht mehr gebraucht (wie beim
+  # n8n-Update). Zurueck geht es jederzeit mit --version - dann werden sie
+  # neu geladen.
+  info "Entferne die Images der vorherigen Version (${CURRENT_TAG:0:11})..."
+  for img in "${STACK_IMAGES[@]}"; do
+    docker rmi "${IMAGE_MARKER}${img}:${CURRENT_TAG}" >/dev/null 2>&1 || true
+  done
 else
-  success "UPDATED: Images neu gebaut, Quellcode unveraendert (${GIT_OLD_LABEL})."
+  success "UPDATED: ${CURRENT_VERSION} neu geladen und neu gestartet."
 fi
 
 echo ""
 dc ps || true
 
-# -- Sicherheits-Check: kein Port oeffentlich ----------------------------------
-# Gleiche Pruefung wie im Installer: ein Upstream-Update kann neue Services mit
-# 'ports:' mitbringen, die das Override nicht kennt und die dann doch am Host
-# haengen.
+# Sicherheits-Check wie im Installer: eine neue Version kann Services mit
+# 'ports:' mitbringen, die die Override-Datei nicht kennt.
 echo ""
 PUBLIC_PORT_FOUND=0
 while IFS= read -r cname; do
@@ -1289,44 +1048,11 @@ done < <(dc ps -a --format '{{.Name}}' 2>/dev/null || true)
 # Rotation erst jetzt - das frische Backup zaehlt mit.
 mapfile -t OLD_BACKUPS < <(ls -1t "${BACKUP_DIR}"/${BACKUP_PREFIX}_*.tar.gz 2>/dev/null | tail -n "+$((KEEP + 1))" || true)
 if [[ "${#OLD_BACKUPS[@]}" -gt 0 ]]; then
-  echo ""
   info "Entferne ${#OLD_BACKUPS[@]} alte(s) Backup(s) (behalte die letzten ${KEEP})."
   for old in "${OLD_BACKUPS[@]}"; do rm -f "${old}"; done
 fi
-
-echo ""
-info "Raeume alte (dangling) Images auf..."
 docker image prune -f >/dev/null
 success "Aufgeraeumt."
-info "Der Build-Cache bleibt bewusst erhalten - er beschleunigt den naechsten"
-info "Lauf erheblich. Bei Platzmangel: docker builder prune"
-
-# -- Hinweis auf neue .env-Variablen -------------------------------------------
-# Nach einem Quell-Update kann die Beispiel-Konfiguration neue Schalter
-# kennen, die in der bestehenden .env fehlen. Fehlende Werte fallen sonst erst
-# im Betrieb auf - deshalb hier nur melden, nie automatisch eintragen.
-if [[ "${GIT_CHANGED}" -eq 1 && -f "${INSTALL_DIR}/.env.example" && -f "${INSTALL_DIR}/.env" ]]; then
-  # Bewusst ueber echte Dateien statt Process Substitution: 'comm' muss die
-  # beiden Listen selbst oeffnen, und /dev/fd ist nicht auf jedem System da.
-  KEYS_EXAMPLE="$(mktemp)"; KEYS_ENV="$(mktemp)"
-  grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "${INSTALL_DIR}/.env.example" | tr -d '=' | sort -u >"${KEYS_EXAMPLE}"
-  grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "${INSTALL_DIR}/.env" | tr -d '=' | sort -u >"${KEYS_ENV}"
-  # Ist die Remote-Bridge abgeschaltet, gehoeren ihr Token und ihre Worker-ID
-  # bewusst NICHT in die .env - ein gesetzter Token schaltet sie wieder ein.
-  BRIDGE_FILTER='^$'
-  grep -qE '^CODEAPI_BRIDGE_AUTH_MODE=static' "${INSTALL_DIR}/.env" \
-    && BRIDGE_FILTER='^CODEAPI_BRIDGE_(TOKEN|WORKER_ID)$'
-  mapfile -t MISSING_KEYS < <(comm -23 "${KEYS_EXAMPLE}" "${KEYS_ENV}" | grep -vE "${BRIDGE_FILTER}" || true)
-  rm -f "${KEYS_EXAMPLE}" "${KEYS_ENV}"
-  if [[ "${#MISSING_KEYS[@]}" -gt 0 ]]; then
-    echo ""
-    warn "Die neue .env.example kennt ${#MISSING_KEYS[@]} Variable(n), die in deiner .env fehlen:"
-    for k in "${MISSING_KEYS[@]}"; do echo -e "   - ${CYAN}${k}${RESET}"; done
-    warn "Sie werden bewusst NICHT automatisch gesetzt. Meist greifen die"
-    warn "Standardwerte; im Zweifel in der .env.example nachlesen und von Hand"
-    warn "uebernehmen, danach: cd ${INSTALL_DIR} && ${COMPOSE_CMD} up -d"
-  fi
-fi
 
 # -- Abschluss -----------------------------------------------------------------
 echo ""
@@ -1336,33 +1062,20 @@ echo "------------------------------------------------------------"
 echo ""
 if [[ "${NSJAIL_MODE}" -eq 1 ]]; then
   warn "Isolation: NsJail-only-Modus (teilt sich den Host-Kernel, laut Projekt-Doku"
-  warn "geeignet fuer lokale Tests, nicht fuer produktive Systeme mit unbekannten Nutzern)."
+  warn "geeignet fuer Tests, nicht fuer produktive Systeme mit unbekannten Nutzern)."
 else
-  success "Isolation: MicroVM-Modus (voll gehaertet)."
+  success "Isolation: MicroVM-Modus."
 fi
 echo ""
-echo -e " LibreChat selbst wurde ${BOLD}nicht${RESET} angefasst: weder .env noch Proxy Host."
-echo -e " Ein Neustart von LibreChat ist nur noetig, wenn du dort Werte aenderst -"
-echo -e " und dann als echtes Stop+Start, ein 'docker restart' liest die .env NICHT neu:"
-echo -e "   ${CYAN}docker stop LibreChat && docker start LibreChat${RESET}"
+echo -e " LibreChat wurde ${BOLD}nicht${RESET} angefasst und muss nicht neu gestartet werden."
 echo ""
-if [[ -f "${BACKUP_FILE:-/nonexistent}" ]]; then
-  echo -e " Backup: ${CYAN}${BACKUP_FILE}${RESET}"
+echo -e " Backup: ${CYAN}${BACKUP_FILE}${RESET}"
+if [[ "${VERSION_CHANGED}" -eq 1 && "${CURRENT_VERSION}" =~ ^v ]]; then
   echo ""
-  if [[ "${GIT_CHANGED}" -eq 1 && -n "${GIT_OLD_TAG}" ]]; then
-    echo -e " Zurueck zur vorherigen Version, falls spaeter Probleme auftauchen:"
-    echo -e "   ${CYAN}update-avila-code-interpreter.sh --version ${GIT_OLD_TAG}${RESET}"
-    echo ""
-  fi
-  echo -e " Manuell zuruecksetzen, falls spaeter Probleme auftauchen:"
-  echo -e "   ${CYAN}cd ${INSTALL_DIR} && ${COMPOSE_CMD} down${RESET}"
-  echo -e "   ${CYAN}mkdir -p /tmp/ci-restore && tar xzf ${BACKUP_FILE} -C /tmp/ci-restore${RESET}"
-  echo -e "   ${CYAN}cp -a /tmp/ci-restore/config/. ${INSTALL_DIR}/${RESET}"
-  [[ "${GIT_CHANGED}" -eq 1 ]] && \
-  echo -e "   ${CYAN}git -C ${INSTALL_DIR} checkout --detach ${GIT_OLD:0:7}${RESET}   (alter Quellstand: ${GIT_OLD_LABEL})"
-  echo -e "   ${CYAN}cd ${INSTALL_DIR} && ${COMPOSE_CMD} build && ${COMPOSE_CMD} up -d${RESET}"
-  echo ""
+  echo -e " Zurueck zur vorherigen Version, falls spaeter Probleme auftauchen:"
+  echo -e "   ${CYAN}update-avila-code-interpreter.sh --version ${CURRENT_VERSION}${RESET}"
 fi
+echo ""
 echo -e " Wichtige Befehle:"
 echo -e "   Logs:   ${CYAN}cd ${INSTALL_DIR} && ${COMPOSE_CMD} logs -f${RESET}"
 echo -e "   Status: ${CYAN}cd ${INSTALL_DIR} && ${COMPOSE_CMD} ps${RESET}"

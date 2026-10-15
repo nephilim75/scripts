@@ -12,14 +12,14 @@ Two independent ways to give LibreChat a sandboxed code-execution backend. Both 
 
 | Folder | Description |
 |--------|-------------|
-| [LibreChat-AI](LibreChat-AI/README.md) | `LibreChat-AI/code-interpreter` — MicroVM isolation (own guest kernel) when `/dev/kvm` is available, NsJail as a fallback, JWT-signed jobs. |
+| [LibreChat-AI](LibreChat-AI/README.md) | `LibreChat-AI/code-interpreter` — prebuilt images, MicroVM isolation (own guest kernel) when `/dev/kvm` is available, NsJail as a fallback, JWT-signed jobs, version choice with automatic rollback on update. |
 | [usnavy13](usnavy13/README.md) | `usnavy13/LibreCodeInterpreter` — NsJail sandboxing only, prebuilt images, a few minutes of install time, no compiling. |
 
 ---
 
 ## 🤔 Which one?
 
-Both isolate generated code with **NsJail**: separate namespaces, seccomp filters, cgroup limits, execution as a non-root user. **LibreChat-AI** goes a step further when `/dev/kvm` is available and runs each execution in its own **MicroVM** with a dedicated guest kernel — stronger isolation, but a heavier install with more moving parts. **usnavy13** stays with NsJail alone: lean, prebuilt images, ready in a few minutes. If in doubt, start with usnavy13 and move to LibreChat-AI later if you need the extra isolation layer.
+Both isolate generated code with **NsJail**: separate namespaces, seccomp filters, cgroup limits, execution as a non-root user, and both install from prebuilt images. **LibreChat-AI** goes a step further when `/dev/kvm` is available and runs each execution in its own **MicroVM** with a dedicated guest kernel — stronger isolation, with more moving parts (eight containers, signed execution manifests, an egress gateway). Without KVM it builds its sandbox runtimes locally once, which adds 10–20 minutes to the install. **usnavy13** stays with NsJail alone: lean and ready in a few minutes. If in doubt, start with usnavy13 and move to LibreChat-AI later if you need the extra isolation layer.
 
 ---
 

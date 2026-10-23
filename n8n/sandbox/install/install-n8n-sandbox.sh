@@ -5,17 +5,25 @@
 #
 #  Installiert den n8n Sandbox Service (isolierte Code-Ausführung, siehe
 #  https://github.com/n8n-io/n8n-sandbox-service) via Docker Compose im
-#  "shared_proxy"-Netzwerk – hinter einem Nginx Proxy Manager (NPM), ohne
-#  öffentlich gebundene Ports. Der gesamte Traffic läuft ausschließlich
-#  über den NPM.
+#  "shared_proxy"-Netzwerk, ohne öffentlich gebundene Ports.
 #
-#  Funktioniert unabhängig davon, ob auf diesem Host bereits n8n selbst
-#  läuft oder nicht – die Sandbox ist ein eigenständiger Stack.
+#  Zwei Betriebsarten (Frage am Anfang, oder per N8N_SAME_HOST=j|n):
+#    - n8n läuft auf DIESEM Host im shared_proxy-Netz: n8n spricht die
+#      Sandbox direkt über http://sandbox-api:8080 an – keine Domain, kein
+#      Nginx Proxy Manager (NPM) nötig.
+#    - Sonst: Zugriff über eine Domain hinter einem NPM (wie bisher).
+#
+#  Netzwerke im erzeugten Stack:
+#    - sandbox-api:                 shared_proxy + sandbox_intern
+#    - sandbox-runner-1, -certs:    nur sandbox_intern
+#  Der privilegierte Runner (Docker-in-Docker) ist damit für andere
+#  Container im shared_proxy-Netz nicht erreichbar.
 #
 #  Voraussetzungen:
 #    - Docker + Docker Compose Plugin sind installiert und laufen
 #    - Das Docker-Netzwerk "shared_proxy" existiert (oder wird erstellt)
-#    - Nginx Proxy Manager läuft im shared_proxy-Netzwerk
+#    - Nur bei Zugriff über Domain: Nginx Proxy Manager läuft im
+#      shared_proxy-Netzwerk
 #
 #  Nutzung als 1-Zeiler:
 #    bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/install/install-n8n-sandbox.sh)
@@ -160,14 +168,14 @@ echo -e "  ${CYAN}https://pc-fee.com${RESET} | ${CYAN}https://github.com/nephili
 echo ""
 echo -e "  Dieses Script installiert den ${BOLD}n8n Sandbox Service${RESET} (isolierte"
 echo -e "  Code-Ausführung, ${CYAN}${SANDBOX_GUIDE}${RESET}) via Docker"
-echo -e "  Compose – hinter einem Nginx Proxy Manager, ohne öffentlich"
-echo -e "  gebundene Ports. Der Traffic läuft ausschließlich über den NPM."
+echo -e "  Compose – ohne öffentlich gebundene Ports. Zugriff entweder direkt"
+echo -e "  von n8n auf demselben Host oder über einen Nginx Proxy Manager."
 echo ""
 echo -e "  ${YELLOW}Voraussetzungen:${RESET}"
 echo -e "   • Docker + Docker Compose Plugin sind installiert und laufen"
 echo -e "   • Das Docker-Netzwerk ${BOLD}shared_proxy${RESET} existiert (oder wird erstellt)"
-echo -e "   • Nginx Proxy Manager läuft im shared_proxy-Netzwerk"
-echo -e "   • Ob auf diesem Host bereits n8n läuft, ist egal – beides ist ok"
+echo -e "   • Nur bei Zugriff über Domain: Nginx Proxy Manager läuft im"
+echo -e "     shared_proxy-Netzwerk"
 echo ""
 echo -e "────────────────────────────────────────────────────────────"
 
@@ -214,39 +222,93 @@ else
 fi
 success "Docker Compose gefunden: $($COMPOSE_CMD version --short 2>/dev/null || $COMPOSE_CMD version)"
 
-# NPM läuft?
-if ! ${SUDO} docker ps --format '{{.Image}}' | grep -qi 'nginx-proxy-manager'; then
-  die "Nginx Proxy Manager läuft nicht.\n\n       Dieser Stack bindet bewusst keine öffentlichen Ports – der\n       gesamte Traffic muss über einen laufenden NPM geroutet werden.\n\n       📖 Anleitung auf pc-fee.com:\n       ${NPM_GUIDE}\n\n       Bitte zuerst NPM installieren und starten, danach dieses Script erneut ausführen."
+# ── Betriebsart ───────────────────────────────────────────────────────────────
+# Läuft n8n auf demselben Host im shared_proxy-Netz, spricht n8n die Sandbox
+# direkt über http://sandbox-api:8080 an – Domain, DNS und NPM entfallen.
+# Sonst läuft der Zugriff wie bisher über eine Domain hinter dem NPM.
+#
+# Vorschlag für die Frage: "j", wenn ein laufender n8n-Container (offizielles
+# Image n8nio/n8n) im shared_proxy-Netz hängt. Ohne Terminal gilt "n"
+# (bisheriges Verhalten), außer N8N_SAME_HOST=j|n ist gesetzt.
+echo ""
+echo -e "────────────────────────────────────────────────────────────"
+echo -e "${BOLD}  Betriebsart${RESET}"
+echo -e "────────────────────────────────────────────────────────────"
+
+N8N_IN_PROXY_NET=false
+PROXY_NET_CONTAINERS="$(${SUDO} docker ps --filter "network=${PROXY_NETWORK}" --format '{{.Names}} {{.Image}}' 2>/dev/null || true)"
+if grep -qiE '(^|[[:space:]/])n8nio/n8n(:|@|$)' <<<"${PROXY_NET_CONTAINERS}"; then
+  N8N_IN_PROXY_NET=true
+  info "n8n-Container im Docker-Netzwerk '${PROXY_NETWORK}' erkannt."
+else
+  info "Kein n8n-Container im Docker-Netzwerk '${PROXY_NETWORK}' erkannt."
 fi
-success "Nginx Proxy Manager läuft."
+
+SAME_HOST=false
+if [[ -n "${N8N_SAME_HOST:-}" ]]; then
+  case "${N8N_SAME_HOST,,}" in
+    j|ja|y|yes|1|true)    SAME_HOST=true ;;
+    n|nein|no|0|false)    SAME_HOST=false ;;
+    *) die "Ungültiger Wert für N8N_SAME_HOST: '${N8N_SAME_HOST}' (erlaubt: j oder n)." ;;
+  esac
+  info "Betriebsart per N8N_SAME_HOST vorgegeben."
+else
+  SAME_HOST_DEFAULT="n"
+  if [[ "${INTERACTIVE}" -eq 1 && "${N8N_IN_PROXY_NET}" == "true" ]]; then
+    SAME_HOST_DEFAULT="j"
+  fi
+  echo -e "  ${BOLD}j${RESET} = n8n läuft auf diesem Host im Netz ${BOLD}${PROXY_NETWORK}${RESET} und nutzt die"
+  echo -e "      Sandbox direkt (keine Domain, kein Nginx Proxy Manager nötig)"
+  echo -e "  ${BOLD}n${RESET} = Zugriff über eine Domain hinter dem Nginx Proxy Manager"
+  if ask_yesno "Läuft n8n auf diesem Host im Docker-Netzwerk '${PROXY_NETWORK}'?" "${SAME_HOST_DEFAULT}"; then
+    SAME_HOST=true
+  fi
+fi
+
+if [[ "${SAME_HOST}" == "true" ]]; then
+  success "Betriebsart: n8n auf diesem Host – interner Zugriff über http://sandbox-api:8080"
+else
+  success "Betriebsart: Zugriff über Domain hinter dem Nginx Proxy Manager"
+fi
+
+echo ""
+echo -e "────────────────────────────────────────────────────────────"
+
+# NPM läuft? Pflicht nur beim Zugriff über Domain.
+if ${SUDO} docker ps --format '{{.Image}}' | grep -qi 'nginx-proxy-manager'; then
+  success "Nginx Proxy Manager läuft."
+elif [[ "${SAME_HOST}" == "true" ]]; then
+  info "Kein laufender Nginx Proxy Manager gefunden – in dieser Betriebsart nicht nötig."
+else
+  die "Nginx Proxy Manager läuft nicht.\n\n       Dieser Stack bindet bewusst keine öffentlichen Ports – der\n       gesamte Traffic muss über einen laufenden NPM geroutet werden.\n\n       📖 Anleitung auf pc-fee.com:\n       ${NPM_GUIDE}\n\n       Bitte zuerst NPM installieren und starten, danach dieses Script erneut ausführen.\n\n       Läuft n8n auf diesem Host im Netz '${PROXY_NETWORK}', geht es auch ohne NPM:\n       Script erneut starten und die Frage nach der Betriebsart mit 'j' beantworten."
+fi
 
 # shared_proxy-Netzwerk vorhanden?
 if ! ${SUDO} docker network inspect "${PROXY_NETWORK}" &>/dev/null; then
   echo ""
   warn "Das Docker-Netzwerk '${PROXY_NETWORK}' existiert nicht."
-  echo -e "  Soll es jetzt erstellt werden? (Nginx Proxy Manager muss ebenfalls"
-  echo -e "  in dieses Netzwerk eingebunden sein, sonst kann er die Sandbox"
-  echo -e "  nicht erreichen.)"
+  if [[ "${SAME_HOST}" == "true" ]]; then
+    echo -e "  Soll es jetzt erstellt werden? (n8n muss ebenfalls in dieses"
+    echo -e "  Netzwerk eingebunden sein, sonst kann es die Sandbox nicht"
+    echo -e "  erreichen.)"
+  else
+    echo -e "  Soll es jetzt erstellt werden? (Nginx Proxy Manager muss ebenfalls"
+    echo -e "  in dieses Netzwerk eingebunden sein, sonst kann er die Sandbox"
+    echo -e "  nicht erreichen.)"
+  fi
   if ask_yesno "Netzwerk '${PROXY_NETWORK}' jetzt erstellen?" "j"; then
     ${SUDO} docker network create "${PROXY_NETWORK}"
     success "Netzwerk '${PROXY_NETWORK}' erstellt."
-    warn "Vergiss nicht, deinen Nginx Proxy Manager ebenfalls in dieses Netzwerk einzubinden!"
+    if [[ "${SAME_HOST}" == "true" ]]; then
+      warn "Vergiss nicht, deinen n8n-Container ebenfalls in dieses Netzwerk einzubinden!"
+    else
+      warn "Vergiss nicht, deinen Nginx Proxy Manager ebenfalls in dieses Netzwerk einzubinden!"
+    fi
   else
     die "Netzwerk '${PROXY_NETWORK}' fehlt. Installation abgebrochen."
   fi
 else
   success "Docker-Netzwerk '${PROXY_NETWORK}' gefunden."
-fi
-
-# Informativ: läuft auf diesem Host bereits n8n? (kein Blocker – die Sandbox
-# ist ein eigenständiger Stack und läuft unabhängig von n8n auf demselben
-# oder einem anderen Host.)
-if ${SUDO} docker ps -a --format '{{.Names}} {{.Image}}' | grep -qiE '(^|[^a-z0-9])n8n([^a-z0-9]|$)|n8nio/n8n'; then
-  info "n8n wurde auf diesem Host erkannt – kein Problem, die Sandbox läuft unabhängig davon."
-else
-  info "Kein n8n auf diesem Host gefunden – auch kein Problem. Die Sandbox kann z.B."
-  info "für eine n8n-Instanz auf einem anderen Host betrieben werden, die über den"
-  info "Nginx Proxy Manager erreichbar ist."
 fi
 
 # ── Bestehende Sandbox-Installation prüfen ────────────────────────────────────
@@ -296,8 +358,13 @@ if [[ "${EXISTING_INSTALL}" == "true" ]]; then
 fi
 
 # Domain (nur zur Doku/für die NPM-Einrichtung – wird von keinem Container
-# direkt ausgewertet, da das Routing komplett beim NPM liegt)
-ask_nodefault SANDBOX_DOMAIN "Domain für den Sandbox-API-Zugriff über NPM (z.B. sandbox.meinedomain.de)"
+# direkt ausgewertet, da das Routing komplett beim NPM liegt). Entfällt, wenn
+# n8n auf diesem Host die Sandbox intern anspricht.
+if [[ "${SAME_HOST}" == "true" ]]; then
+  SANDBOX_DOMAIN=""
+else
+  ask_nodefault SANDBOX_DOMAIN "Domain für den Sandbox-API-Zugriff über NPM (z.B. sandbox.meinedomain.de)"
+fi
 
 # Image-Tag (Default: latest, wie im offiziellen Setup)
 ask SANDBOX_IMAGE_TAG "Image-Tag für die Sandbox-Images" "latest"
@@ -313,9 +380,16 @@ echo -e "───────────────────────�
 echo -e "${BOLD}  Zusammenfassung${RESET}"
 echo -e "────────────────────────────────────────────────────────────"
 echo -e "  Installationspfad: ${CYAN}${INSTALL_DIR}${RESET}"
-echo -e "  Domain (für NPM):  ${CYAN}${SANDBOX_DOMAIN}${RESET}"
+if [[ "${SAME_HOST}" == "true" ]]; then
+  echo -e "  Betriebsart:       ${CYAN}n8n auf diesem Host (intern, ohne Domain/NPM)${RESET}"
+  echo -e "  Service URL:       ${CYAN}http://sandbox-api:8080${RESET}"
+else
+  echo -e "  Betriebsart:       ${CYAN}Zugriff über Domain hinter NPM${RESET}"
+  echo -e "  Domain (für NPM):  ${CYAN}${SANDBOX_DOMAIN}${RESET}"
+fi
 echo -e "  Image-Tag:         ${CYAN}${SANDBOX_IMAGE_TAG}${RESET}"
-echo -e "  Netzwerk:          ${CYAN}${PROXY_NETWORK}${RESET} (kein Port wird öffentlich gebunden)"
+echo -e "  Netzwerke:         ${CYAN}${PROXY_NETWORK}${RESET} (nur sandbox-api) + ${CYAN}sandbox_intern${RESET}"
+echo -e "                     (kein Port wird öffentlich gebunden)"
 echo -e "  Runner:            ${CYAN}1${RESET} (sandbox-runner-1, privileged Docker-in-Docker)"
 echo -e "  API-Keys/Tokens:   ${CYAN}[automatisch generiert]${RESET}"
 echo ""
@@ -335,6 +409,16 @@ info "Erstelle Verzeichnis ${INSTALL_DIR}..."
 ${SUDO} mkdir -p "${INSTALL_DIR}"
 success "Verzeichnis erstellt."
 
+if [[ "${SAME_HOST}" == "true" ]]; then
+  ENV_ACCESS_NOTE="# Betriebsart: n8n auf demselben Host im Netz ${PROXY_NETWORK} – Zugriff
+# intern über http://sandbox-api:8080 (keine Domain, kein NPM). Nur zur Doku,
+# wird von keinem Container ausgewertet."
+else
+  ENV_ACCESS_NOTE="# Domain, unter der die Sandbox-API über den Nginx Proxy Manager erreichbar
+# ist (nur zur Doku, wird von keinem Container ausgewertet):
+# SANDBOX_DOMAIN=${SANDBOX_DOMAIN}"
+fi
+
 info "Schreibe .env..."
 ${SUDO} tee "${INSTALL_DIR}/.env" >/dev/null <<EOF
 # n8n Sandbox Service – Umgebungsvariablen – generiert von pc-fee.com Install-Script
@@ -343,9 +427,7 @@ ${SUDO} tee "${INSTALL_DIR}/.env" >/dev/null <<EOF
 #
 # ACHTUNG: Diese Datei enthält Secrets. Nicht committen! (Berechtigungen: 600)
 #
-# Domain, unter der die Sandbox-API über den Nginx Proxy Manager erreichbar
-# ist (nur zur Doku, wird von keinem Container ausgewertet):
-# SANDBOX_DOMAIN=${SANDBOX_DOMAIN}
+${ENV_ACCESS_NOTE}
 
 SANDBOX_IMAGE_TAG=${SANDBOX_IMAGE_TAG}
 SANDBOX_API_KEYS=${SANDBOX_API_KEYS}
@@ -365,6 +447,12 @@ ${SUDO} tee "${INSTALL_DIR}/docker-compose.yml" >/dev/null <<'EOF'
 # Hinweis: restart: unless-stopped wurde bewusst ergänzt (Best Practice,
 # siehe offizielles Compose-Beispiel des n8n-sandbox-service-Repos), damit
 # der Stack einen Host-Reboot übersteht.
+#
+# Netzwerke: Nur sandbox-api hängt zusätzlich im externen Netz shared_proxy
+# (dort erreichbar für NPM bzw. n8n). Der privilegierte Runner (Docker-in-
+# Docker) und der mTLS-Bootstrap hängen ausschließlich im stack-eigenen Netz
+# sandbox_intern und sind für andere Container in shared_proxy nicht
+# erreichbar.
 
 volumes:
   sandbox-tls:
@@ -384,7 +472,7 @@ services:
     volumes:
       - sandbox-tls:/tls
     networks:
-      - shared_proxy
+      - sandbox_intern
 
   sandbox-api:
     image: ghcr.io/n8n-io/n8n-sandbox-service-api:${SANDBOX_IMAGE_TAG}
@@ -413,6 +501,7 @@ services:
       start_period: 10s
     networks:
       - shared_proxy
+      - sandbox_intern
 
   sandbox-runner-1:
     image: ghcr.io/n8n-io/n8n-sandbox-service-runner-dind:${SANDBOX_IMAGE_TAG}
@@ -440,11 +529,14 @@ services:
     volumes:
       - sandbox-tls:/tls:ro
     networks:
-      - shared_proxy
+      - sandbox_intern
 
 networks:
   shared_proxy:
     external: true
+  # Stack-eigenes Netz (bridge, weder external noch internal). Docker legt es
+  # als <projekt>_sandbox_intern an; "docker compose down" entfernt es wieder.
+  sandbox_intern: {}
 EOF
 success "docker-compose.yml geschrieben."
 
@@ -489,64 +581,82 @@ echo -e "───────────────────────�
 echo ""
 echo -e "  ${BOLD}Nächste Schritte:${RESET}"
 echo ""
-HOST_IPV4="$(detect_public_ipv4)"
-if [[ -n "${HOST_IPV4}" ]]; then
-  echo -e "  1. Setze beim ${BOLD}Domain-Provider${RESET} einen A-Record (Alias)"
-  echo -e "     auf diesen Host:"
-  echo -e "     ${CYAN}${HOST_IPV4}${RESET}   A   (TTL 300)   ${CYAN}${SANDBOX_DOMAIN}${RESET}"
+if [[ "${SAME_HOST}" == "true" ]]; then
+  echo -e "  1. Sandbox in n8n eintragen – im Dialog ${BOLD}\"Add a code sandbox\"${RESET}"
+  echo -e "     die Option ${BOLD}n8n Sandbox${RESET} wählen und dort eingeben:"
+  echo -e "     ${BOLD}Service URL:${RESET} ${CYAN}http://sandbox-api:8080${RESET}"
+  echo -e "     ${BOLD}API key:${RESET}     ${CYAN}${SANDBOX_API_KEYS}${RESET}"
+  echo -e "     ${YELLOW}Achtung:${RESET} hier ${BOLD}http${RESET} statt ${BOLD}https${RESET} (auf diesem"
+  echo -e "     internen Port liegt kein TLS) und als Host der Service-Name"
+  echo -e "     ${CYAN}sandbox-api${RESET}. Voraussetzung: der n8n-Container hängt im"
+  echo -e "     Docker-Netzwerk ${CYAN}${PROXY_NETWORK}${RESET}."
+  echo ""
+  echo -e "  ${YELLOW}Sicherheitshinweis:${RESET} Dieser API-Key (in der .env: ${BOLD}SANDBOX_API_KEYS${RESET})"
+  echo -e "  ist ein Admin-Key mit vollem Zugriff auf alle Sandboxes und die"
+  echo -e "  Tenant-Verwaltung. Die Sandbox-API ist nicht öffentlich erreichbar,"
+  echo -e "  aber für alle Container im Netz ${CYAN}${PROXY_NETWORK}${RESET} – dort sichert nur"
+  echo -e "  dieser Key den Zugriff ab. Der Runner selbst hängt nur im internen"
+  echo -e "  Netz ${CYAN}sandbox_intern${RESET}."
 else
-  echo -e "  1. Setze beim ${BOLD}Domain-Provider${RESET} einen A-Record (Alias)"
-  echo -e "     auf diesen Host:"
-  echo -e "     ${CYAN}<Server-IP>${RESET}   A   (TTL 300)   ${CYAN}${SANDBOX_DOMAIN}${RESET}"
-  echo -e "     ${YELLOW}Server-IP nicht automatisch ermittelbar${RESET} – manuell prüfen,"
-  echo -e "     z.B. mit: ${CYAN}curl -4 ifconfig.me${RESET}"
+  HOST_IPV4="$(detect_public_ipv4)"
+  if [[ -n "${HOST_IPV4}" ]]; then
+    echo -e "  1. Setze beim ${BOLD}Domain-Provider${RESET} einen A-Record (Alias)"
+    echo -e "     auf diesen Host:"
+    echo -e "     ${CYAN}${HOST_IPV4}${RESET}   A   (TTL 300)   ${CYAN}${SANDBOX_DOMAIN}${RESET}"
+  else
+    echo -e "  1. Setze beim ${BOLD}Domain-Provider${RESET} einen A-Record (Alias)"
+    echo -e "     auf diesen Host:"
+    echo -e "     ${CYAN}<Server-IP>${RESET}   A   (TTL 300)   ${CYAN}${SANDBOX_DOMAIN}${RESET}"
+    echo -e "     ${YELLOW}Server-IP nicht automatisch ermittelbar${RESET} – manuell prüfen,"
+    echo -e "     z.B. mit: ${CYAN}curl -4 ifconfig.me${RESET}"
+  fi
+  echo -e ""
+  echo -e "     Das muss ${BOLD}vor${RESET} dem nächsten Schritt passieren: Let's Encrypt"
+  echo -e "     prüft die Domain über genau diesen Eintrag – fehlt er, schlägt"
+  echo -e "     die Zertifikatsausstellung im Nginx Proxy Manager fehl."
+  echo -e ""
+  echo -e "  2. Richte in deinem ${BOLD}Nginx Proxy Manager${RESET} einen neuen"
+  echo -e "     Proxy Host ein:"
+  echo -e "     ${BOLD}Reiter Details${RESET}:"
+  echo -e "     • Domain:           ${CYAN}${SANDBOX_DOMAIN}${RESET}"
+  echo -e "     • Scheme:           ${CYAN}http${RESET}"
+  echo -e "     • Forward Hostname: ${CYAN}sandbox-api${RESET}"
+  echo -e "     • Forward Port:     ${CYAN}8080${RESET}"
+  echo -e "     • Websockets aktivieren"
+  echo -e "     • Block Common Exploits aktivieren"
+  echo -e "     ${BOLD}Reiter SSL${RESET}:"
+  echo -e "     • SSL Certificate: Request a new Certificate with Let's Encrypt"
+  echo -e "     • Force SSL aktivieren"
+  echo -e "     • HTTP/2 Support aktivieren"
+  echo -e "     • HSTS Enabled aktivieren"
+  echo ""
+  echo -e "  3. Health Check testen (nach DNS + NPM-Einrichtung):"
+  echo -e "     ${CYAN}curl https://${SANDBOX_DOMAIN}/healthz${RESET}"
+  echo ""
+  echo -e "  4. Sandbox in n8n eintragen – im Dialog ${BOLD}\"Add a code sandbox\"${RESET}"
+  echo -e "     die Option ${BOLD}n8n Sandbox${RESET} wählen und dort eingeben:"
+  echo -e "     ${BOLD}Service URL:${RESET} ${CYAN}https://${SANDBOX_DOMAIN}${RESET}"
+  echo -e "     ${BOLD}API key:${RESET}     ${CYAN}${SANDBOX_API_KEYS}${RESET}"
+  echo ""
+  echo -e "     ${BOLD}Alternative ohne NPM/Domain:${RESET} Läuft n8n selbst ebenfalls im"
+  echo -e "     Docker-Netzwerk ${CYAN}${PROXY_NETWORK}${RESET} (z. B. per n8n-Install-Script aus"
+  echo -e "     diesem Repo aufgesetzt), kannst du die Sandbox auch direkt ansprechen –"
+  echo -e "     ohne Domain, DNS und NPM. Genau so erreicht NPM intern ${CYAN}sandbox-api${RESET}:"
+  echo -e "     ${BOLD}Service URL:${RESET} ${CYAN}http://sandbox-api:8080${RESET}"
+  echo -e "     ${BOLD}API key:${RESET}     ${CYAN}${SANDBOX_API_KEYS}${RESET}"
+  echo -e "     ${YELLOW}Achtung:${RESET} hier ${BOLD}http${RESET} statt ${BOLD}https${RESET} (auf diesem"
+  echo -e "     internen Port liegt kein TLS) und als Host der Container-/Service-Name"
+  echo -e "     statt der Domain. Voraussetzung: n8n und die Sandbox laufen auf demselben"
+  echo -e "     Docker-Host im selben Netzwerk ${CYAN}${PROXY_NETWORK}${RESET}. Schritte 1–3 (DNS,"
+  echo -e "     NPM-Proxy-Host, Health-Check über die Domain) entfallen dann komplett."
+  echo ""
+  echo -e "  ${YELLOW}Sicherheitshinweis:${RESET} Dieser API-Key (in der .env: ${BOLD}SANDBOX_API_KEYS${RESET})"
+  echo -e "  ist ein Admin-Key mit vollem Zugriff auf alle Sandboxes und die"
+  echo -e "  Tenant-Verwaltung. Sobald die Domain über NPM öffentlich erreichbar"
+  echo -e "  ist, sichert nur dieser Key (bzw. mTLS zwischen API/Runner) den"
+  echo -e "  Zugriff ab. Erwäge zusätzlich eine NPM-Access-List (IP-Allowlist),"
+  echo -e "  wenn die Sandbox nicht von überall erreichbar sein muss."
 fi
-echo -e ""
-echo -e "     Das muss ${BOLD}vor${RESET} dem nächsten Schritt passieren: Let's Encrypt"
-echo -e "     prüft die Domain über genau diesen Eintrag – fehlt er, schlägt"
-echo -e "     die Zertifikatsausstellung im Nginx Proxy Manager fehl."
-echo -e ""
-echo -e "  2. Richte in deinem ${BOLD}Nginx Proxy Manager${RESET} einen neuen"
-echo -e "     Proxy Host ein:"
-echo -e "     ${BOLD}Reiter Details${RESET}:"
-echo -e "     • Domain:           ${CYAN}${SANDBOX_DOMAIN}${RESET}"
-echo -e "     • Scheme:           ${CYAN}http${RESET}"
-echo -e "     • Forward Hostname: ${CYAN}sandbox-api${RESET}"
-echo -e "     • Forward Port:     ${CYAN}8080${RESET}"
-echo -e "     • Websockets aktivieren"
-echo -e "     • Block Common Exploits aktivieren"
-echo -e "     ${BOLD}Reiter SSL${RESET}:"
-echo -e "     • SSL Certificate: Request a new Certificate with Let's Encrypt"
-echo -e "     • Force SSL aktivieren"
-echo -e "     • HTTP/2 Support aktivieren"
-echo -e "     • HSTS Enabled aktivieren"
-echo ""
-echo -e "  3. Health Check testen (nach DNS + NPM-Einrichtung):"
-echo -e "     ${CYAN}curl https://${SANDBOX_DOMAIN}/healthz${RESET}"
-echo ""
-echo -e "  4. Sandbox in n8n eintragen – im Dialog ${BOLD}\"Add a code sandbox\"${RESET}"
-echo -e "     die Option ${BOLD}n8n Sandbox${RESET} wählen und dort eingeben:"
-echo -e "     ${BOLD}Service URL:${RESET} ${CYAN}https://${SANDBOX_DOMAIN}${RESET}"
-echo -e "     ${BOLD}API key:${RESET}     ${CYAN}${SANDBOX_API_KEYS}${RESET}"
-echo ""
-echo -e "     ${BOLD}Alternative ohne NPM/Domain:${RESET} Läuft n8n selbst ebenfalls im"
-echo -e "     Docker-Netzwerk ${CYAN}${PROXY_NETWORK}${RESET} (z. B. per n8n-Install-Script aus"
-echo -e "     diesem Repo aufgesetzt), kannst du die Sandbox auch direkt ansprechen –"
-echo -e "     ohne Domain, DNS und NPM. Genau so erreicht NPM intern ${CYAN}sandbox-api${RESET}:"
-echo -e "     ${BOLD}Service URL:${RESET} ${CYAN}http://sandbox-api:8080${RESET}"
-echo -e "     ${BOLD}API key:${RESET}     ${CYAN}${SANDBOX_API_KEYS}${RESET}"
-echo -e "     ${YELLOW}Achtung:${RESET} hier ${BOLD}http${RESET} statt ${BOLD}https${RESET} (auf diesem"
-echo -e "     internen Port liegt kein TLS) und als Host der Container-/Service-Name"
-echo -e "     statt der Domain. Voraussetzung: n8n und die Sandbox laufen auf demselben"
-echo -e "     Docker-Host im selben Netzwerk ${CYAN}${PROXY_NETWORK}${RESET}. Schritte 1–3 (DNS,"
-echo -e "     NPM-Proxy-Host, Health-Check über die Domain) entfallen dann komplett."
-echo ""
-echo -e "  ${YELLOW}Sicherheitshinweis:${RESET} Dieser API-Key (in der .env: ${BOLD}SANDBOX_API_KEYS${RESET})"
-echo -e "  ist ein Admin-Key mit vollem Zugriff auf alle Sandboxes und die"
-echo -e "  Tenant-Verwaltung. Sobald die Domain über NPM öffentlich erreichbar"
-echo -e "  ist, sichert nur dieser Key (bzw. mTLS zwischen API/Runner) den"
-echo -e "  Zugriff ab. Erwäge zusätzlich eine NPM-Access-List (IP-Allowlist),"
-echo -e "  wenn die Sandbox nicht von überall erreichbar sein muss."
 echo ""
 echo -e "  ${YELLOW}Wichtig:${RESET} Bewahre deine .env sicher auf (enthält alle Secrets):"
 echo -e "  ${CYAN}${INSTALL_DIR}/.env${RESET}"

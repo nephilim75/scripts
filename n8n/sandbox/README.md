@@ -2,11 +2,9 @@
 
 [🏠 Overview](../../) → [🔗 n8n](../) → Sandbox
 
-[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/)
-[![GitHub](https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github)](https://github.com/n8n-io/n8n-sandbox-service)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
+[![Blog](https://img.shields.io/badge/Blog-pc--fee.com-FE5200?style=for-the-badge)](https://pc-fee.com/blog/) [![GitHub](https://img.shields.io/badge/GitHub-n8n--sandbox--service-181717?style=for-the-badge&logo=github)](https://github.com/n8n-io/n8n-sandbox-service) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](../../LICENSE)
 
-Scripts for the self-hosted [n8n Sandbox Service](https://github.com/n8n-io/n8n-sandbox-service) (isolated code execution for n8n) via Docker Compose — running in the shared `shared_proxy` network behind [Nginx Proxy Manager](https://nginxproxymanager.com/), with no publicly bound ports. Works alongside an existing n8n installation or completely standalone.
+Scripts for the self-hosted [n8n Sandbox Service](https://github.com/n8n-io/n8n-sandbox-service) (isolated code execution for n8n) via Docker Compose, with no publicly bound ports. n8n reaches it either directly on the same host through the shared `shared_proxy` network (`http://sandbox-api:8080`, no domain needed) or through a domain behind [Nginx Proxy Manager](https://nginxproxymanager.com/). The privileged runner is kept in a stack-internal network of its own.
 
 ---
 

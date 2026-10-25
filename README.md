@@ -16,6 +16,7 @@ A collection of scripts for various use cases. Each subfolder contains its own R
 | [🔗 n8n](n8n/README.md) | n8n scripts |
 | [☁️ nextcloud](nextcloud/README.md) | Nextcloud scripts (planned) |
 | [🌐 nginx-proxy-manager](nginx-proxy-manager/README.md) | npm scripts |
+| [🧮 qdrant](qdrant/README.md) | Qdrant scripts |
 | [🔍 searxng](searxng/README.md) | SearXNG scripts |
 
 ---

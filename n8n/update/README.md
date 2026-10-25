@@ -12,7 +12,7 @@
 
 Automated update script for a self-hosted [n8n](https://n8n.io) instance (including the `n8nio/runners` image), installed via [`install-n8n.sh`](../install/install-n8n.sh).
 
-Updates an existing installation in place: version check, backup, image pull, container restart, health check, and automatic rollback on failure — with no separate configuration step.
+Updates an existing installation in place: version check, image pull, consistent backup, container restart, health check, and automatic rollback on failure — with no separate configuration step.
 
 ---
 
@@ -32,9 +32,13 @@ update, health check and automatic rollback on failure.
 ## Why this script?
 
 - checks that `n8n` and `runners` images are version-synced before touching anything
-- creates a full backup (data + `docker-compose.yml` + `.env`) before updating, with automatic rotation
+- pulls the new images first, while n8n keeps running — a failed download changes nothing
+- stops n8n before the backup, so the SQLite database is copied in a consistent state
+- creates a full backup (data + `docker-compose.yml` + `.env`) that keeps file owners and permissions (`cp -a`)
 - lets you pick any target version, including an older one, to downgrade
-- runs a post-update health check and rolls back automatically on failure
+- checks health **inside the container** (`/healthz/readiness`) — independent of ports, reverse proxy, DNS or TLS
+- rolls back automatically on failure: saves the logs of the failed version, stops the containers first, moves the failed data aside instead of deleting it, restores the backup with the correct owner, and verifies that n8n really runs again
+- rotates old backups and removes old images only after a successful update; the previous version's image is kept for emergencies
 - detects its configuration from your existing `docker-compose.yml` — nothing to set up first
 - runs from anywhere via `bash <(curl ...)`, just like the installer — no need to download it into the install folder first
 
@@ -42,14 +46,15 @@ update, health check and automatic rollback on failure.
 
 ## What it does
 
-1. Asks for your installation folder (`COMPOSE_DIR`, default `/opt/n8n`) and reads `docker-compose.yml` from there (current image versions, health-check URL)
+1. Asks for your installation folder (`COMPOSE_DIR`, default `/opt/n8n`) and reads the current image versions from `docker-compose.yml`
 2. Fetches the latest `n8n`/`runners` versions from Docker Hub – aborts if they're out of sync
-3. Prompts for the target version (default: latest available)
-4. Confirms the target version exists on Docker Hub for both images
-5. Creates a backup (`n8n_data/`, `docker-compose.yml`, `.env`), rotating old backups (`MAX_BACKUPS`)
-6. Updates `docker-compose.yml`, pulls the new images, restarts containers
-7. Runs a health check against the detected URL, rolling back automatically on failure
-8. Cleans up old images
+3. Prompts for the target version (default: latest available) and confirms it exists for both images
+4. Pulls the new images while n8n keeps running
+5. Stops the containers and creates a backup (`n8n_data/`, `docker-compose.yml`, `.env`) with owners and permissions preserved – if the backup fails, n8n is started again unchanged
+6. Updates `docker-compose.yml` and starts the containers with the new version
+7. Runs a health check inside the n8n container (default: up to 3 minutes)
+8. On failure: rollback (logs saved to the backup folder, failed data kept as `n8n_data.fehlgeschlagen-<timestamp>`, backup restored, health check of the old version)
+9. On success: writes `current_version`, rotates old backups (`MAX_BACKUPS`), cleans up old images (keeps the new and the previous version)
 
 ---
 
@@ -87,8 +92,11 @@ No configuration file is required — every value is either asked for interactiv
 | `DATA_DIR` | `${COMPOSE_DIR}/n8n_data` | n8n data directory |
 | `MAX_BACKUPS` | `5` | Maximum number of backups to keep |
 | `N8N_IMAGE` / `RUNNERS_IMAGE` | `n8nio/n8n` / `n8nio/runners` | Docker images |
-| `HEALTH_CHECK_URL` | read from `WEBHOOK_URL` in `docker-compose.yml` | URL for the post-update health check |
-| `HEALTH_CHECK_RETRIES` / `HEALTH_CHECK_INTERVAL` | `12` / `5` | Health check attempts / seconds between them |
+| `HEALTH_CHECK_RETRIES` / `HEALTH_CHECK_INTERVAL` | `36` / `5` | Health check attempts / seconds between them (3 minutes) |
+| `N8N_INTERNAL_PORT` | `5678` | Port n8n listens on inside the container (`N8N_PORT`) |
+| `N8N_UID` / `N8N_GID` | `1000` / `1000` | Owner of `n8n_data` (user `node` in the official image) |
+
+The health check runs via `docker exec` inside the n8n container, so it does not need a public URL. The URL shown at the end is read from `N8N_WEBHOOK_URL` / `WEBHOOK_URL` in `docker-compose.yml`, if present.
 
 To override any of these — e.g. for unattended/cron runs — export it as an environment variable before running the script:
 
@@ -110,8 +118,11 @@ docker compose ps
 docker compose logs -f
 
 # Roll back manually to a specific backup
-cp -r backups/n8n_backup_<version>_<timestamp>/n8n_data ./n8n_data
-cp backups/n8n_backup_<version>_<timestamp>/docker-compose.yml .
+docker compose down
+mv n8n_data n8n_data.alt-$(date +%Y%m%d_%H%M%S)
+cp -a backups/n8n_backup_<version>_<timestamp>/n8n_data ./n8n_data
+chown -R 1000:1000 n8n_data   # n8n runs as UID 1000 – without this it fails with EACCES
+cp -a backups/n8n_backup_<version>_<timestamp>/docker-compose.yml .
 docker compose up -d
 ```
 

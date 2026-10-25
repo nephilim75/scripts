@@ -22,25 +22,31 @@
 #   is retained in all copies or substantial portions of the software.
 # =============================================================================
 
-set -euo pipefail
+# -E: ERR-Trap greift auch innerhalb von Funktionen (sonst kein Rollback,
+#     wenn z.B. "docker compose up" in einer Funktion fehlschlaegt)
+set -Eeuo pipefail
 
 # --- Referenz-URL dieses Skripts (fuer Fehlermeldungen/Copy-Paste) -----------
 UPDATE_SCRIPT_URL="https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/update/update-n8n.sh"
 
 # --- Defaults setzen (greifen, wenn nicht per Umgebungsvariable ueberschrieben) --
-# Hinweis: COMPOSE_DIR wird bewusst NICHT mehr aus dem Speicherort dieses
-# Skripts abgeleitet. Vorher hat sich das Skript per "dirname $0" selbst
-# gesucht und ist deshalb davon ausgegangen, im selben Ordner wie die
-# docker-compose.yml zu liegen - das hat verhindert, es per
-# "bash <(curl -fsSL ...)" von ueberall aus zu starten (siehe README).
-# Stattdessen wird der Pfad interaktiv abgefragt (Default /opt/n8n) bzw. kann
-# vorab per COMPOSE_DIR gesetzt werden, z.B. fuer unbeaufsichtigten Betrieb:
+# Hinweis: COMPOSE_DIR wird bewusst NICHT aus dem Speicherort dieses Skripts
+# abgeleitet, damit es per "bash <(curl -fsSL ...)" von ueberall aus laeuft.
+# Der Pfad wird interaktiv abgefragt (Default /opt/n8n) bzw. kann vorab per
+# COMPOSE_DIR gesetzt werden:
 #   COMPOSE_DIR=/opt/n8n bash <(curl -fsSL <UPDATE_SCRIPT_URL>)
 : "${MAX_BACKUPS:=5}"
 : "${N8N_IMAGE:=n8nio/n8n}"
 : "${RUNNERS_IMAGE:=n8nio/runners}"
-: "${HEALTH_CHECK_RETRIES:=12}"
+# 36 x 5s = 3 Minuten: Versionen mit DB-Migrationen brauchen beim ersten
+# Start oft deutlich laenger als 60s
+: "${HEALTH_CHECK_RETRIES:=36}"
 : "${HEALTH_CHECK_INTERVAL:=5}"
+# Port, auf dem n8n INNERHALB des Containers lauscht (N8N_PORT, Default 5678)
+: "${N8N_INTERNAL_PORT:=5678}"
+# UID/GID des Users "node" im offiziellen n8n-Image
+: "${N8N_UID:=1000}"
+: "${N8N_GID:=1000}"
 
 # --- Farben ------------------------------------------------------------------
 RED='\033[0;31m'
@@ -58,10 +64,12 @@ COMPOSE_FILE=""
 VERSION_FILE=""
 DATA_DIR="${DATA_DIR:-}"
 BACKUP_DIR="${BACKUP_DIR:-}"
+N8N_URL=""
 BACKUP_PATH=""
 CURRENT_VERSION=""
 TARGET_VERSION=""
 LATEST_VERSION=""
+FAILED_LOG=""
 
 # --- Hilfsfunktionen ---------------------------------------------------------
 print_header() {
@@ -113,9 +121,10 @@ print_config() {
     print_info "MAX_BACKUPS:           ${MAX_BACKUPS}"
     print_info "N8N_IMAGE:             ${N8N_IMAGE}"
     print_info "RUNNERS_IMAGE:         ${RUNNERS_IMAGE}"
-    print_info "HEALTH_CHECK_URL:      ${HEALTH_CHECK_URL}"
+    print_info "Health Check:          im Container, Port ${N8N_INTERNAL_PORT} (/healthz/readiness)"
     print_info "HEALTH_CHECK_RETRIES:  ${HEALTH_CHECK_RETRIES}"
     print_info "HEALTH_CHECK_INTERVAL: ${HEALTH_CHECK_INTERVAL}s"
+    print_info "Daten-Besitzer:        ${N8N_UID}:${N8N_GID}"
 }
 
 # --- Installationsordner ermitteln --------------------------------------------
@@ -141,17 +150,15 @@ resolve_compose_dir() {
         exit 1
     fi
 
-    # HEALTH_CHECK_URL: aus WEBHOOK_URL in docker-compose.yml ableiten, falls nicht per Env-Variable gesetzt
-    if [[ -z "${HEALTH_CHECK_URL:-}" ]]; then
-        HEALTH_CHECK_URL="$(grep -oE 'WEBHOOK_URL=[^[:space:]"]*' "${COMPOSE_FILE}" | head -1 | cut -d= -f2-)"
-    fi
-
-    if [[ -z "${HEALTH_CHECK_URL:-}" ]]; then
-        print_error "HEALTH_CHECK_URL konnte nicht aus docker-compose.yml ermittelt werden."
-        print_info "Bitte HEALTH_CHECK_URL als Umgebungsvariable setzen, z.B.:"
-        print_info "  HEALTH_CHECK_URL=https://n8n.example.com/ COMPOSE_DIR=${COMPOSE_DIR} bash <(curl -fsSL ${UPDATE_SCRIPT_URL})"
+    if [[ ! -d "${DATA_DIR}" ]]; then
+        print_error "Datenverzeichnis nicht gefunden: ${DATA_DIR}"
+        print_info "Bitte DATA_DIR als Umgebungsvariable setzen."
         exit 1
     fi
+
+    # Oeffentliche URL nur zur Anzeige am Ende (N8N_WEBHOOK_URL oder WEBHOOK_URL,
+    # egal ob "- KEY=wert" oder "KEY: wert"). Der Health Check braucht sie nicht.
+    N8N_URL="$(sed -nE "s/.*WEBHOOK_URL[[:space:]]*[=:][[:space:]]*[\"']?([^\"'[:space:]]+).*/\1/p" "${COMPOSE_FILE}" | head -1 || true)"
 }
 
 # --- Docker Hub: neueste Version ermitteln -----------------------------------
@@ -216,6 +223,12 @@ ask_version() {
     local current_version
     current_version=$(get_current_version)
 
+    if [[ -z "${current_version}" ]]; then
+        print_error "Konnte die aktuelle Version nicht aus ${COMPOSE_FILE} lesen."
+        print_info "Erwartet wird eine Zeile wie: image: ${N8N_IMAGE}:2.44.3"
+        exit 1
+    fi
+
     echo ""
     print_info "Aktuell installierte Version: ${BOLD}${current_version}${NC}"
     print_info "Neueste verfügbare Version:   ${BOLD}${LATEST_VERSION}${NC}"
@@ -233,6 +246,11 @@ ask_version() {
     echo ""
     read -rp "  Auf welche Version updaten? [${LATEST_VERSION}]: " TARGET_VERSION
     TARGET_VERSION="${TARGET_VERSION:-${LATEST_VERSION}}"
+
+    if [[ ! "${TARGET_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        print_error "Ungültige Version '${TARGET_VERSION}' (erwartet z.B. 2.45.3)."
+        exit 1
+    fi
 
     print_step "Prüfe ob Version ${TARGET_VERSION} auf Docker Hub existiert..."
 
@@ -258,15 +276,49 @@ ask_version() {
 confirm_update() {
     echo ""
     echo -e "${YELLOW}${BOLD}  Zusammenfassung:${NC}"
-    print_info "  Von Version: ${BOLD}${CURRENT_VERSION}${NC}"
-    print_info "  Auf Version: ${BOLD}${TARGET_VERSION}${NC}"
-    print_info "  Backup:      ${BACKUP_DIR}"
+    print_info "  Von Version:  ${BOLD}${CURRENT_VERSION}${NC}"
+    print_info "  Auf Version:  ${BOLD}${TARGET_VERSION}${NC}"
+    print_info "  Backup:       ${BACKUP_DIR}"
+    print_info "  Health Check: max. $((HEALTH_CHECK_RETRIES * HEALTH_CHECK_INTERVAL))s"
+    print_info "  Hinweis:      n8n ist während Backup und Update kurz nicht erreichbar."
     echo ""
     read -rp "  Update jetzt starten? (j/N): " confirm
     if [[ ! "${confirm}" =~ ^[jJ]$ ]]; then
         print_info "Abgebrochen."
         exit 0
     fi
+}
+
+# --- Images vorab laden (n8n laeuft waehrenddessen weiter) --------------------
+# Wird VOR jeder Aenderung ausgefuehrt: scheitert der Download, ist noch nichts
+# veraendert und n8n laeuft unbeeinflusst weiter.
+pull_images() {
+    print_step "Lade neue Images von Docker Hub (n8n läuft währenddessen weiter)..."
+    docker pull "${N8N_IMAGE}:${TARGET_VERSION}"
+    docker pull "${RUNNERS_IMAGE}:${TARGET_VERSION}"
+    print_ok "Images erfolgreich geladen."
+}
+
+# --- Container stoppen (fuer ein konsistentes Backup) ------------------------
+# SQLite im WAL-Modus darf nicht im laufenden Betrieb kopiert werden, sonst
+# kann das Backup einen halb geschriebenen Stand enthalten.
+stop_containers() {
+    print_step "Stoppe n8n für ein konsistentes Backup..."
+    cd "${COMPOSE_DIR}"
+    docker compose stop
+    print_ok "Container gestoppt."
+}
+
+# --- Fehler beim Backup: nichts veraendert, n8n wieder starten ----------------
+on_backup_error() {
+    trap - ERR
+    set +e
+    echo ""
+    print_error "Backup fehlgeschlagen – an der Installation wurde nichts geändert."
+    print_info "Starte n8n wieder mit Version ${CURRENT_VERSION}..."
+    cd "${COMPOSE_DIR}" && docker compose start
+    print_info "Bitte freien Speicherplatz prüfen: df -h ${BACKUP_DIR}"
+    exit 1
 }
 
 # --- Backup ------------------------------------------------------------------
@@ -279,33 +331,37 @@ create_backup() {
 
     mkdir -p "${backup_path}"
 
-    # n8n Daten sichern
-    cp -r "${DATA_DIR}" "${backup_path}/n8n_data"
+    # cp -a statt cp -r: erhaelt Besitzer (UID 1000), Rechte und Zeitstempel.
+    # Mit cp -r gehoert die Kopie root und n8n startet nach einem Restore
+    # nicht mehr (EACCES auf /home/node/.n8n/config).
+    cp -a "${DATA_DIR}" "${backup_path}/n8n_data"
     print_ok "n8n_data gesichert."
 
-    # docker-compose.yml sichern
-    cp "${COMPOSE_FILE}" "${backup_path}/docker-compose.yml"
+    cp -a "${COMPOSE_FILE}" "${backup_path}/docker-compose.yml"
     print_ok "docker-compose.yml gesichert."
 
-    # .env sichern
     if [[ -f "${COMPOSE_DIR}/.env" ]]; then
-        cp "${COMPOSE_DIR}/.env" "${backup_path}/.env"
+        cp -a "${COMPOSE_DIR}/.env" "${backup_path}/.env"
         print_ok ".env gesichert."
     fi
 
-    print_ok "Backup erstellt: ${backup_path}"
-
-    local backup_count
-    backup_count=$(ls -d "${BACKUP_DIR}"/n8n_backup_* 2>/dev/null | wc -l)
-
-    if [[ "${backup_count}" -gt "${MAX_BACKUPS}" ]]; then
-        local to_delete=$(( backup_count - MAX_BACKUPS ))
-        print_info "Rotiere alte Backups (behalte ${MAX_BACKUPS}, lösche ${to_delete})..."
-        ls -dt "${BACKUP_DIR}"/n8n_backup_* | tail -"${to_delete}" | xargs rm -rf
-        print_ok "Alte Backups bereinigt."
-    fi
-
     BACKUP_PATH="${backup_path}"
+    print_ok "Backup erstellt: ${backup_path}"
+}
+
+# --- Alte Backups rotieren (erst NACH erfolgreichem Update) ------------------
+rotate_backups() {
+    local backups=()
+    mapfile -t backups < <(ls -1dt "${BACKUP_DIR}"/n8n_backup_* 2>/dev/null || true)
+
+    if (( ${#backups[@]} > MAX_BACKUPS )); then
+        print_step "Rotiere alte Backups (behalte ${MAX_BACKUPS})..."
+        local old
+        for old in "${backups[@]:MAX_BACKUPS}"; do
+            rm -rf -- "${old}"
+            print_ok "Gelöscht: ${old}"
+        done
+    fi
 }
 
 # --- docker-compose.yml aktualisieren ----------------------------------------
@@ -318,93 +374,141 @@ update_compose_file() {
     print_ok "docker-compose.yml aktualisiert auf Version ${TARGET_VERSION}."
 }
 
-# --- Images pullen -----------------------------------------------------------
-pull_images() {
-    print_step "Lade neue Images von Docker Hub..."
+# --- Container mit neuer Version starten -------------------------------------
+start_containers() {
+    print_step "Starte Container mit Version ${TARGET_VERSION}..."
     cd "${COMPOSE_DIR}"
-    docker compose pull
-    print_ok "Images erfolgreich geladen."
-}
-
-# --- Container neu starten ---------------------------------------------------
-restart_containers() {
-    print_step "Starte Container neu..."
-    cd "${COMPOSE_DIR}"
-    docker compose down
     docker compose up -d
     print_ok "Container gestartet."
 }
 
-# --- Health Check ------------------------------------------------------------
+# --- Name des n8n-Containers ermitteln ---------------------------------------
+# Sucht im Compose-Projekt den Container, der das n8n-Image nutzt
+# (unabhaengig von container_name / Service-Name).
+get_n8n_container() {
+    (cd "${COMPOSE_DIR}" && docker compose ps -a --format '{{.Name}} {{.Image}}' 2>/dev/null) \
+        | awk -v img="${N8N_IMAGE}:" 'index($2, img) == 1 { print $1; exit }' \
+        || true
+}
+
+# --- Health Check (direkt im Container) --------------------------------------
+# Prueft n8n innerhalb des Containers ueber 127.0.0.1 – unabhaengig von
+# veroeffentlichten Ports, Reverse Proxy, DNS oder TLS. /healthz/readiness ist
+# erst OK, wenn die Datenbank verbunden und migriert ist (Fallback: /healthz).
 health_check() {
     print_step "Warte auf n8n Health Check (max. $((HEALTH_CHECK_RETRIES * HEALTH_CHECK_INTERVAL))s)..."
 
-    local attempt=0
+    local base="http://127.0.0.1:${N8N_INTERNAL_PORT}"
+    local js="const t=()=>AbortSignal.timeout(4000);fetch('${base}/healthz/readiness',{signal:t()}).then(r=>r.status===404?fetch('${base}/healthz',{signal:t()}):r).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+    local attempt=0 container state
     while [[ ${attempt} -lt ${HEALTH_CHECK_RETRIES} ]]; do
         attempt=$(( attempt + 1 ))
-        local http_code
-        http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 "${HEALTH_CHECK_URL}" || echo "000")
 
-        if [[ "${http_code}" == "200" || "${http_code}" == "302" || "${http_code}" == "301" ]]; then
-            print_ok "n8n antwortet (HTTP ${http_code}) – läuft!"
+        container="$(get_n8n_container)"
+        if [[ -n "${container}" ]] && docker exec "${container}" node -e "${js}" >/dev/null 2>&1; then
+            print_ok "n8n ist bereit (Container: ${container})."
             return 0
         fi
 
-        print_info "  Versuch ${attempt}/${HEALTH_CHECK_RETRIES} – HTTP ${http_code}, warte ${HEALTH_CHECK_INTERVAL}s..."
+        if [[ -n "${container}" ]]; then
+            state="$(docker inspect -f '{{.State.Status}}' "${container}" 2>/dev/null || echo "unbekannt")"
+        else
+            state="nicht gefunden"
+        fi
+        print_info "  Versuch ${attempt}/${HEALTH_CHECK_RETRIES} – noch nicht bereit (Container: ${state}), warte ${HEALTH_CHECK_INTERVAL}s..."
         sleep "${HEALTH_CHECK_INTERVAL}"
     done
 
-    print_error "n8n antwortet nicht nach $((HEALTH_CHECK_RETRIES * HEALTH_CHECK_INTERVAL))s."
+    print_error "n8n ist nach $((HEALTH_CHECK_RETRIES * HEALTH_CHECK_INTERVAL))s nicht bereit."
     return 1
+}
+
+# --- Logs der fehlgeschlagenen Version sichern -------------------------------
+save_failed_logs() {
+    local target_dir="${BACKUP_PATH:-${BACKUP_DIR}}"
+    mkdir -p "${target_dir}"
+    FAILED_LOG="${target_dir}/fehlgeschlagen_${TARGET_VERSION}_$(date +%Y%m%d_%H%M%S).log"
+    (cd "${COMPOSE_DIR}" && docker compose logs --no-color --tail 1000) > "${FAILED_LOG}" 2>&1
+    print_warn "Logs der fehlgeschlagenen Version gesichert: ${FAILED_LOG}"
 }
 
 # --- Rollback ----------------------------------------------------------------
 rollback() {
+    trap - ERR
+    set +e
+
     echo ""
     print_error "Fehler aufgetreten – starte Rollback auf Version ${CURRENT_VERSION}..."
 
+    # 1. Logs sichern, solange die Container noch existieren
+    save_failed_logs
+
+    # 2. Container ZUERST stoppen, damit nichts mehr in die Daten schreibt
+    cd "${COMPOSE_DIR}"
+    docker compose down
+    print_warn "Container der Version ${TARGET_VERSION} gestoppt."
+
+    # 3. Compose-Datei zuruecksetzen
     sed -i "s|${N8N_IMAGE}:${TARGET_VERSION}|${N8N_IMAGE}:${CURRENT_VERSION}|g" "${COMPOSE_FILE}"
     sed -i "s|${RUNNERS_IMAGE}:${TARGET_VERSION}|${RUNNERS_IMAGE}:${CURRENT_VERSION}|g" "${COMPOSE_FILE}"
     print_warn "docker-compose.yml zurückgesetzt auf ${CURRENT_VERSION}."
 
-    if [[ -n "${BACKUP_PATH}" && -d "${BACKUP_PATH}" ]]; then
-        rm -rf "${DATA_DIR}"
-        cp -r "${BACKUP_PATH}/n8n_data" "${DATA_DIR}"
-        print_warn "Datensicherung wiederhergestellt."
+    # 4. Daten wiederherstellen: fehlgeschlagenen Stand beiseitelegen (nicht
+    #    loeschen), Backup mit Rechten zurueckkopieren, Besitzer absichern
+    local aside=""
+    if [[ -n "${BACKUP_PATH}" && -d "${BACKUP_PATH}/n8n_data" ]]; then
+        aside="${DATA_DIR}.fehlgeschlagen-$(date +%Y%m%d_%H%M%S)"
+        if [[ -e "${DATA_DIR}" ]]; then
+            mv "${DATA_DIR}" "${aside}"
+            print_warn "Daten der fehlgeschlagenen Version beiseitegelegt: ${aside}"
+        fi
+
+        if cp -a "${BACKUP_PATH}/n8n_data" "${DATA_DIR}" \
+            && chown -R "${N8N_UID}:${N8N_GID}" "${DATA_DIR}"; then
+            print_warn "Datensicherung wiederhergestellt (Besitzer ${N8N_UID}:${N8N_GID})."
+        else
+            print_error "Wiederherstellen der Daten ist fehlgeschlagen!"
+            print_info "  Backup:  ${BACKUP_PATH}/n8n_data"
+            print_info "  Bitte manuell prüfen, bevor n8n gestartet wird."
+            print_info "  Grund für den Fehlschlag: ${FAILED_LOG}"
+            exit 1
+        fi
+    else
+        print_error "Kein Backup gefunden – Daten wurden NICHT zurückgespielt."
     fi
 
-    cd "${COMPOSE_DIR}"
-    docker compose down
+    # 5. Alte Version starten und pruefen, ob sie wirklich laeuft
     docker compose up -d
-    print_warn "Container mit Version ${CURRENT_VERSION} gestartet."
 
     echo ""
-    print_error "Rollback abgeschlossen. Bitte Status manuell prüfen:"
-    print_info "  docker compose -f ${COMPOSE_FILE} logs -f"
+    if health_check; then
+        print_warn "Rollback erfolgreich – n8n läuft wieder mit Version ${CURRENT_VERSION}."
+        [[ -n "${aside}" ]] && print_info "  Nach Prüfung löschbar: ${aside}"
+    else
+        print_error "n8n startet auch nach dem Rollback nicht! Bitte prüfen:"
+        print_info "  cd ${COMPOSE_DIR} && docker compose logs --tail 100"
+    fi
+    print_info "  Grund für den Fehlschlag: ${FAILED_LOG}"
     echo ""
+    exit 1
 }
 
-# --- Aufräumen: alte Images --------------------------------------------------
+# --- Aufräumen: alte Images (Vorversion bleibt fuer Notfaelle) ---------------
 cleanup_images() {
-    print_step "Räume alte Docker Images auf..."
+    print_step "Räume alte Docker Images auf (behalte ${TARGET_VERSION} und ${CURRENT_VERSION})..."
 
-    local cleaned=0
+    local cleaned=0 image tag
 
-    while IFS= read -r tag; do
-        [[ -z "${tag}" || "${tag}" == "${TARGET_VERSION}" ]] && continue
-        if docker rmi "${N8N_IMAGE}:${tag}" 2>/dev/null; then
-            print_ok "Gelöscht: ${N8N_IMAGE}:${tag}"
-            cleaned=$(( cleaned + 1 ))
-        fi
-    done < <(docker images "${N8N_IMAGE}" --format "{{.Tag}}")
-
-    while IFS= read -r tag; do
-        [[ -z "${tag}" || "${tag}" == "${TARGET_VERSION}" ]] && continue
-        if docker rmi "${RUNNERS_IMAGE}:${tag}" 2>/dev/null; then
-            print_ok "Gelöscht: ${RUNNERS_IMAGE}:${tag}"
-            cleaned=$(( cleaned + 1 ))
-        fi
-    done < <(docker images "${RUNNERS_IMAGE}" --format "{{.Tag}}")
+    for image in "${N8N_IMAGE}" "${RUNNERS_IMAGE}"; do
+        while IFS= read -r tag; do
+            [[ -z "${tag}" || "${tag}" == "${TARGET_VERSION}" || "${tag}" == "${CURRENT_VERSION}" ]] && continue
+            if docker rmi "${image}:${tag}" >/dev/null 2>&1; then
+                print_ok "Gelöscht: ${image}:${tag}"
+                cleaned=$(( cleaned + 1 ))
+            fi
+        done < <(docker images "${image}" --format "{{.Tag}}")
+    done
 
     if [[ ${cleaned} -eq 0 ]]; then
         print_info "Keine alten Images gefunden."
@@ -419,7 +523,7 @@ print_summary() {
     echo -e "${BOLD}${GREEN}=============================================${NC}"
     print_info "  Version:  ${CURRENT_VERSION} → ${TARGET_VERSION}"
     print_info "  Backup:   ${BACKUP_PATH}"
-    print_info "  URL:      ${HEALTH_CHECK_URL}"
+    [[ -n "${N8N_URL}" ]] && print_info "  URL:      ${N8N_URL}"
     echo ""
 }
 
@@ -431,23 +535,30 @@ main() {
     check_versions
     ask_version
     confirm_update
+
+    # Bis hier ist nichts veraendert, n8n laeuft weiter
+    pull_images
+
+    # Backup bei gestopptem n8n; bei Fehler n8n unveraendert wieder starten
+    trap 'on_backup_error' ERR
+    stop_containers
     create_backup
 
+    # Ab hier fuehrt jeder Fehler zum Rollback
     trap 'rollback' ERR
 
     update_compose_file
-    pull_images
-    restart_containers
+    start_containers
 
     if ! health_check; then
         rollback
-        exit 1
     fi
 
     trap - ERR
 
-    cleanup_images
     echo "${TARGET_VERSION}" > "${VERSION_FILE}"
+    rotate_backups
+    cleanup_images
     print_summary
 }
 

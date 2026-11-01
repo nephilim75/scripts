@@ -12,7 +12,6 @@ Scripts for the self-hosted [n8n Sandbox Service](https://github.com/n8n-io/n8n-
 
 | Folder | Description |
 |--------|-------------|
-| [fix-npm-cache](fix-npm-cache/README.md) | Fix for the stale npm cache in the official sandbox image (`ETARGET`) |
 | [install](install/README.md) | n8n Sandbox installation script |
 | [uninstall](uninstall/README.md) | n8n Sandbox removal script |
 | [update](update/README.md) | n8n Sandbox update script |

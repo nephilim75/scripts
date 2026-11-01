@@ -263,24 +263,9 @@ docker compose exec sandbox-api wget -qO- http://localhost:8080/healthz
 
 ---
 
-## Troubleshooting
-
-**The assistant reports `ETARGET` / `No matching version found for @n8n/workflow-sdk@…`**
-
-The sandbox starts but its workspace setup fails, so the assistant can't run code or write files. This is a defect in the official sandbox image — it ships with an npm cache baked in at build time, and setup installs with `--prefer-offline`, so any SDK version published after the image was built is invisible. Reported upstream as [n8n-sandbox-service#178](https://github.com/n8n-io/n8n-sandbox-service/issues/178).
-
-Not caused by your installation, and not avoidable by choosing a different image tag. Diagnose and repair it with the [fix-npm-cache script](../fix-npm-cache/README.md):
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/nephilim75/scripts/main/n8n/sandbox/fix-npm-cache/fix-n8n-sandbox-npm-cache.sh) --check-only
-```
-
----
-
 ## References
 
 - [n8n Sandbox update script](../update/README.md)
-- [n8n Sandbox npm cache fix](../fix-npm-cache/README.md)
 - [n8n Sandbox uninstall script](../uninstall/README.md)
 - [n8n Sandbox Service (GitHub)](https://github.com/n8n-io/n8n-sandbox-service)
 - [Configuration Reference](https://github.com/n8n-io/n8n-sandbox-service/blob/main/docs/configuration.md)

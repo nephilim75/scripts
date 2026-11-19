@@ -61,7 +61,7 @@ A directory only counts as a match if it holds a Compose file referencing an `ng
 5. Pulls the target image — this only downloads layers, the running container is not touched
 6. For a floating tag, **stops here if the image ID is unchanged**, without a backup and without a restart
 7. Otherwise shows the summary and asks for confirmation (default answer: no)
-8. Creates a backup of `data/` (including the SQLite database), `letsencrypt/` and the Compose file
+8. Stops NPM and creates a backup of `data/` (including the SQLite database, without `data/logs`), `letsencrypt/` and the Compose file. Stopping first keeps the database copy consistent and prevents tar from aborting on log files that change while it reads them. If the backup fails, NPM is started again unchanged and the update stops
 9. For a version change, sets the new tag in the Compose file's `image:` line — nothing else in the file is touched
 10. Recreates the container with `--force-recreate` — this is what forces major jumps through. If the container does not come up, the previous Compose file is restored and started again
 11. Keeps only the **5 most recent** backups (configurable via `--keep`), removes the old NPM image after a version change and prunes dangling images
@@ -163,7 +163,7 @@ For a pinned installation this means: every run moves to the **newest release on
 
 ## Backups
 
-Backups live in `backups/` inside the install directory, named `npm_YYYY-MM-DD_HH-MM-SS.tar.gz`, each containing `data/`, `letsencrypt/` and the Compose file — so a rollback also restores the previous version pin. The [installer](../install/README.md#reinstalling-over-an-existing-instance) writes its pre-reinstall archives (`npm_<timestamp>_pre-reinstall.tar.gz`, `npm_<timestamp>_old-install.tar.gz`) in the same format; they count towards `--keep` and are rotated like any other backup.
+Backups live in `backups/` inside the install directory, named `npm_YYYY-MM-DD_HH-MM-SS.tar.gz`, each containing `data/` (without `data/logs`), `letsencrypt/` and the Compose file, readable by root only — so a rollback also restores the previous version pin. The [installer](../install/README.md#reinstalling-over-an-existing-instance) writes its pre-reinstall archives (`npm_<timestamp>_pre-reinstall.tar.gz`, `npm_<timestamp>_old-install.tar.gz`) in the same format; they count towards `--keep` and are rotated like any other backup.
 
 Inspect one without extracting:
 

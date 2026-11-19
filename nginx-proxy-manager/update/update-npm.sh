@@ -517,7 +517,7 @@ echo -e " ${BOLD}NACHHER${RESET}    ${GREEN}${NEW_IMAGE}${RESET}  ${GREEN}${NEW_
 echo ""
 echo -e " ${BOLD}Es wird:${RESET}"
 if [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]]; then
-  echo -e "   1. ${BACKUP_ITEMS[*]} gesichert nach ${CYAN}$(basename "${BACKUP_FILE}")${RESET}"
+  echo -e "   1. NPM gestoppt, ${BACKUP_ITEMS[*]} (ohne data/logs) gesichert nach ${CYAN}$(basename "${BACKUP_FILE}")${RESET}"
 else
   echo -e "   1. ${YELLOW}kein Backup erstellt${RESET} (weder data/ noch letsencrypt/ vorhanden)"
 fi
@@ -563,10 +563,24 @@ echo -e "${BOLD} Durchfuehrung${RESET}"
 echo "------------------------------------------------------------"
 
 if [[ "${#BACKUP_ITEMS[@]}" -gt 0 ]]; then
-  info "Erstelle Backup von: ${BACKUP_ITEMS[*]}"
+  # NPM vor dem Backup stoppen: Laeuft er weiter, aendern sich Logs und die
+  # SQLite-DB, waehrend tar liest. tar meldet das als Fehler ("file changed as
+  # we read it"), set -e bricht das Update dann ab, und die DB-Kopie waere nicht
+  # sicher konsistent. Der Container wird direkt danach ohnehin neu erstellt.
+  info "Stoppe NPM fuer ein sauberes Backup..."
+  ${COMPOSE_CMD} -f "${COMPOSE_FILE}" stop
+  info "Erstelle Backup von: ${BACKUP_ITEMS[*]} (ohne data/logs)"
   mkdir -p "${BACKUP_DIR}"
   # -C: relative Pfade im Archiv, unabhaengig vom Arbeitsverzeichnis.
-  tar czf "${BACKUP_FILE}" -C "${INSTALL_DIR}" "${BACKUP_ITEMS[@]}"
+  # data/logs wird fuer einen Wiederaufbau nicht gebraucht.
+  if ! tar czf "${BACKUP_FILE}" --exclude='data/logs' -C "${INSTALL_DIR}" "${BACKUP_ITEMS[@]}"; then
+    rm -f "${BACKUP_FILE}"
+    warn "Backup fehlgeschlagen - starte NPM unveraendert wieder."
+    ${COMPOSE_CMD} -f "${COMPOSE_FILE}" start || true
+    die "Update abgebrochen, es wurde nichts veraendert."
+  fi
+  # Das Archiv enthaelt die privaten Zertifikatsschluessel.
+  chmod 600 "${BACKUP_FILE}"
   success "Backup erstellt: $(basename "${BACKUP_FILE}") ($(du -h "${BACKUP_FILE}" | cut -f1))"
 fi
 

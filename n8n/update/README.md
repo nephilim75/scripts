@@ -31,11 +31,12 @@ update, health check and automatic rollback on failure.
 
 ## Why this script?
 
-- checks that `n8n` and `runners` images are version-synced before touching anything
+- suggests only the current **stable** n8n release (Docker Hub tag `stable`) — betas and release candidates are never offered by default
+- checks that the matching `runners` image exists before touching anything
 - pulls the new images first, while n8n keeps running — a failed download changes nothing
 - stops n8n before the backup, so the SQLite database is copied in a consistent state
 - creates a full backup (data + `docker-compose.yml` + `.env`) that keeps file owners and permissions (`cp -a`)
-- lets you pick any target version, including an older one, to downgrade
+- lets you pick any target version; betas/release candidates, downgrades and major-version jumps (e.g. 2.x → 3.x) need an extra confirmation
 - checks health **inside the container** (`/healthz/readiness`) — independent of ports, reverse proxy, DNS or TLS
 - rolls back automatically on failure: saves the logs of the failed version, stops the containers first, moves the failed data aside instead of deleting it, restores the backup with the correct owner, and verifies that n8n really runs again
 - rotates old backups and removes old images only after a successful update; the previous version's image is kept for emergencies
@@ -47,8 +48,8 @@ update, health check and automatic rollback on failure.
 ## What it does
 
 1. Asks for your installation folder (`COMPOSE_DIR`, default `/opt/n8n`) and reads the current image versions from `docker-compose.yml`
-2. Fetches the latest `n8n`/`runners` versions from Docker Hub – aborts if they're out of sync
-3. Prompts for the target version (default: latest available) and confirms it exists for both images
+2. Determines the current stable `n8n` version (the version behind Docker Hub's `stable` tag) and checks that `runners` has the same version – aborts otherwise
+3. Prompts for the target version (default: current stable; no default if your installed version is newer than stable), warns and asks again for betas/release candidates, downgrades and major-version jumps, and confirms the version exists for both images
 4. Pulls the new images while n8n keeps running
 5. Stops the containers and creates a backup (`n8n_data/`, `docker-compose.yml`, `.env`) with owners and permissions preserved – if the backup fails, n8n is started again unchanged
 6. Updates `docker-compose.yml` and starts the containers with the new version

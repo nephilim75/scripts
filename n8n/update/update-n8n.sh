@@ -161,16 +161,64 @@ resolve_compose_dir() {
     N8N_URL="$(sed -nE "s/.*WEBHOOK_URL[[:space:]]*[=:][[:space:]]*[\"']?([^\"'[:space:]]+).*/\1/p" "${COMPOSE_FILE}" | head -1 || true)"
 }
 
-# --- Docker Hub: neueste Version ermitteln -----------------------------------
-get_latest_version() {
+# --- Versionen vergleichen: ist $1 neuer als $2? -----------------------------
+version_gt() {
+    [[ "$1" != "$2" ]] \
+        && [[ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" == "$1" ]]
+}
+
+# --- Docker Registry: stabile Version ermitteln ------------------------------
+# Betas und Release Candidates von n8n haben dieselbe Nummernform (x.y.z) wie
+# stabile Versionen. "Hoechste Nummer" reicht deshalb nicht. Massgeblich ist der
+# Tag "stable": Gesucht wird die x.y.z-Version mit demselben Image-Digest.
+# Abfragen per HEAD auf die Registry zaehlen nicht gegen das Pull-Limit.
+REGISTRY_ACCEPT="application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json"
+
+registry_token() {
     local image=$1
-    curl -s --max-time 10 \
-        "https://hub.docker.com/v2/repositories/${image}/tags?page_size=100&ordering=last_updated" \
-        | grep -o '"name":"[0-9]*\.[0-9]*\.[0-9]*"' \
-        | grep -o '[0-9]*\.[0-9]*\.[0-9]*' \
-        | awk -F. '$1 >= 2' \
-        | sort -t. -k1,1n -k2,2n -k3,3n \
-        | tail -1
+    curl -fsS --max-time 10 \
+        "https://auth.docker.io/token?service=registry.docker.io&scope=repository:${image}:pull" \
+        | sed -nE 's/.*"token"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/p'
+}
+
+registry_digest() {
+    local image=$1 tag=$2 token=$3
+    curl -fsSI --max-time 10 \
+        -H "Authorization: Bearer ${token}" \
+        -H "Accept: ${REGISTRY_ACCEPT}" \
+        "https://registry-1.docker.io/v2/${image}/manifests/${tag}" \
+        | tr -d '\r' \
+        | sed -nE 's/^[Dd]ocker-[Cc]ontent-[Dd]igest:[[:space:]]*(.+)$/\1/p'
+}
+
+get_stable_version() {
+    local image=$1
+    local token stable_digest candidate digest checked=0
+
+    token="$(registry_token "${image}")" || return 0
+    [[ -n "${token}" ]] || return 0
+    stable_digest="$(registry_digest "${image}" stable "${token}")" || return 0
+    [[ -n "${stable_digest}" ]] || return 0
+
+    # Alle x.y.z-Tags absteigend; die stabile Version steht weit oben
+    # (darueber hoechstens Betas/RCs). Nach 50 Kandidaten wird abgebrochen.
+    while IFS= read -r candidate; do
+        checked=$(( checked + 1 ))
+        if (( checked > 50 )); then
+            break
+        fi
+        digest="$(registry_digest "${image}" "${candidate}" "${token}" || true)"
+        if [[ "${digest}" == "${stable_digest}" ]]; then
+            echo "${candidate}"
+            return 0
+        fi
+    done < <(curl -fsS --max-time 20 \
+                -H "Authorization: Bearer ${token}" \
+                "https://registry-1.docker.io/v2/${image}/tags/list?n=10000" 2>/dev/null \
+            | grep -oE '"[0-9]+\.[0-9]+\.[0-9]+"' \
+            | tr -d '"' \
+            | sort -V -r)
+    return 0
 }
 
 # --- Docker Hub: prüfen ob Version existiert ---------------------------------
@@ -184,33 +232,28 @@ check_image_version_exists() {
 
 # --- Voraussetzung: Versions-Prüfung -----------------------------------------
 check_versions() {
-    print_step "Prüfe verfügbare Versionen auf Docker Hub..."
+    print_step "Ermittle die aktuelle stabile Version auf Docker Hub..."
 
-    local n8n_latest runners_latest
-    n8n_latest=$(get_latest_version "${N8N_IMAGE}")
-    runners_latest=$(get_latest_version "${RUNNERS_IMAGE}")
+    local n8n_stable runners_check
+    n8n_stable="$(get_stable_version "${N8N_IMAGE}")"
 
-    if [[ -z "${n8n_latest}" ]]; then
-        print_error "Konnte neueste Version von ${N8N_IMAGE} nicht ermitteln."
+    if [[ -z "${n8n_stable}" ]]; then
+        print_error "Konnte die stabile Version von ${N8N_IMAGE} nicht ermitteln."
+        print_info "Docker Hub nicht erreichbar oder Tag 'stable' nicht gefunden."
         exit 1
     fi
 
-    if [[ -z "${runners_latest}" ]]; then
-        print_error "Konnte neueste Version von ${RUNNERS_IMAGE} nicht ermitteln."
+    print_info "Stabile Version ${N8N_IMAGE}: ${BOLD}${n8n_stable}${NC}"
+
+    runners_check=$(check_image_version_exists "${RUNNERS_IMAGE}" "${n8n_stable}")
+    if [[ "${runners_check}" -eq 0 ]]; then
+        print_error "${RUNNERS_IMAGE}:${n8n_stable} gibt es (noch) nicht auf Docker Hub."
+        print_error "Update abgebrochen – bitte warten, bis beide Images verfügbar sind."
         exit 1
     fi
 
-    print_info "Neueste ${N8N_IMAGE}:     ${BOLD}${n8n_latest}${NC}"
-    print_info "Neueste ${RUNNERS_IMAGE}: ${BOLD}${runners_latest}${NC}"
-
-    if [[ "${n8n_latest}" != "${runners_latest}" ]]; then
-        print_error "Versionen sind NICHT synchron (n8n: ${n8n_latest} / runners: ${runners_latest})."
-        print_error "Update abgebrochen – bitte warten bis beide Images synchron sind."
-        exit 1
-    fi
-
-    print_ok "Beide Images sind synchron auf Version ${n8n_latest}."
-    LATEST_VERSION="${n8n_latest}"
+    print_ok "${RUNNERS_IMAGE}:${n8n_stable} ist ebenfalls verfügbar."
+    LATEST_VERSION="${n8n_stable}"
 }
 
 # --- Aktuelle Version aus docker-compose.yml lesen ---------------------------
@@ -231,25 +274,81 @@ ask_version() {
 
     echo ""
     print_info "Aktuell installierte Version: ${BOLD}${current_version}${NC}"
-    print_info "Neueste verfügbare Version:   ${BOLD}${LATEST_VERSION}${NC}"
+    print_info "Aktuelle stabile Version:     ${BOLD}${LATEST_VERSION}${NC}"
     echo ""
 
+    local default_version="${LATEST_VERSION}"
+
     if [[ "${current_version}" == "${LATEST_VERSION}" ]]; then
-        print_warn "Du bist bereits auf der neuesten Version (${current_version})."
+        print_warn "Du bist bereits auf der aktuellen stabilen Version (${current_version})."
         read -rp "  Trotzdem fortfahren? (j/N): " confirm
+        if [[ ! "${confirm}" =~ ^[jJ]$ ]]; then
+            print_info "Abgebrochen."
+            exit 0
+        fi
+    elif version_gt "${current_version}" "${LATEST_VERSION}"; then
+        print_warn "Installiert ist ${current_version} – neuer als die stabile Version ${LATEST_VERSION}"
+        print_warn "(vermutlich eine Beta oder ein Release Candidate)."
+        print_warn "Empfehlung: warten, bis eine stabile Version ≥ ${current_version} erscheint."
+        default_version=""
+    fi
+
+    echo ""
+    if [[ -n "${default_version}" ]]; then
+        read -rp "  Auf welche Version updaten? [${default_version}]: " TARGET_VERSION
+        TARGET_VERSION="${TARGET_VERSION:-${default_version}}"
+    else
+        read -rp "  Auf welche Version updaten? (leer = abbrechen): " TARGET_VERSION
+        if [[ -z "${TARGET_VERSION}" ]]; then
+            print_info "Abgebrochen."
+            exit 0
+        fi
+    fi
+
+    if [[ ! "${TARGET_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        print_error "Ungültige Version '${TARGET_VERSION}' (erwartet z.B. 2.45.3)."
+        exit 1
+    fi
+
+    # Neuer als "stable": Beta oder Release Candidate
+    if version_gt "${TARGET_VERSION}" "${LATEST_VERSION}"; then
+        echo ""
+        print_warn "${TARGET_VERSION} ist neuer als die stabile Version ${LATEST_VERSION}."
+        print_warn "Das ist sehr wahrscheinlich eine Beta oder ein Release Candidate –"
+        print_warn "nicht für den produktiven Einsatz gedacht."
+        read -rp "  Trotzdem diese Version installieren? (j/N): " confirm
         if [[ ! "${confirm}" =~ ^[jJ]$ ]]; then
             print_info "Abgebrochen."
             exit 0
         fi
     fi
 
-    echo ""
-    read -rp "  Auf welche Version updaten? [${LATEST_VERSION}]: " TARGET_VERSION
-    TARGET_VERSION="${TARGET_VERSION:-${LATEST_VERSION}}"
+    # Aelter als installiert: Downgrade
+    if version_gt "${current_version}" "${TARGET_VERSION}"; then
+        echo ""
+        print_warn "Downgrade: ${current_version} → ${TARGET_VERSION}."
+        print_warn "Hat die neuere Version die Datenbank bereits migriert, startet die"
+        print_warn "ältere Version danach unter Umständen nicht. Sicherer Weg zurück:"
+        print_warn "ein Backup von vor dem Update einspielen (siehe README)."
+        read -rp "  Downgrade trotzdem durchführen? (j/N): " confirm
+        if [[ ! "${confirm}" =~ ^[jJ]$ ]]; then
+            print_info "Abgebrochen."
+            exit 0
+        fi
+    fi
 
-    if [[ ! "${TARGET_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-        print_error "Ungültige Version '${TARGET_VERSION}' (erwartet z.B. 2.45.3)."
-        exit 1
+    # Neue Hauptversion (z.B. 2.x → 3.x)
+    if (( ${TARGET_VERSION%%.*} > ${current_version%%.*} )); then
+        echo ""
+        print_warn "Major-Update: ${current_version} → ${TARGET_VERSION}."
+        print_warn "Neue Hauptversionen können Änderungen enthalten, die bestehende"
+        print_warn "Workflows betreffen. Vorher die Release Notes lesen:"
+        print_info "  https://docs.n8n.io/release-notes/"
+        read -rp "  Major-Update wirklich durchführen? (j/N): " confirm
+        if [[ ! "${confirm}" =~ ^[jJ]$ ]]; then
+            print_info "Abgebrochen."
+            exit 0
+        fi
     fi
 
     print_step "Prüfe ob Version ${TARGET_VERSION} auf Docker Hub existiert..."

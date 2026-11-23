@@ -32,7 +32,7 @@ Clears the screen, locates your installation and prints a summary of what it fou
 
 The manual route is three commands (`git pull`, `docker compose pull`, `docker compose up -d`), and all three have sharp edges on a LibreChat installation:
 
-- `git pull` on the installer's shallow clone silently turns into a merge commit if anything local was touched — this script uses `merge --ff-only` and skips the repository entirely when tracked files are modified, rather than leaving a half-merged checkout behind
+- `git pull` on the installer's shallow clone silently turns into a merge commit if anything local was touched — this script skips the repository entirely when tracked files are modified, and then moves to the new commit with `reset --keep` on a shallow clone (a plain `merge --ff-only` always fails there with "unrelated histories") or `merge --ff-only` on a full clone — never a half-merged checkout
 - a plain `docker compose up -d` from the wrong directory ignores `docker-compose.override.yml` and **re-opens the host ports** the installer deliberately closed; every Compose call here runs from the install directory, so the override is always in effect
 - after a repository update, the new `docker-compose.yml` may not match your override anymore — the configuration is validated **before** the restart, not during it
 - there is no undo for a bad update unless somebody made a backup first, so one is taken automatically: config files plus a hot `mongodump`, with no downtime
@@ -51,7 +51,7 @@ The manual route is three commands (`git pull`, `docker compose pull`, `docker c
 7. Exits with `NOCHANGE` if neither repository nor images moved
 8. Asks how many backups to keep, lists what it is about to do, and asks for confirmation (default: no)
 9. Creates the backup archive: config files plus `mongodump --archive --gzip` of the `LibreChat` database, plus a `manifest.txt`
-10. Runs `git merge --ff-only`, then validates the Compose configuration, then `docker compose up -d`
+10. Updates the repository (`git reset --keep` on a shallow clone, after checking there are no local commits; `git merge --ff-only` on a full clone), then validates the Compose configuration, then `docker compose up -d`
 11. Keeps the newest backups as answered above, prunes dangling images
 12. Reports leftovers it deliberately does not delete — e.g. a `meili_data_*` directory orphaned by a Meilisearch version bump
 

@@ -448,7 +448,7 @@ if [[ "${DB_DUMP}" -eq 1 ]]; then
 else
   echo -e "   2. Backup: ${CONFIG_ITEMS[*]:-Konfiguration} ${YELLOW}(ohne Datenbank-Dump: ${DB_DUMP_REASON})${RESET}"
 fi
-echo "   3. Repository per 'git merge --ff-only' aktualisieren"
+echo "   3. Repository aktualisieren (flacher Klon: 'git reset --keep', sonst 'git merge --ff-only')"
 echo "   4. Compose-Konfiguration pruefen und den Stack neu hochfahren"
 echo "   5. Alte Backups entfernen, dangling Images aufraeumen"
 
@@ -493,9 +493,11 @@ LC_VER_NEW="${LC_VER_NOW}"
 GIT_NEW=""
 GIT_NEW_DATE=""
 GIT_CHANGED=0
+GIT_SHALLOW=0
 if [[ "${GIT_OK}" -eq 1 && -z "${GIT_DIRTY}" ]]; then
   info "Repository (git fetch)..."
   if [[ "$(git -C "${INSTALL_DIR}" rev-parse --is-shallow-repository 2>/dev/null || echo false)" == "true" ]]; then
+    GIT_SHALLOW=1
     run git -C "${INSTALL_DIR}" fetch --depth=1 origin "${GIT_BRANCH}"
   else
     run git -C "${INSTALL_DIR}" fetch origin "${GIT_BRANCH}"
@@ -663,7 +665,7 @@ else
   echo -e "   1. ${YELLOW}kein Backup erstellt${RESET} (keine Konfiguration gefunden, kein Dump moeglich)"
 fi
 if [[ "${GIT_CHANGED}" -eq 1 ]]; then
-  echo -e "   2. das Repository per ${CYAN}merge --ff-only${RESET} auf ${GIT_NEW:0:7} gebracht"
+  echo -e "   2. das Repository per ${CYAN}$([[ "${GIT_SHALLOW}" -eq 1 ]] && echo "reset --keep" || echo "merge --ff-only")${RESET} auf ${GIT_NEW:0:7} gebracht"
 else
   echo -e "   2. das Repository nicht angefasst"
 fi
@@ -737,11 +739,31 @@ if [[ "${#CONFIG_ITEMS[@]}" -gt 0 || "${DB_DUMP}" -eq 1 ]]; then
 fi
 
 if [[ "${GIT_CHANGED}" -eq 1 ]]; then
-  info "Aktualisiere das Repository (merge --ff-only)..."
-  # --ff-only statt 'git pull': schlaegt sauber fehl, statt bei lokalen Commits
-  # einen Merge-Commit oder Konflikte im Installationsverzeichnis zu erzeugen.
-  if ! git -C "${INSTALL_DIR}" merge --ff-only FETCH_HEAD; then
-    error "Fast-Forward nicht moeglich - das Repository wurde nicht veraendert."
+  if [[ "${GIT_SHALLOW}" -eq 1 ]]; then
+    # Flacher Klon (Standard beim Installer): alter und neuer Stand haben keine
+    # gemeinsame Geschichte, 'merge --ff-only' scheitert dann immer mit
+    # "refusing to merge unrelated histories". 'reset --keep' setzt auf den
+    # neuen Stand und bricht ab, statt lokale Aenderungen zu ueberschreiben
+    # (geaenderte Dateien wurden oben schon ausgeschlossen). Lokale Commits
+    # wuerde es verwerfen - deshalb vorher pruefen: Ohne lokale Commits ist HEAD
+    # selbst die Grenze des flachen Klons und steht in .git/shallow.
+    SHALLOW_FILE="$(git -C "${INSTALL_DIR}" rev-parse --git-path shallow)"
+    [[ "${SHALLOW_FILE}" == /* ]] || SHALLOW_FILE="${INSTALL_DIR}/${SHALLOW_FILE}"
+    if ! grep -qx "$(git -C "${INSTALL_DIR}" rev-parse HEAD)" "${SHALLOW_FILE}" 2>/dev/null; then
+      error "Lokale Commits im Repository gefunden - das Repository wurde nicht veraendert."
+      error "Bitte manuell pruefen: git -C ${INSTALL_DIR} log -3"
+      die "Abbruch vor dem Neustart. Das Backup liegt unter ${BACKUP_FILE:-<keines>}."
+    fi
+    info "Aktualisiere das Repository (flacher Klon: reset --keep)..."
+    GIT_UPDATE_CMD=(reset --keep FETCH_HEAD)
+  else
+    info "Aktualisiere das Repository (merge --ff-only)..."
+    # --ff-only statt 'git pull': schlaegt sauber fehl, statt bei lokalen Commits
+    # einen Merge-Commit oder Konflikte im Installationsverzeichnis zu erzeugen.
+    GIT_UPDATE_CMD=(merge --ff-only FETCH_HEAD)
+  fi
+  if ! git -C "${INSTALL_DIR}" "${GIT_UPDATE_CMD[@]}"; then
+    error "Repository-Update nicht moeglich - das Repository wurde nicht veraendert."
     error "Bitte manuell pruefen: git -C ${INSTALL_DIR} status"
     die "Abbruch vor dem Neustart. Das Backup liegt unter ${BACKUP_FILE:-<keines>}."
   fi
